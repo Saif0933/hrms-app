@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createNativeStackNavigator, NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useTheme } from '../context/ThemeContext';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { MenuScreen } from '../screens/MenuScreen';
 
@@ -18,6 +21,29 @@ import { BulkImportsScreen } from '../screens/employee/BulkImportsScreen';
 import { RolePermissionsScreen } from '../screens/employee/RolePermissionsScreen';
 import { DepartmentsScreen } from '../screens/employee/DepartmentsScreen';
 
+// Attendance Screens
+import { GpsSelfiePunchScreen } from '../screens/attendance/GpsSelfiePunchScreen';
+import { ShiftRosterScreen } from '../screens/attendance/ShiftRosterScreen';
+import { AttendanceRegularizationScreen } from '../screens/attendance/AttendanceRegularizationScreen';
+import { MusterRollScreen } from '../screens/attendance/MusterRollScreen';
+import { AttendanceReportsScreen } from '../screens/attendance/AttendanceReportsScreen';
+import { GeofencingConfigScreen } from '../screens/attendance/GeofencingConfigScreen';
+
+// Leave Screens
+import { ApplyLeaveScreen } from '../screens/leave/ApplyLeaveScreen';
+import { LeaveApprovalsScreen } from '../screens/leave/LeaveApprovalsScreen';
+import { LeaveCalendarScreen } from '../screens/leave/LeaveCalendarScreen';
+import { LeavePoliciesScreen } from '../screens/leave/LeavePoliciesScreen';
+import { LeaveConfigurationsScreen } from '../screens/leave/LeaveConfigurationsScreen';
+
+// Payroll Screens
+import { SalaryProcessingScreen } from '../screens/payroll/SalaryProcessingScreen';
+import { SalaryRevisionsScreen } from '../screens/payroll/SalaryRevisionsScreen';
+import { LoansAdvancesScreen } from '../screens/payroll/LoansAdvancesScreen';
+import { InvestmentDeclarationsScreen } from '../screens/payroll/InvestmentDeclarationsScreen';
+import { PayslipTemplatesScreen } from '../screens/payroll/PayslipTemplatesScreen';
+import { PayrollReportsScreen } from '../screens/payroll/PayrollReportsScreen';
+
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -32,6 +58,29 @@ export type RootStackParamList = {
   BulkImports: undefined;
   RolePermissions: undefined;
   Departments: undefined;
+
+  // Attendance Routes
+  GpsSelfiePunch: undefined;
+  ShiftRoster: undefined;
+  AttendanceRegularization: undefined;
+  MusterRoll: undefined;
+  AttendanceReports: undefined;
+  GeofencingConfig: undefined;
+
+  // Leave Routes
+  ApplyLeave: undefined;
+  LeaveApprovals: undefined;
+  LeaveCalendar: undefined;
+  LeavePolicies: undefined;
+  LeaveConfigurations: undefined;
+
+  // Payroll Routes
+  SalaryProcessing: undefined;
+  SalaryRevisions: undefined;
+  LoansAdvances: undefined;
+  InvestmentDeclarations: undefined;
+  PayslipTemplates: undefined;
+  PayrollReports: undefined;
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<
@@ -42,9 +91,36 @@ export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeSta
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const AppStackNavigator = () => {
+  const [initialRoute, setInitialRoute] = useState<keyof RootStackParamList | null>(null);
+  const { colors } = useTheme();
+
+  useEffect(() => {
+    const checkAuthToken = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (token) {
+          setInitialRoute('Dashboard');
+        } else {
+          setInitialRoute('Login');
+        }
+      } catch (err) {
+        setInitialRoute('Login');
+      }
+    };
+    checkAuthToken();
+  }, []);
+
+  if (!initialRoute) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.accent} />
+      </View>
+    );
+  }
+
   return (
     <Stack.Navigator
-      initialRouteName="Login"
+      initialRouteName={initialRoute}
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
@@ -114,6 +190,97 @@ export const AppStackNavigator = () => {
         name="Departments"
         component={DepartmentsScreen}
         options={{ title: 'Departments' }}
+      />
+
+      {/* Attendance Stack Screens */}
+      <Stack.Screen
+        name="GpsSelfiePunch"
+        component={GpsSelfiePunchScreen}
+        options={{ title: 'GPS & Selfie Punch' }}
+      />
+      <Stack.Screen
+        name="ShiftRoster"
+        component={ShiftRosterScreen}
+        options={{ title: 'Shift & Roster' }}
+      />
+      <Stack.Screen
+        name="AttendanceRegularization"
+        component={AttendanceRegularizationScreen}
+        options={{ title: 'Regularization' }}
+      />
+      <Stack.Screen
+        name="MusterRoll"
+        component={MusterRollScreen}
+        options={{ title: 'Muster Roll & Calendar' }}
+      />
+      <Stack.Screen
+        name="AttendanceReports"
+        component={AttendanceReportsScreen}
+        options={{ title: 'Attendance Reports' }}
+      />
+      <Stack.Screen
+        name="GeofencingConfig"
+        component={GeofencingConfigScreen}
+        options={{ title: 'Geofencing Config' }}
+      />
+
+      {/* Leave Stack Screens */}
+      <Stack.Screen
+        name="ApplyLeave"
+        component={ApplyLeaveScreen}
+        options={{ title: 'Apply Leave' }}
+      />
+      <Stack.Screen
+        name="LeaveApprovals"
+        component={LeaveApprovalsScreen}
+        options={{ title: 'Leave Approvals' }}
+      />
+      <Stack.Screen
+        name="LeaveCalendar"
+        component={LeaveCalendarScreen}
+        options={{ title: 'Leave Calendar' }}
+      />
+      <Stack.Screen
+        name="LeavePolicies"
+        component={LeavePoliciesScreen}
+        options={{ title: 'Leave Policies' }}
+      />
+      <Stack.Screen
+        name="LeaveConfigurations"
+        component={LeaveConfigurationsScreen}
+        options={{ title: 'Leave Configurations' }}
+      />
+
+      {/* Payroll Stack Screens */}
+      <Stack.Screen
+        name="SalaryProcessing"
+        component={SalaryProcessingScreen}
+        options={{ title: 'Salary Processing' }}
+      />
+      <Stack.Screen
+        name="SalaryRevisions"
+        component={SalaryRevisionsScreen}
+        options={{ title: 'Salary Revisions' }}
+      />
+      <Stack.Screen
+        name="LoansAdvances"
+        component={LoansAdvancesScreen}
+        options={{ title: 'Loans & Advances' }}
+      />
+      <Stack.Screen
+        name="InvestmentDeclarations"
+        component={InvestmentDeclarationsScreen}
+        options={{ title: 'Investment Declarations' }}
+      />
+      <Stack.Screen
+        name="PayslipTemplates"
+        component={PayslipTemplatesScreen}
+        options={{ title: 'Payslip Templates' }}
+      />
+      <Stack.Screen
+        name="PayrollReports"
+        component={PayrollReportsScreen}
+        options={{ title: 'Payroll Reports & ECR' }}
       />
     </Stack.Navigator>
   );

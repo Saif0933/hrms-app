@@ -190,6 +190,81 @@ export const MenuScreen: React.FC = () => {
           break;
       }
     }
+
+    if (itemId === 'attendance') {
+      switch (subItemId) {
+        case 'punch':
+          navigation.navigate('GpsSelfiePunch');
+          break;
+        case 'roster':
+          navigation.navigate('ShiftRoster');
+          break;
+        case 'regularize':
+          navigation.navigate('AttendanceRegularization');
+          break;
+        case 'muster':
+          navigation.navigate('MusterRoll');
+          break;
+        case 'reports':
+          navigation.navigate('AttendanceReports');
+          break;
+        case 'geofence':
+          navigation.navigate('GeofencingConfig');
+          break;
+        default:
+          navigation.navigate('GpsSelfiePunch');
+          break;
+      }
+    }
+
+    if (itemId === 'leave') {
+      switch (subItemId) {
+        case 'apply':
+          navigation.navigate('ApplyLeave');
+          break;
+        case 'approvals':
+          navigation.navigate('LeaveApprovals');
+          break;
+        case 'calendar':
+          navigation.navigate('LeaveCalendar');
+          break;
+        case 'policies':
+          navigation.navigate('LeavePolicies');
+          break;
+        case 'admin':
+          navigation.navigate('LeaveConfigurations');
+          break;
+        default:
+          navigation.navigate('ApplyLeave');
+          break;
+      }
+    }
+
+    if (itemId === 'payroll') {
+      switch (subItemId) {
+        case 'process':
+          navigation.navigate('SalaryProcessing');
+          break;
+        case 'revisions':
+          navigation.navigate('SalaryRevisions');
+          break;
+        case 'loans':
+          navigation.navigate('LoansAdvances');
+          break;
+        case 'investment':
+          navigation.navigate('InvestmentDeclarations');
+          break;
+        case 'payslips':
+          navigation.navigate('PayslipTemplates');
+          break;
+        case 'reports':
+          navigation.navigate('PayrollReports');
+          break;
+        default:
+          navigation.navigate('SalaryProcessing');
+          break;
+      }
+    }
   };
 
   const filteredMenuItems = menuItems.filter(item => {
