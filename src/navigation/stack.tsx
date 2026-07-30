@@ -44,6 +44,21 @@ import { InvestmentDeclarationsScreen } from '../screens/payroll/InvestmentDecla
 import { PayslipTemplatesScreen } from '../screens/payroll/PayslipTemplatesScreen';
 import { PayrollReportsScreen } from '../screens/payroll/PayrollReportsScreen';
 
+// Performance Screens
+import { KraGoalSettingScreen } from '../screens/performance/KraGoalSettingScreen';
+import { Feedback360Screen } from '../screens/performance/Feedback360Screen';
+import { BellCurveAnalyticsScreen } from '../screens/performance/BellCurveAnalyticsScreen';
+
+// Engagement Screens
+import { SocialFeedScreen } from '../screens/engagement/SocialFeedScreen';
+import { MoodAnalysisScreen } from '../screens/engagement/MoodAnalysisScreen';
+import { SurveysFeedbackScreen } from '../screens/engagement/SurveysFeedbackScreen';
+
+// Travel & Claims Screens
+import { NewTravelRequestScreen } from '../screens/traveclims/NewTravelRequestScreen';
+import { ExpenseReimbursementsScreen } from '../screens/traveclims/ExpenseReimbursementsScreen';
+import { ClaimApprovalsScreen } from '../screens/traveclims/ClaimApprovalsScreen';
+
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -81,6 +96,21 @@ export type RootStackParamList = {
   InvestmentDeclarations: undefined;
   PayslipTemplates: undefined;
   PayrollReports: undefined;
+
+  // Performance Routes
+  KraGoalSetting: undefined;
+  Feedback360: undefined;
+  BellCurveAnalytics: undefined;
+
+  // Engagement Routes
+  SocialFeed: undefined;
+  MoodAnalysis: undefined;
+  SurveysFeedback: undefined;
+
+  // Travel & Claims Routes
+  NewTravelRequest: undefined;
+  ExpenseReimbursements: undefined;
+  ClaimApprovals: undefined;
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<
@@ -281,6 +311,57 @@ export const AppStackNavigator = () => {
         name="PayrollReports"
         component={PayrollReportsScreen}
         options={{ title: 'Payroll Reports & ECR' }}
+      />
+
+      {/* Performance Stack Screens */}
+      <Stack.Screen
+        name="KraGoalSetting"
+        component={KraGoalSettingScreen}
+        options={{ title: 'KRA & Goal Setting' }}
+      />
+      <Stack.Screen
+        name="Feedback360"
+        component={Feedback360Screen}
+        options={{ title: '360° Feedback' }}
+      />
+      <Stack.Screen
+        name="BellCurveAnalytics"
+        component={BellCurveAnalyticsScreen}
+        options={{ title: 'Bell Curve Analytics' }}
+      />
+
+      {/* Engagement Stack Screens */}
+      <Stack.Screen
+        name="SocialFeed"
+        component={SocialFeedScreen}
+        options={{ title: 'Social Feed & Posts' }}
+      />
+      <Stack.Screen
+        name="MoodAnalysis"
+        component={MoodAnalysisScreen}
+        options={{ title: 'Mood Analysis' }}
+      />
+      <Stack.Screen
+        name="SurveysFeedback"
+        component={SurveysFeedbackScreen}
+        options={{ title: 'Surveys & Feedback' }}
+      />
+
+      {/* Travel & Claims Stack Screens */}
+      <Stack.Screen
+        name="NewTravelRequest"
+        component={NewTravelRequestScreen}
+        options={{ title: 'New Travel Request' }}
+      />
+      <Stack.Screen
+        name="ExpenseReimbursements"
+        component={ExpenseReimbursementsScreen}
+        options={{ title: 'Expense Reimbursements' }}
+      />
+      <Stack.Screen
+        name="ClaimApprovals"
+        component={ClaimApprovalsScreen}
+        options={{ title: 'Claim Approvals' }}
       />
     </Stack.Navigator>
   );

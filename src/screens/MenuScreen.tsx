@@ -265,6 +265,57 @@ export const MenuScreen: React.FC = () => {
           break;
       }
     }
+
+    if (itemId === 'performance') {
+      switch (subItemId) {
+        case 'goals':
+          navigation.navigate('KraGoalSetting');
+          break;
+        case 'feedback':
+          navigation.navigate('Feedback360');
+          break;
+        case 'bellcurve':
+          navigation.navigate('BellCurveAnalytics');
+          break;
+        default:
+          navigation.navigate('KraGoalSetting');
+          break;
+      }
+    }
+
+    if (itemId === 'engagement') {
+      switch (subItemId) {
+        case 'feed':
+          navigation.navigate('SocialFeed');
+          break;
+        case 'mood':
+          navigation.navigate('MoodAnalysis');
+          break;
+        case 'surveys':
+          navigation.navigate('SurveysFeedback');
+          break;
+        default:
+          navigation.navigate('SocialFeed');
+          break;
+      }
+    }
+
+    if (itemId === 'claims') {
+      switch (subItemId) {
+        case 'apply-claim':
+          navigation.navigate('NewTravelRequest');
+          break;
+        case 'my-claims':
+          navigation.navigate('ExpenseReimbursements');
+          break;
+        case 'approvals':
+          navigation.navigate('ClaimApprovals');
+          break;
+        default:
+          navigation.navigate('NewTravelRequest');
+          break;
+      }
+    }
   };
 
   const filteredMenuItems = menuItems.filter(item => {
