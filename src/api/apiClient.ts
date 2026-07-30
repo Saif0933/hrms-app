@@ -1,0 +1,51 @@
+import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+
+// export const Production_URL = "https://attendance.symbosys.com/api/v1";
+export const BASE_URL = "http://192.168.1.11:5000/api/v1";
+export const IMAGE_BASE_URL = "http://192.168.1.11:5000"; //
+//  Assuming images are served from root or specific uploads folder
+//192.168.1.9, localhost
+  
+export const api = axios.create({
+  // baseURL: Production_URL,
+  baseURL: BASE_URL,
+  withCredentials: true,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// Add a request interceptor for debugging and Authorization
+api.interceptors.request.use(async (request) => {
+  const token = await AsyncStorage.getItem('token');
+
+  if (token) {
+    request.headers.Authorization = `Bearer ${token}`;
+  }
+  
+  // For FormData requests, delete default Content-Type so browser sets boundary automatically
+  if (request.data instanceof FormData) {
+    delete request.headers['Content-Type'];
+    console.log('Starting Request (FormData):', request.url);
+  } else {
+    console.log('Starting Request:', request.url, JSON.stringify(request.data, null, 2));
+  }
+  
+  return request;
+});
+
+// Add a response interceptor for debugging
+api.interceptors.response.use(
+  (response) => {
+    console.log('Response:', JSON.stringify(response.data, null, 2));
+    return response;
+  },
+  (error) => {
+    console.log('Response Error:', JSON.stringify(error, null, 2));
+    return Promise.reject(error);
+  }
+);
+
+export default api;
