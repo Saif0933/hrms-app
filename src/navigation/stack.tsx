@@ -59,6 +59,25 @@ import { NewTravelRequestScreen } from '../screens/traveclims/NewTravelRequestSc
 import { ExpenseReimbursementsScreen } from '../screens/traveclims/ExpenseReimbursementsScreen';
 import { ClaimApprovalsScreen } from '../screens/traveclims/ClaimApprovalsScreen';
 
+// Timesheet Screens
+import { TimesheetEntryScreen } from '../screens/Timesheet/TimesheetEntryScreen';
+import { ClientsProjectsScreen } from '../screens/Timesheet/ClientsProjectsScreen';
+
+// Recruitment Screens
+import { JobRequisitionsScreen } from '../screens/recruitment/JobRequisitionsScreen';
+import { CandidatePipelineScreen } from '../screens/recruitment/CandidatePipelineScreen';
+import { PreOnboardingChecklistScreen } from '../screens/recruitment/PreOnboardingChecklistScreen';
+
+// Document Vault Screens
+import { DocumentVaultScreen } from '../screens/document/DocumentVaultScreen';
+import { UploadDocumentScreen } from '../screens/document/UploadDocumentScreen';
+import { DocumentComplianceScreen } from '../screens/document/DocumentComplianceScreen';
+
+// Asset Management Screens
+import { AssetInventoryScreen } from '../screens/assetManagement/AssetInventoryScreen';
+import { AssetAllocationScreen } from '../screens/assetManagement/AssetAllocationScreen';
+import { RegisterAssetScreen } from '../screens/assetManagement/RegisterAssetScreen';
+
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -111,6 +130,25 @@ export type RootStackParamList = {
   NewTravelRequest: undefined;
   ExpenseReimbursements: undefined;
   ClaimApprovals: undefined;
+
+  // Timesheet Routes
+  TimesheetEntry: undefined;
+  ClientsProjects: undefined;
+
+  // Recruitment Routes
+  JobRequisitions: undefined;
+  CandidatePipeline: undefined;
+  PreOnboardingChecklist: undefined;
+
+  // Document Vault Routes
+  DocumentVault: undefined;
+  UploadDocument: undefined;
+  DocumentCompliance: undefined;
+
+  // Asset Management Routes
+  AssetInventory: undefined;
+  AssetAllocation: undefined;
+  RegisterAsset: undefined;
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<
@@ -362,6 +400,69 @@ export const AppStackNavigator = () => {
         name="ClaimApprovals"
         component={ClaimApprovalsScreen}
         options={{ title: 'Claim Approvals' }}
+      />
+
+      {/* Timesheet Stack Screens */}
+      <Stack.Screen
+        name="TimesheetEntry"
+        component={TimesheetEntryScreen}
+        options={{ title: 'Timesheet Entry' }}
+      />
+      <Stack.Screen
+        name="ClientsProjects"
+        component={ClientsProjectsScreen}
+        options={{ title: 'Clients & Projects' }}
+      />
+
+      {/* Recruitment Stack Screens */}
+      <Stack.Screen
+        name="JobRequisitions"
+        component={JobRequisitionsScreen}
+        options={{ title: 'Job Requisitions' }}
+      />
+      <Stack.Screen
+        name="CandidatePipeline"
+        component={CandidatePipelineScreen}
+        options={{ title: 'Candidate Pipeline' }}
+      />
+      <Stack.Screen
+        name="PreOnboardingChecklist"
+        component={PreOnboardingChecklistScreen}
+        options={{ title: 'Pre-Onboarding Checklist' }}
+      />
+
+      {/* Document Vault Stack Screens */}
+      <Stack.Screen
+        name="DocumentVault"
+        component={DocumentVaultScreen}
+        options={{ title: 'Document Vault' }}
+      />
+      <Stack.Screen
+        name="UploadDocument"
+        component={UploadDocumentScreen}
+        options={{ title: 'Upload Document' }}
+      />
+      <Stack.Screen
+        name="DocumentCompliance"
+        component={DocumentComplianceScreen}
+        options={{ title: 'Document Compliance' }}
+      />
+
+      {/* Asset Management Stack Screens */}
+      <Stack.Screen
+        name="AssetInventory"
+        component={AssetInventoryScreen}
+        options={{ title: 'Asset Inventory' }}
+      />
+      <Stack.Screen
+        name="AssetAllocation"
+        component={AssetAllocationScreen}
+        options={{ title: 'Asset Allocation' }}
+      />
+      <Stack.Screen
+        name="RegisterAsset"
+        component={RegisterAssetScreen}
+        options={{ title: 'Register Asset' }}
       />
     </Stack.Navigator>
   );

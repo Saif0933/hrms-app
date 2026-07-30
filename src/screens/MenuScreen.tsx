@@ -139,8 +139,26 @@ export const MenuScreen: React.FC = () => {
         { id: 'onboarding', label: 'Pre-Onboarding Checklist' },
       ],
     },
-    { id: 'documents', label: 'Document Vault', icon: '📁' },
-    { id: 'assets', label: 'Asset Management', icon: '💻' },
+    {
+      id: 'documents',
+      label: 'Document Vault',
+      icon: '📁',
+      subItems: [
+        { id: 'vault', label: 'Document Vault & Repository' },
+        { id: 'upload', label: 'Upload & Manage Documents' },
+        { id: 'compliance', label: 'Document Expiry & Compliance' },
+      ],
+    },
+    {
+      id: 'assets',
+      label: 'Asset Management',
+      icon: '💻',
+      subItems: [
+        { id: 'inventory', label: 'Company Asset Inventory' },
+        { id: 'allocation', label: 'Employee Asset Allocation' },
+        { id: 'register', label: 'Register New Asset' },
+      ],
+    },
     { id: 'letters', label: 'Letter Generator', icon: '✉️' },
     { id: 'helpdesk', label: 'HR Help Desk', icon: '🎧' },
     { id: 'subscription', label: 'Subscription & Plans', icon: '🌟' },
@@ -313,6 +331,71 @@ export const MenuScreen: React.FC = () => {
           break;
         default:
           navigation.navigate('NewTravelRequest');
+          break;
+      }
+    }
+
+    if (itemId === 'timesheets') {
+      switch (subItemId) {
+        case 'entry':
+          navigation.navigate('TimesheetEntry');
+          break;
+        case 'projects':
+          navigation.navigate('ClientsProjects');
+          break;
+        default:
+          navigation.navigate('TimesheetEntry');
+          break;
+      }
+    }
+
+    if (itemId === 'recruitment') {
+      switch (subItemId) {
+        case 'jobs':
+          navigation.navigate('JobRequisitions');
+          break;
+        case 'candidates':
+          navigation.navigate('CandidatePipeline');
+          break;
+        case 'onboarding':
+          navigation.navigate('PreOnboardingChecklist');
+          break;
+        default:
+          navigation.navigate('JobRequisitions');
+          break;
+      }
+    }
+
+    if (itemId === 'documents') {
+      switch (subItemId) {
+        case 'vault':
+          navigation.navigate('DocumentVault');
+          break;
+        case 'upload':
+          navigation.navigate('UploadDocument');
+          break;
+        case 'compliance':
+          navigation.navigate('DocumentCompliance');
+          break;
+        default:
+          navigation.navigate('DocumentVault');
+          break;
+      }
+    }
+
+    if (itemId === 'assets') {
+      switch (subItemId) {
+        case 'inventory':
+          navigation.navigate('AssetInventory');
+          break;
+        case 'allocation':
+          navigation.navigate('AssetAllocation');
+          break;
+        case 'register':
+          navigation.navigate('RegisterAsset');
+          break;
+        default:
+          navigation.navigate('AssetInventory');
           break;
       }
     }
