@@ -33,6 +33,8 @@ export const SocialFeedScreen: React.FC = () => {
   const { colors } = useTheme();
 
   const [currentEmpId, setCurrentEmpId] = useState('EMP001');
+  const [selectedEmpId, setSelectedEmpId] = useState<string>('');
+  const [showEmpDropdown, setShowEmpDropdown] = useState<boolean>(false);
 
   // Create Post Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -55,6 +57,22 @@ export const SocialFeedScreen: React.FC = () => {
   const addReactionMutation = useAddReaction();
 
   const employees = empRes?.data || [];
+
+  // Auto-sync selected employee from organization employees list
+  React.useEffect(() => {
+    if (employees.length > 0 && !selectedEmpId) {
+      setSelectedEmpId(employees[0].id);
+      setAuthorName(employees[0].name);
+      setAuthorRole(employees[0].designation || employees[0].role || 'Employee');
+    }
+  }, [employees, selectedEmpId]);
+
+  const handleSelectAuthor = (emp: any) => {
+    setSelectedEmpId(emp.id);
+    setAuthorName(emp.name);
+    setAuthorRole(emp.designation || emp.role || 'Employee');
+    setShowEmpDropdown(false);
+  };
 
   const feedPosts: EngagementPost[] = postsRes?.data || [
     {
@@ -145,6 +163,7 @@ export const SocialFeedScreen: React.FC = () => {
 
     createPostMutation.mutate(
       {
+        employeeId: selectedEmpId || currentEmpId,
         authorName: authorName.trim(),
         authorRole: authorRole.trim(),
         content: postContent.trim(),
@@ -153,6 +172,7 @@ export const SocialFeedScreen: React.FC = () => {
         onSuccess: () => {
           setModalOpen(false);
           setPostContent('');
+          setShowEmpDropdown(false);
           Alert.alert('Post Published 📢', 'Your post is now live on the Corporate Wall!');
         },
         onError: err => Alert.alert('Error', err.message),
@@ -343,6 +363,98 @@ export const SocialFeedScreen: React.FC = () => {
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
               Publish Announcement / Social Post
             </Text>
+
+            {/* EMPLOYEE DROPDOWN SELECTOR */}
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+              SELECT POST AUTHOR / EMPLOYEE (DROPDOWN) *
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.dropdownSelectorBtn,
+                { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder },
+              ]}
+              onPress={() => setShowEmpDropdown(!showEmpDropdown)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.dropdownSelectorLeft}>
+                <View style={[styles.avatarMini, { backgroundColor: colors.accent }]}>
+                  <Text style={styles.avatarMiniText}>
+                    {authorName
+                      ? authorName
+                          .split(' ')
+                          .map(n => n[0])
+                          .join('')
+                          .slice(0, 2)
+                          .toUpperCase()
+                      : 'EM'}
+                  </Text>
+                </View>
+                <View>
+                  <Text style={[styles.dropdownEmpName, { color: colors.textPrimary }]}>
+                    {authorName || 'Select Employee'}
+                  </Text>
+                  <Text style={[styles.dropdownEmpRole, { color: colors.textSecondary }]}>
+                    {authorRole || 'Staff'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.dropdownArrow, { color: colors.textSecondary }]}>
+                {showEmpDropdown ? '▲' : '▼'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* DROPDOWN MENU LIST */}
+            {showEmpDropdown && (
+              <View style={[styles.dropdownMenu, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+                <ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled showsVerticalScrollIndicator={true}>
+                  {employees.length === 0 ? (
+                    <View style={{ padding: 12 }}>
+                      <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+                        No employees found in organization
+                      </Text>
+                    </View>
+                  ) : (
+                    employees.map((emp: any) => {
+                      const isSelected = selectedEmpId === emp.id;
+                      return (
+                        <TouchableOpacity
+                          key={emp.id}
+                          style={[
+                            styles.dropdownMenuItem,
+                            isSelected && { backgroundColor: colors.accent + '20' },
+                          ]}
+                          onPress={() => handleSelectAuthor(emp)}
+                        >
+                          <View style={[styles.avatarMini, { backgroundColor: isSelected ? colors.accent : '#64748b' }]}>
+                            <Text style={styles.avatarMiniText}>
+                              {emp.name
+                                ? emp.name
+                                    .split(' ')
+                                    .map((n: string) => n[0])
+                                    .join('')
+                                    .slice(0, 2)
+                                    .toUpperCase()
+                                : 'EM'}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.dropdownItemName, { color: colors.textPrimary, fontWeight: isSelected ? '800' : '600' }]}>
+                              {emp.name}
+                            </Text>
+                            <Text style={[styles.dropdownItemRole, { color: colors.textSecondary }]}>
+                              {emp.designation || emp.role || 'Employee'}
+                            </Text>
+                          </View>
+                          {isSelected && (
+                            <Text style={{ color: colors.accent, fontWeight: '800', fontSize: 14 }}>✓</Text>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })
+                  )}
+                </ScrollView>
+              </View>
+            )}
 
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>AUTHOR NAME *</Text>
             <TextInput
@@ -623,5 +735,55 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center',
+  },
+  dropdownSelectorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    marginBottom: 4,
+  },
+  dropdownSelectorLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dropdownEmpName: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  dropdownEmpRole: {
+    fontSize: 10,
+    marginTop: 1,
+  },
+  dropdownArrow: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  dropdownMenu: {
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: 6,
+    maxHeight: 180,
+  },
+  dropdownMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(100,100,100,0.1)',
+    gap: 10,
+  },
+  dropdownItemName: {
+    fontSize: 13,
+  },
+  dropdownItemRole: {
+    fontSize: 10,
+    marginTop: 1,
   },
 });

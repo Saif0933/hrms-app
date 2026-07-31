@@ -75,7 +75,7 @@ export const usePosts = (employeeId?: string) => {
  */
 export const useCreatePost = () => {
   const queryClient = useQueryClient();
-  return useMutation<BaseResponse<any>, Error, { authorName: string; authorRole: string; authorAvatar?: string | null; content: string; image?: string | null }>({
+  return useMutation<BaseResponse<any>, Error, { employeeId?: string; authorName: string; authorRole: string; authorAvatar?: string | null; content: string; image?: string | null }>({
     mutationFn: async (payload) => {
       const response = await apiClient.post<BaseResponse<any>>('/engagement/posts', payload);
       return response.data;

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useEmployees } from '../../api/hook/useEmployee';
 import {
   MoodDistribution,
   useMoodDistribution,
@@ -28,10 +29,24 @@ export const MoodAnalysisScreen: React.FC = () => {
 
   const [selectedMood, setSelectedMood] = useState<string>('thrilled');
   const [currentEmpId, setCurrentEmpId] = useState('EMP001');
+  const [selectedEmpId, setSelectedEmpId] = useState<string>('');
+  const [showEmpDropdown, setShowEmpDropdown] = useState<boolean>(false);
 
   // TanStack Queries & Mutations
+  const { data: empRes } = useEmployees();
   const { data: moodRes, isLoading } = useMoodDistribution();
   const submitMoodMutation = useSubmitMood();
+
+  const employees = empRes?.data || [];
+
+  // Auto-sync selected employee from organization employees list
+  React.useEffect(() => {
+    if (employees.length > 0 && !selectedEmpId) {
+      setSelectedEmpId(employees[0].id);
+    }
+  }, [employees, selectedEmpId]);
+
+  const selectedEmp = employees.find((e: any) => e.id === selectedEmpId) || employees[0];
 
   const moodData: MoodDistribution = moodRes?.data || {
     thrilled: 42,
@@ -44,9 +59,11 @@ export const MoodAnalysisScreen: React.FC = () => {
     moodData.thrilled + moodData.content + moodData.neutral + moodData.stressed;
 
   const handleCheckInMood = () => {
+    const empIdToSubmit = selectedEmpId || currentEmpId;
+    const empName = selectedEmp?.name || 'Employee';
     submitMoodMutation.mutate(
       {
-        employeeId: currentEmpId,
+        employeeId: empIdToSubmit,
         mood: selectedMood,
         weekKey: '2026-W31',
       },
@@ -54,7 +71,7 @@ export const MoodAnalysisScreen: React.FC = () => {
         onSuccess: () => {
           Alert.alert(
             'Mood Checked In! 🎭',
-            'Thank you for contributing to our weekly team sentiment check-in!'
+            `Weekly mood for ${empName} has been submitted successfully!`
           );
         },
         onError: err => Alert.alert('Error', err.message),
@@ -108,9 +125,100 @@ export const MoodAnalysisScreen: React.FC = () => {
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
             🎭 How are you feeling this week? (Anonymous)
           </Text>
-          <Text style={[styles.cardSubText, { color: colors.textSecondary }]}>
-            Your response is 100% confidential and helps management improve workplace environment.
+          {/* EMPLOYEE DROPDOWN SELECTOR */}
+          <Text style={[styles.dropdownLabel, { color: colors.textSecondary }]}>
+            SELECT EMPLOYEE (DROPDOWN) *
           </Text>
+          <TouchableOpacity
+            style={[
+              styles.dropdownSelectorBtn,
+              { backgroundColor: colors.background, borderColor: colors.cardBorder },
+            ]}
+            onPress={() => setShowEmpDropdown(!showEmpDropdown)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.dropdownSelectorLeft}>
+              <View style={[styles.avatarMini, { backgroundColor: colors.accent }]}>
+                <Text style={styles.avatarMiniText}>
+                  {selectedEmp?.name
+                    ? selectedEmp.name
+                        .split(' ')
+                        .map((n: string) => n[0])
+                        .join('')
+                        .slice(0, 2)
+                        .toUpperCase()
+                    : 'EM'}
+                </Text>
+              </View>
+              <View>
+                <Text style={[styles.dropdownEmpName, { color: colors.textPrimary }]}>
+                  {selectedEmp?.name || 'Select Employee'}
+                </Text>
+                <Text style={[styles.dropdownEmpRole, { color: colors.textSecondary }]}>
+                  {selectedEmp?.designation || selectedEmp?.role || 'Staff Member'}
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.dropdownArrow, { color: colors.textSecondary }]}>
+              {showEmpDropdown ? '▲' : '▼'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* DROPDOWN MENU LIST */}
+          {showEmpDropdown && (
+            <View style={[styles.dropdownMenu, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+              <ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled showsVerticalScrollIndicator={true}>
+                {employees.length === 0 ? (
+                  <View style={{ padding: 12 }}>
+                    <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+                      No employees found in organization
+                    </Text>
+                  </View>
+                ) : (
+                  employees.map((emp: any) => {
+                    const isSelected = (selectedEmpId || currentEmpId) === emp.id;
+                    return (
+                      <TouchableOpacity
+                        key={emp.id}
+                        style={[
+                          styles.dropdownMenuItem,
+                          isSelected && { backgroundColor: colors.accent + '20' },
+                        ]}
+                        onPress={() => {
+                          setSelectedEmpId(emp.id);
+                          setShowEmpDropdown(false);
+                        }}
+                      >
+                        <View style={[styles.avatarMini, { backgroundColor: isSelected ? colors.accent : '#64748b' }]}>
+                          <Text style={styles.avatarMiniText}>
+                            {emp.name
+                              ? emp.name
+                                  .split(' ')
+                                  .map((n: string) => n[0])
+                                  .join('')
+                                  .slice(0, 2)
+                                  .toUpperCase()
+                              : 'EM'}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.dropdownItemName, { color: colors.textPrimary, fontWeight: isSelected ? '800' : '600' }]}>
+                            {emp.name}
+                          </Text>
+                          <Text style={[styles.dropdownItemRole, { color: colors.textSecondary }]}>
+                            {emp.designation || emp.role || 'Employee'}
+                          </Text>
+                        </View>
+                        {isSelected && (
+                          <Text style={{ color: colors.accent, fontWeight: '800', fontSize: 14 }}>✓</Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </ScrollView>
+            </View>
+          )}
 
           {/* Mood Options Grid */}
           <View style={styles.moodSelectorGrid}>
@@ -342,5 +450,73 @@ const styles = StyleSheet.create({
     color: '#334155',
     fontSize: 11,
     lineHeight: 16,
+  },
+  dropdownLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginTop: 4,
+  },
+  dropdownSelectorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    marginBottom: 4,
+  },
+  dropdownSelectorLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  avatarMini: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarMiniText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  dropdownEmpName: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  dropdownEmpRole: {
+    fontSize: 10,
+    marginTop: 1,
+  },
+  dropdownArrow: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  dropdownMenu: {
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: 6,
+    maxHeight: 180,
+  },
+  dropdownMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(100,100,100,0.1)',
+    gap: 10,
+  },
+  dropdownItemName: {
+    fontSize: 13,
+  },
+  dropdownItemRole: {
+    fontSize: 10,
+    marginTop: 1,
   },
 });

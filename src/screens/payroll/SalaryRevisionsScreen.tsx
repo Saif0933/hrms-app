@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useEmployees } from '../../api/hook/useEmployee';
+import { useEmployees, useUpdateEmployeeSalary } from '../../api/hook/useEmployee';
 import { useApplyBulkRevision } from '../../api/hook/usePayroll';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';
@@ -45,82 +45,60 @@ export const SalaryRevisionsScreen: React.FC = () => {
 
   // TanStack Queries & Mutations
   const { data: empRes, isLoading } = useEmployees();
+  const updateSalaryMutation = useUpdateEmployeeSalary();
   const bulkRevisionMutation = useApplyBulkRevision();
 
   const apiEmployees = empRes?.data || [];
 
-  // Default Editable Roster State
-  const [empListState, setEmpListState] = useState([
-    {
-      id: 'EMP-18EF6F',
-      name: 'Mahi',
-      code: 'EMP-18EF6F',
-      status: 'CONFIRMED',
-      designation: 'Lead Architect',
-      dept: 'Hshdhdjssj',
-      joiningDate: '01/15/2025',
-      annualCtc: 657936,
-      monthlyGross: 54828,
-      basic: 32250,
-      hra: 12900,
-      special: 9678,
-      epf: 1800,
-      pt: 200,
-      tds: 1500,
-      bankName: 'ICICI Bank',
-      bankAccount: '987654321045',
-      ifscCode: 'ICIC0000123',
-      panUan: 'ABCDE1234F',
-    },
-    {
-      id: 'EMP31723',
-      name: 'sam',
-      code: 'EMP31723',
-      status: 'PROBATION',
-      designation: 'UI/UX designer',
-      dept: 'Design & UX',
-      joiningDate: '7/28/2026',
-      annualCtc: 275400,
-      monthlyGross: 22950,
-      basic: 13500,
-      hra: 5400,
-      special: 4050,
-      epf: 1620,
-      pt: 200,
-      tds: 0,
-      bankName: 'HDFC',
-      bankAccount: '251436798452',
-      ifscCode: 'HDFC0000240',
-      panUan: '2W3E4R5T6Y',
-    },
-    {
-      id: 'EMP001',
-      name: 'Aarav Sharma',
-      code: 'EMP001',
-      status: 'CONFIRMED',
-      designation: 'Senior Software Engineer',
-      dept: 'Engineering',
-      joiningDate: '03/10/2024',
-      annualCtc: 900000,
-      monthlyGross: 75000,
-      basic: 45000,
-      hra: 18000,
-      special: 12000,
-      epf: 1800,
-      pt: 200,
-      tds: 2500,
-      bankName: 'Axis Bank',
-      bankAccount: '112233445566',
-      ifscCode: 'UTIB0000999',
-      panUan: 'XYZPB9876Q',
-    },
-  ]);
+  // Default Editable Roster State (populates dynamically from API)
+  const [empListState, setEmpListState] = useState<any[]>([]);
+
+  // Sync state with fetched organization employees dynamically
+  React.useEffect(() => {
+    if (apiEmployees.length > 0) {
+      const mapped = apiEmployees.map(emp => {
+        const basic = emp.basic || 15000;
+        const hra = emp.hra || Math.round(basic * 0.4);
+        const special = emp.allowance || Math.round(basic * 0.2);
+        const monthlyGross = basic + hra + special;
+        const annualCtc = monthlyGross * 12;
+        const epf = Math.min(1800, Math.round(basic * 0.12));
+        const pt = 200;
+        const tds = basic > 30000 ? Math.round(basic * 0.05) : 0;
+
+        return {
+          id: emp.id,
+          name: emp.name,
+          code: emp.id,
+          status: emp.status || 'CONFIRMED',
+          designation: emp.designation || 'Staff',
+          dept: emp.department?.name || 'General',
+          joiningDate: emp.joiningDate ? emp.joiningDate.split('T')[0] : '2025-01-01',
+          annualCtc,
+          monthlyGross,
+          basic,
+          hra,
+          special,
+          epf,
+          pt,
+          tds,
+          bankName: emp.bankName || 'HDFC Bank',
+          bankAccount: emp.bankAccount || '•••• 4829',
+          ifscCode: emp.ifsc || 'HDFC0000123',
+          panUan: emp.pan || 'ABCDE1234F',
+        };
+      });
+      setEmpListState(mapped);
+    } else {
+      setEmpListState([]);
+    }
+  }, [empRes?.data]);
 
   // Selected Manual Employee
-  const activeEmp = empListState.find(e => e.id === selectedEmpId) || empListState[1];
+  const activeEmp = empListState.find(e => e.id === selectedEmpId) || empListState[0];
 
-  const netDeductions = activeEmp.epf + activeEmp.pt + activeEmp.tds;
-  const netTakeHome = activeEmp.monthlyGross - netDeductions;
+  const netDeductions = activeEmp ? (activeEmp.epf + activeEmp.pt + activeEmp.tds) : 0;
+  const netTakeHome = activeEmp ? (activeEmp.monthlyGross - netDeductions) : 0;
 
   // Handle Individual Salary Revision (Increment / Decrement)
   const handleApplyIndividualRevision = () => {
@@ -147,30 +125,53 @@ export const SalaryRevisionsScreen: React.FC = () => {
     const newHra = Math.round(newGross * 0.20);
     const newSpecial = Math.max(0, newGross - newBasic - newHra);
     const newEpf = Math.min(1800, Math.round(newBasic * 0.12));
+    const netPayable = newGross - (newEpf + activeEmp.pt + activeEmp.tds);
 
-    setEmpListState(prev =>
-      prev.map(item => {
-        if (item.id === activeEmp.id) {
-          return {
-            ...item,
-            monthlyGross: newGross,
-            annualCtc: newAnnualCtc,
-            basic: newBasic,
-            hra: newHra,
-            special: newSpecial,
-            epf: newEpf,
-          };
-        }
-        return item;
-      })
-    );
+    // Execute API Mutation PUT /api/v1/employees/:id/salary
+    updateSalaryMutation.mutate(
+      {
+        id: activeEmp.id,
+        data: {
+          basic: newBasic,
+          hra: newHra,
+          allowance: newSpecial,
+          deductions: newEpf + activeEmp.pt + activeEmp.tds,
+          netSalary: netPayable,
+          salary: newGross,
+        },
+      },
+      {
+        onSuccess: res => {
+          setEmpListState(prev =>
+            prev.map(item => {
+              if (item.id === activeEmp.id) {
+                return {
+                  ...item,
+                  monthlyGross: newGross,
+                  annualCtc: newAnnualCtc,
+                  basic: newBasic,
+                  hra: newHra,
+                  special: newSpecial,
+                  epf: newEpf,
+                };
+              }
+              return item;
+            })
+          );
 
-    const actionText = indivActionType === 'INCREMENT' ? 'Increment (+)' : 'Decrement (-)';
-    Alert.alert(
-      'Individual Salary Revision Applied 📈',
-      `Updated ${activeEmp.name}'s (${activeEmp.code}) monthly salary from ₹${activeEmp.monthlyGross.toLocaleString()} to ₹${newGross.toLocaleString()} (${actionText}).`
+          const actionText = indivActionType === 'INCREMENT' ? 'Increment (+)' : 'Decrement (-)';
+          Alert.alert(
+            'Individual Salary Revision Applied 📈',
+            res.message ||
+              `Updated ${activeEmp.name}'s (${activeEmp.code}) monthly salary from ₹${activeEmp.monthlyGross.toLocaleString()} to ₹${newGross.toLocaleString()} (${actionText}).`
+          );
+          setCustomNewGross('');
+        },
+        onError: err => {
+          Alert.alert('API Error', err.message);
+        },
+      }
     );
-    setCustomNewGross('');
   };
 
   // Handle Bulk Revision Submit
@@ -294,9 +295,13 @@ export const SalaryRevisionsScreen: React.FC = () => {
         </View>
 
         {viewMode === 'MANUAL' ? (
-          // ==========================================
-          // SECTION 1: MANUAL EMPLOYEE SALARY DETAILS & INDIVIDUAL REVISION
-          // ==========================================
+          empListState.length === 0 ? (
+            <View style={[styles.emptyBox, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                No employee records found in organization.
+              </Text>
+            </View>
+          ) : (
           <>
             {/* Employee Selector Chips */}
             <View
@@ -502,13 +507,19 @@ export const SalaryRevisionsScreen: React.FC = () => {
                 style={[
                   styles.applyBtn,
                   { backgroundColor: indivActionType === 'INCREMENT' ? '#10b981' : '#ef4444' },
+                  updateSalaryMutation.isPending && { opacity: 0.7 },
                 ]}
                 onPress={handleApplyIndividualRevision}
+                disabled={updateSalaryMutation.isPending}
                 activeOpacity={0.85}
               >
-                <Text style={styles.applyBtnText}>
-                  🚀 Apply {indivActionType === 'INCREMENT' ? 'Increment' : 'Decrement'} for {activeEmp.name}
-                </Text>
+                {updateSalaryMutation.isPending ? (
+                  <ActivityIndicator color="#ffffff" size="small" />
+                ) : (
+                  <Text style={styles.applyBtnText}>
+                    🚀 Apply {indivActionType === 'INCREMENT' ? 'Increment' : 'Decrement'} for {activeEmp.name}
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -649,6 +660,7 @@ export const SalaryRevisionsScreen: React.FC = () => {
               </View>
             </View>
           </>
+          )
         ) : (
           // ==========================================
           // SECTION 2: BULK SALARY REVISION PANEL
@@ -1171,5 +1183,17 @@ const styles = StyleSheet.create({
   tdCellDiff: {
     width: 130,
     fontSize: 12,
+  },
+  emptyBox: {
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+  },
+  emptyText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Employee, MOCK_EMPLOYEES, useEmployees, useUpdateEmployee } from '../../api/hook/useEmployee';
+import { Employee, useEmployees, useUpdateEmployee } from '../../api/hook/useEmployee';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
@@ -725,13 +725,6 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                     const newStatus = option.value as any;
                     setSelectedEmployee(prev => (prev ? { ...prev, status: newStatus } : null));
 
-                    const mockIdx = MOCK_EMPLOYEES.findIndex(
-                      e => e.id === selectedEmployee.id || e.name.toLowerCase() === selectedEmployee.name.toLowerCase()
-                    );
-                    if (mockIdx !== -1) {
-                      MOCK_EMPLOYEES[mockIdx].status = newStatus;
-                    }
-
                     updateEmployeeMutation.mutate(
                       {
                         id: selectedEmployee.id,
@@ -914,16 +907,6 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                         department: updatedDept,
                         basic: parsedBasic,
                       } : null));
-
-                      const mockIdx = MOCK_EMPLOYEES.findIndex(
-                        e => e.id === selectedEmployee.id || e.name.toLowerCase() === selectedEmployee.name.toLowerCase()
-                      );
-                      if (mockIdx !== -1) {
-                        MOCK_EMPLOYEES[mockIdx].designation = newRole;
-                        MOCK_EMPLOYEES[mockIdx].role = newRole;
-                        MOCK_EMPLOYEES[mockIdx].department = updatedDept;
-                        MOCK_EMPLOYEES[mockIdx].basic = parsedBasic;
-                      }
 
                       updateEmployeeMutation.mutate(
                         {

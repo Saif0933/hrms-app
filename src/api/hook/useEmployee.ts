@@ -154,112 +154,8 @@ export interface PersonalDetails {
   avatar?: string | null;
 }
 
-export const MOCK_EMPLOYEES: Employee[] = [
-  {
-    id: 'emp-sam-31723',
-    name: 'sam',
-    email: 'sam@gmail.com',
-    phone: '1478523690',
-    status: 'PROBATION',
-    joiningDate: '2026-07-28',
-    location: 'Mumbai',
-    designation: 'UI/UX designer',
-    role: 'UI/UX designer',
-    confirmationStatus: 'PENDING',
-    gender: 'Male',
-    dob: '2026-07-11T00:00:00.000Z',
-    bloodGroup: 'AB+',
-    maritalStatus: 'Single',
-    fatherName: 'swedr',
-    permanentAddress: 'asdf',
-    languagesSpoken: 'English',
-    qualification: 'MBA',
-    university: 'Mumbai University',
-    departmentId: 'dept-1',
-    department: {
-      id: 'dept-1',
-      name: 'Design',
-      code: 'DSG',
-    },
-    basic: 13500,
-    hra: 5400,
-    allowance: 3000,
-    netSalary: 21900,
-    createdAt: '2026-07-28T00:00:00.000Z',
-    updatedAt: '2026-07-31T00:00:00.000Z',
-  },
-  {
-    id: 'emp-john-10001',
-    name: 'John Doe',
-    email: 'john.doe@company.com',
-    phone: '+91 98765 43210',
-    status: 'ACTIVE',
-    joiningDate: '2025-01-15',
-    location: 'Bangalore',
-    designation: 'Senior Software Engineer',
-    role: 'Software Developer',
-    confirmationStatus: 'CONFIRMED',
-    gender: 'Male',
-    dob: '1995-05-20',
-    bloodGroup: 'O+',
-    maritalStatus: 'Married',
-    fatherName: 'Robert Doe',
-    permanentAddress: '123 Tech Park, Whitefield, Bangalore',
-    languagesSpoken: 'English, Hindi',
-    qualification: 'B.Tech CS',
-    university: 'IIT Bombay',
-    departmentId: 'dept-2',
-    department: {
-      id: 'dept-2',
-      name: 'Engineering',
-      code: 'ENG',
-    },
-    basic: 45000,
-    hra: 18000,
-    allowance: 12000,
-    netSalary: 75000,
-    createdAt: '2025-01-15T00:00:00.000Z',
-    updatedAt: '2026-07-31T00:00:00.000Z',
-  },
-  {
-    id: 'emp-sarah-10002',
-    name: 'Sarah Jenkins',
-    email: 'sarah.j@company.com',
-    phone: '+91 98123 45678',
-    status: 'ACTIVE',
-    joiningDate: '2024-08-10',
-    location: 'Mumbai',
-    designation: 'HR Specialist',
-    role: 'Human Resources',
-    confirmationStatus: 'CONFIRMED',
-    gender: 'Female',
-    dob: '1997-11-12',
-    bloodGroup: 'B+',
-    maritalStatus: 'Single',
-    fatherName: 'David Jenkins',
-    permanentAddress: 'Bandra Complex, Mumbai',
-    languagesSpoken: 'English, Marathi',
-    qualification: 'MBA HR',
-    university: 'NMIMS Mumbai',
-    departmentId: 'dept-3',
-    department: {
-      id: 'dept-3',
-      name: 'Human Resources',
-      code: 'HR',
-    },
-    basic: 38000,
-    hra: 15200,
-    allowance: 8800,
-    netSalary: 62000,
-    createdAt: '2024-08-10T00:00:00.000Z',
-    updatedAt: '2026-07-31T00:00:00.000Z',
-  },
-];
 
-/**
- * Hook to retrieve all employees with optional filters
- * GET /api/v1/employees
- */
+
 export const useEmployees = (filters?: EmployeeFilters) => {
   return useQuery<BaseResponse<Employee[]>, Error>({
     queryKey: ['employees', filters],
@@ -268,31 +164,17 @@ export const useEmployees = (filters?: EmployeeFilters) => {
         const response = await apiClient.get<BaseResponse<Employee[]>>('/employees', {
           params: filters,
         });
-        if (response.data && response.data.data && response.data.data.length > 0) {
+        if (response.data && Array.isArray(response.data.data)) {
           return response.data;
         }
       } catch (error) {
-        console.log('API /employees offline, returning mock employee data');
-      }
-
-      let filtered = [...MOCK_EMPLOYEES];
-      if (filters?.search) {
-        const q = filters.search.toLowerCase();
-        filtered = filtered.filter(
-          e =>
-            e.name.toLowerCase().includes(q) ||
-            e.email.toLowerCase().includes(q) ||
-            (e.designation && e.designation.toLowerCase().includes(q))
-        );
-      }
-      if (filters?.status && filters.status !== ('ALL' as any)) {
-        filtered = filtered.filter(e => e.status === filters.status);
+        console.log('API /employees request error:', error);
       }
 
       return {
         success: true,
-        message: 'Employees loaded',
-        data: filtered,
+        message: 'No employees found',
+        data: [],
       };
     },
   });
@@ -303,7 +185,7 @@ export const useEmployees = (filters?: EmployeeFilters) => {
  * GET /api/v1/employees/:id
  */
 export const useEmployeeById = (id?: string) => {
-  return useQuery<BaseResponse<Employee>, Error>({
+  return useQuery<BaseResponse<Employee | null>, Error>({
     queryKey: ['employee', id],
     queryFn: async () => {
       if (!id) throw new Error('Employee ID is required');
@@ -313,14 +195,13 @@ export const useEmployeeById = (id?: string) => {
           return response.data;
         }
       } catch (error) {
-        console.log(`API /employees/${id} offline, returning fallback employee data`);
+        console.log(`API /employees/${id} request error:`, error);
       }
 
-      const match = MOCK_EMPLOYEES.find(e => e.id === id) || MOCK_EMPLOYEES[0];
       return {
-        success: true,
-        message: 'Employee loaded',
-        data: match,
+        success: false,
+        message: 'Employee not found',
+        data: null,
       };
     },
     enabled: !!id,
@@ -336,31 +217,8 @@ export const useCreateEmployee = () => {
 
   return useMutation<BaseResponse<Employee>, Error, CreateEmployeeRequest>({
     mutationFn: async (data) => {
-      try {
-        const response = await apiClient.post<BaseResponse<Employee>>('/employees', data);
-        return response.data;
-      } catch (error) {
-        console.log('API create employee offline, simulating creation');
-        const newEmp: Employee = {
-          id: `emp-${Date.now()}`,
-          name: data.name || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'New Employee',
-          email: data.email || 'employee@company.com',
-          phone: data.phone || null,
-          status: data.status || 'PROBATION',
-          joiningDate: data.joiningDate || new Date().toISOString().split('T')[0],
-          location: data.location || 'Mumbai',
-          designation: data.designation || 'Software Engineer',
-          confirmationStatus: 'PENDING',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        MOCK_EMPLOYEES.unshift(newEmp);
-        return {
-          success: true,
-          message: 'Employee created successfully',
-          data: newEmp,
-        };
-      }
+      const response = await apiClient.post<BaseResponse<Employee>>('/employees', data);
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
@@ -381,36 +239,8 @@ export const useUpdateEmployee = () => {
     { id: string; data: UpdateEmployeeRequest }
   >({
     mutationFn: async ({ id, data }) => {
-      try {
-        const response = await apiClient.put<BaseResponse<Employee>>(`/employees/${id}`, data);
-        return response.data;
-      } catch (error) {
-        console.log(`API update employee ${id} offline, simulating update`);
-        const index = MOCK_EMPLOYEES.findIndex(e => e.id === id);
-        let updatedEmp: Employee;
-        if (index !== -1) {
-          MOCK_EMPLOYEES[index] = {
-            ...MOCK_EMPLOYEES[index],
-            ...data,
-            name: data.name || MOCK_EMPLOYEES[index].name,
-            email: data.email || MOCK_EMPLOYEES[index].email,
-            updatedAt: new Date().toISOString(),
-          };
-          updatedEmp = MOCK_EMPLOYEES[index];
-        } else {
-          updatedEmp = {
-            ...MOCK_EMPLOYEES[0],
-            ...data,
-            id,
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return {
-          success: true,
-          message: 'Employee updated successfully',
-          data: updatedEmp,
-        };
-      }
+      const response = await apiClient.put<BaseResponse<Employee>>(`/employees/${id}`, data);
+      return response.data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
@@ -428,21 +258,8 @@ export const useDeleteEmployee = () => {
 
   return useMutation<BaseResponse<Record<string, never>>, Error, string>({
     mutationFn: async (id) => {
-      try {
-        const response = await apiClient.delete<BaseResponse<Record<string, never>>>(`/employees/${id}`);
-        return response.data;
-      } catch (error) {
-        console.log(`API delete employee ${id} offline, simulating deletion`);
-        const index = MOCK_EMPLOYEES.findIndex(e => e.id === id);
-        if (index !== -1) {
-          MOCK_EMPLOYEES.splice(index, 1);
-        }
-        return {
-          success: true,
-          message: 'Employee deleted successfully',
-          data: {},
-        };
-      }
+      const response = await apiClient.delete<BaseResponse<Record<string, never>>>(`/employees/${id}`);
+      return response.data;
     },
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
@@ -456,7 +273,7 @@ export const useDeleteEmployee = () => {
  * GET /api/v1/employees/:id/salary
  */
 export const useEmployeeSalary = (id?: string) => {
-  return useQuery<BaseResponse<SalaryDetails>, Error>({
+  return useQuery<BaseResponse<SalaryDetails | null>, Error>({
     queryKey: ['employee', id, 'salary'],
     queryFn: async () => {
       if (!id) throw new Error('Employee ID is required');
@@ -466,27 +283,13 @@ export const useEmployeeSalary = (id?: string) => {
           return response.data;
         }
       } catch (error) {
-        console.log(`API /employees/${id}/salary offline, returning fallback salary details`);
+        console.log(`API /employees/${id}/salary request error:`, error);
       }
 
-      const match = MOCK_EMPLOYEES.find(e => e.id === id) || MOCK_EMPLOYEES[0];
       return {
-        success: true,
-        message: 'Salary details loaded',
-        data: {
-          basic: match.basic || 13500,
-          hra: match.hra || 5400,
-          allowance: match.allowance || 3000,
-          deductions: 1000,
-          netSalary: match.netSalary || 20900,
-          bankName: 'HDFC Bank',
-          bankAccount: '****3172',
-          ifsc: 'HDFC0001234',
-          pan: 'ABCDE1234F',
-          aadhaar: '**** **** 5678',
-          uan: '100987654321',
-          pfNumber: 'MH/BOM/0012345/000/0000123',
-        },
+        success: false,
+        message: 'Salary details not found',
+        data: null,
       };
     },
     enabled: !!id,
@@ -506,22 +309,8 @@ export const useUpdateEmployeeSalary = () => {
     { id: string; data: Partial<SalaryDetails> & { salary?: number | null } }
   >({
     mutationFn: async ({ id, data }) => {
-      try {
-        const response = await apiClient.put<BaseResponse<Employee>>(`/employees/${id}/salary`, data);
-        return response.data;
-      } catch (error) {
-        console.log(`API update salary for ${id} offline, simulating update`);
-        const match = MOCK_EMPLOYEES.find(e => e.id === id) || MOCK_EMPLOYEES[0];
-        match.basic = data.basic ?? match.basic;
-        match.hra = data.hra ?? match.hra;
-        match.allowance = data.allowance ?? match.allowance;
-        match.netSalary = (match.basic || 0) + (match.hra || 0) + (match.allowance || 0);
-        return {
-          success: true,
-          message: 'Salary updated successfully',
-          data: match,
-        };
-      }
+      const response = await apiClient.put<BaseResponse<Employee>>(`/employees/${id}/salary`, data);
+      return response.data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
@@ -536,7 +325,7 @@ export const useUpdateEmployeeSalary = () => {
  * GET /api/v1/employees/:id/personal
  */
 export const useEmployeePersonal = (id?: string) => {
-  return useQuery<BaseResponse<PersonalDetails>, Error>({
+  return useQuery<BaseResponse<PersonalDetails | null>, Error>({
     queryKey: ['employee', id, 'personal'],
     queryFn: async () => {
       if (!id) throw new Error('Employee ID is required');
@@ -546,25 +335,13 @@ export const useEmployeePersonal = (id?: string) => {
           return response.data;
         }
       } catch (error) {
-        console.log(`API /employees/${id}/personal offline, returning fallback personal details`);
+        console.log(`API /employees/${id}/personal request error:`, error);
       }
 
-      const match = MOCK_EMPLOYEES.find(e => e.id === id) || MOCK_EMPLOYEES[0];
       return {
-        success: true,
-        message: 'Personal details loaded',
-        data: {
-          gender: match.gender || 'Male',
-          dob: match.dob || '2026-07-11T00:00:00.000Z',
-          bloodGroup: match.bloodGroup || 'AB+',
-          maritalStatus: match.maritalStatus || 'Single',
-          qualification: match.qualification || 'MBA',
-          university: match.university || 'Mumbai University',
-          passingYear: '2025',
-          fatherName: match.fatherName || 'swedr',
-          permanentAddress: match.permanentAddress || 'asdf',
-          languagesSpoken: match.languagesSpoken || 'English',
-        },
+        success: false,
+        message: 'Personal details not found',
+        data: null,
       };
     },
     enabled: !!id,
@@ -584,25 +361,8 @@ export const useUpdateEmployeePersonal = () => {
     { id: string; data: Partial<PersonalDetails> & { dateOfBirth?: string | null } }
   >({
     mutationFn: async ({ id, data }) => {
-      try {
-        const response = await apiClient.put<BaseResponse<Employee>>(`/employees/${id}/personal`, data);
-        return response.data;
-      } catch (error) {
-        console.log(`API update personal for ${id} offline, simulating update`);
-        const match = MOCK_EMPLOYEES.find(e => e.id === id) || MOCK_EMPLOYEES[0];
-        match.gender = data.gender ?? match.gender;
-        match.dob = data.dob || data.dateOfBirth || match.dob;
-        match.bloodGroup = data.bloodGroup ?? match.bloodGroup;
-        match.maritalStatus = data.maritalStatus ?? match.maritalStatus;
-        match.fatherName = data.fatherName ?? match.fatherName;
-        match.permanentAddress = data.permanentAddress ?? match.permanentAddress;
-        match.languagesSpoken = data.languagesSpoken ?? match.languagesSpoken;
-        return {
-          success: true,
-          message: 'Personal details updated successfully',
-          data: match,
-        };
-      }
+      const response = await apiClient.put<BaseResponse<Employee>>(`/employees/${id}/personal`, data);
+      return response.data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
