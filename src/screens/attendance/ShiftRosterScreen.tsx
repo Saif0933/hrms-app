@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -8,11 +10,10 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useRosters, useSaveRosters } from '../../api/hook/useAttendance';
 import { useEmployees } from '../../api/hook/useEmployee';
 import { useTheme } from '../../context/ThemeContext';
@@ -22,19 +23,64 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ShiftRoster
 
 type ShiftCode = 'MORNING' | 'EVENING' | 'NIGHT' | 'OFF';
 
+// ISO Week Generator Helper
+const getCurrentIsoWeek = (): string => {
+  const date = new Date();
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${weekNo < 10 ? '0' + weekNo : weekNo}`;
+};
+
+const getWeekOptions = (currentWeek: string) => {
+  const match = currentWeek.match(/^(\d{4})-W(\d{2})$/);
+  if (!match) return [{ key: currentWeek, label: currentWeek, isCurrent: true }];
+  const year = parseInt(match[1], 10);
+  const week = parseInt(match[2], 10);
+
+  const list: { key: string; label: string; isCurrent: boolean }[] = [];
+  for (let offset = -2; offset <= 2; offset++) {
+    let w = week + offset;
+    let y = year;
+    if (w < 1) {
+      w += 52;
+      y -= 1;
+    } else if (w > 52) {
+      w -= 52;
+      y += 1;
+    }
+    const key = `${y}-W${w < 10 ? '0' + w : w}`;
+    list.push({
+      key,
+      label: key,
+      isCurrent: key === currentWeek,
+    });
+  }
+  return list;
+};
+
 export const ShiftRosterScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
 
-  const [selectedWeek, setSelectedWeek] = useState('2026-W31');
+  // Current ISO Week calculation
+  const currentIsoWeek = useMemo(() => getCurrentIsoWeek(), []);
+  const weekOptions = useMemo(() => getWeekOptions(currentIsoWeek), [currentIsoWeek]);
+  const [selectedWeek, setSelectedWeek] = useState(currentIsoWeek);
 
-  // Roster Assignments State
+  // Filters State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterShift, setFilterShift] = useState<'ALL' | ShiftCode>('ALL');
+
+  // API Hooks
   const { data: rosterRes, isLoading: isLoadingRosters } = useRosters(selectedWeek);
-  const { data: empRes } = useEmployees();
+  const { data: empRes, isLoading: isLoadingEmps } = useEmployees();
   const saveRosterMutation = useSaveRosters();
 
-  const employees = empRes?.data || [];
-  const rosters = rosterRes?.data || [];
+  const employees = useMemo(() => empRes?.data || [], [empRes?.data]);
+  const rosters = useMemo(() => rosterRes?.data || [], [rosterRes?.data]);
 
   // Edit Shift Modal State
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -43,11 +89,87 @@ export const ShiftRosterScreen: React.FC = () => {
   const [editingDay, setEditingDay] = useState<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'>('mon');
   const [selectedShift, setSelectedShift] = useState<ShiftCode>('MORNING');
 
-  const [customRosterMap, setCustomRosterMap] = useState<Record<string, Record<string, ShiftCode>>>({
-    EMP001: { mon: 'MORNING', tue: 'MORNING', wed: 'MORNING', thu: 'MORNING', fri: 'MORNING', sat: 'OFF', sun: 'OFF' },
-    EMP002: { mon: 'EVENING', tue: 'EVENING', wed: 'EVENING', thu: 'EVENING', fri: 'EVENING', sat: 'OFF', sun: 'OFF' },
-    EMP005: { mon: 'MORNING', tue: 'MORNING', wed: 'MORNING', thu: 'MORNING', fri: 'MORNING', sat: 'MORNING', sun: 'OFF' },
-  });
+  // Dynamic Roster Mapping State
+  const [customRosterMap, setCustomRosterMap] = useState<Record<string, Record<string, ShiftCode>>>({});
+
+  // Sync state when employees or rosters load/change
+  useEffect(() => {
+    if (!employees.length) return;
+
+    const initialMap: Record<string, Record<string, ShiftCode>> = {};
+
+    employees.forEach((emp, index) => {
+      const found = rosters.find(r => r.employeeId === emp.id);
+      if (found) {
+        initialMap[emp.id] = {
+          mon: (found.mon as ShiftCode) || 'MORNING',
+          tue: (found.tue as ShiftCode) || 'MORNING',
+          wed: (found.wed as ShiftCode) || 'MORNING',
+          thu: (found.thu as ShiftCode) || 'MORNING',
+          fri: (found.fri as ShiftCode) || 'MORNING',
+          sat: (found.sat as ShiftCode) || 'OFF',
+          sun: (found.sun as ShiftCode) || 'OFF',
+        };
+      } else {
+        // Dynamic fallback shift distribution per employee
+        const defaultShift: ShiftCode = index % 3 === 0 ? 'MORNING' : index % 3 === 1 ? 'EVENING' : 'NIGHT';
+        initialMap[emp.id] = {
+          mon: defaultShift,
+          tue: defaultShift,
+          wed: defaultShift,
+          thu: defaultShift,
+          fri: defaultShift,
+          sat: index % 2 === 0 ? 'OFF' : defaultShift,
+          sun: 'OFF',
+        };
+      }
+    });
+
+    setCustomRosterMap(initialMap);
+  }, [employees, rosters, selectedWeek]);
+
+  // Filtered employees list
+  const filteredEmployees = useMemo(() => {
+    return employees.filter(emp => {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch =
+        !searchQuery ||
+        emp.name.toLowerCase().includes(q) ||
+        (emp.designation && emp.designation.toLowerCase().includes(q)) ||
+        (emp.department?.name && emp.department.name.toLowerCase().includes(q));
+
+      if (!matchesSearch) return false;
+
+      if (filterShift !== 'ALL') {
+        const empRoster = customRosterMap[emp.id];
+        if (!empRoster) return false;
+        const hasShift = Object.values(empRoster).includes(filterShift);
+        if (!hasShift) return false;
+      }
+
+      return true;
+    });
+  }, [employees, searchQuery, filterShift, customRosterMap]);
+
+  // Statistics calculation for scheduled shifts
+  const shiftStats = useMemo(() => {
+    let morning = 0;
+    let evening = 0;
+    let night = 0;
+    let off = 0;
+
+    Object.values(customRosterMap).forEach(empRoster => {
+      ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(d => {
+        const s = empRoster[d];
+        if (s === 'MORNING') morning++;
+        else if (s === 'EVENING') evening++;
+        else if (s === 'NIGHT') night++;
+        else off++;
+      });
+    });
+
+    return { morning, evening, night, off, total: morning + evening + night + off };
+  }, [customRosterMap]);
 
   const getShiftBadge = (shift: ShiftCode | string) => {
     switch (shift) {
@@ -63,7 +185,11 @@ export const ShiftRosterScreen: React.FC = () => {
     }
   };
 
-  const handleOpenEditShift = (empId: string, empName: string, day: 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun') => {
+  const handleOpenEditShift = (
+    empId: string,
+    empName: string,
+    day: 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+  ) => {
     setEditingEmpId(empId);
     setEditingEmpName(empName);
     setEditingDay(day);
@@ -76,11 +202,58 @@ export const ShiftRosterScreen: React.FC = () => {
     setCustomRosterMap(prev => ({
       ...prev,
       [editingEmpId]: {
-        ...(prev[editingEmpId] || { mon: 'MORNING', tue: 'MORNING', wed: 'MORNING', thu: 'MORNING', fri: 'MORNING', sat: 'OFF', sun: 'OFF' }),
+        ...(prev[editingEmpId] || {
+          mon: 'MORNING',
+          tue: 'MORNING',
+          wed: 'MORNING',
+          thu: 'MORNING',
+          fri: 'MORNING',
+          sat: 'OFF',
+          sun: 'OFF',
+        }),
         [editingDay]: selectedShift,
       },
     }));
     setEditModalOpen(false);
+  };
+
+  const handleApplyShiftToAllWorkingDays = (shift: ShiftCode) => {
+    setCustomRosterMap(prev => ({
+      ...prev,
+      [editingEmpId]: {
+        mon: shift,
+        tue: shift,
+        wed: shift,
+        thu: shift,
+        fri: shift,
+        sat: prev[editingEmpId]?.sat || 'OFF',
+        sun: prev[editingEmpId]?.sun || 'OFF',
+      },
+    }));
+    setEditModalOpen(false);
+  };
+
+  const handleApplyPresetToFiltered = (preset: 'MORNING' | 'EVENING' | 'ROTATIONAL') => {
+    const updatedMap = { ...customRosterMap };
+    filteredEmployees.forEach((emp, i) => {
+      let targetShift: ShiftCode = 'MORNING';
+      if (preset === 'EVENING') targetShift = 'EVENING';
+      else if (preset === 'ROTATIONAL') {
+        targetShift = i % 3 === 0 ? 'MORNING' : i % 3 === 1 ? 'EVENING' : 'NIGHT';
+      }
+
+      updatedMap[emp.id] = {
+        mon: targetShift,
+        tue: targetShift,
+        wed: targetShift,
+        thu: targetShift,
+        fri: targetShift,
+        sat: preset === 'ROTATIONAL' && i % 2 === 0 ? targetShift : 'OFF',
+        sun: 'OFF',
+      };
+    });
+    setCustomRosterMap(updatedMap);
+    Alert.alert('Preset Applied 🪄', `Applied ${preset} preset schedule to ${filteredEmployees.length} employee(s).`);
   };
 
   const handleSaveFullRoster = () => {
@@ -98,15 +271,23 @@ export const ShiftRosterScreen: React.FC = () => {
     saveRosterMutation.mutate(
       { week: selectedWeek, rosters: payload },
       {
-        onSuccess: () => {
-          Alert.alert('Rosters Saved 📅', `Shift rosters for week ${selectedWeek} updated successfully!`);
+        onSuccess: res => {
+          Alert.alert('Rosters Saved 📅', res.message || `Shift rosters for week ${selectedWeek} updated successfully!`);
         },
         onError: err => Alert.alert('Error', err.message),
       }
     );
   };
 
-  const daysList: Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'> = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  const daysList: Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'> = [
+    'mon',
+    'tue',
+    'wed',
+    'thu',
+    'fri',
+    'sat',
+    'sun',
+  ];
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -129,7 +310,7 @@ export const ShiftRosterScreen: React.FC = () => {
         <View style={styles.headerTitleContainer}>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Shift & Roster Manager</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-            Weekly Shift Assignments & Schedules
+            Dynamic Weekly Shift Schedules ({selectedWeek})
           </Text>
         </View>
       </View>
@@ -142,15 +323,21 @@ export const ShiftRosterScreen: React.FC = () => {
             { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
           ]}
         >
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-            📅 Select Roster Week
-          </Text>
+          <View style={styles.cardHeaderRow}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>📅 Select Roster Week</Text>
+            {selectedWeek === currentIsoWeek && (
+              <View style={[styles.currentBadge, { backgroundColor: colors.accent + '20' }]}>
+                <Text style={[styles.currentBadgeText, { color: colors.accent }]}>Current Week</Text>
+              </View>
+            )}
+          </View>
+
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
-            {['2026-W30', '2026-W31', '2026-W32', '2026-W33'].map(wk => {
-              const isSelected = selectedWeek === wk;
+            {weekOptions.map(wk => {
+              const isSelected = selectedWeek === wk.key;
               return (
                 <TouchableOpacity
-                  key={wk}
+                  key={wk.key}
                   style={[
                     styles.weekChip,
                     {
@@ -158,7 +345,7 @@ export const ShiftRosterScreen: React.FC = () => {
                       borderColor: isSelected ? colors.accent : colors.cardBorder,
                     },
                   ]}
-                  onPress={() => setSelectedWeek(wk)}
+                  onPress={() => setSelectedWeek(wk.key)}
                 >
                   <Text
                     style={{
@@ -167,12 +354,114 @@ export const ShiftRosterScreen: React.FC = () => {
                       fontWeight: '700',
                     }}
                   >
-                    Week: {wk}
+                    Week: {wk.key} {wk.isCurrent ? '(Now)' : ''}
                   </Text>
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
+        </View>
+
+        {/* Shift Summary Analytics Card */}
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>📊 Scheduled Shift Overview</Text>
+          <View style={styles.statsRow}>
+            <View style={[styles.statBox, { backgroundColor: '#2563eb12', borderColor: '#2563eb40' }]}>
+              <Text style={[styles.statNumber, { color: '#2563eb' }]}>{shiftStats.morning}</Text>
+              <Text style={styles.statLabel}>Morning (M)</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: '#8b5cf612', borderColor: '#8b5cf640' }]}>
+              <Text style={[styles.statNumber, { color: '#8b5cf6' }]}>{shiftStats.evening}</Text>
+              <Text style={styles.statLabel}>Evening (E)</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: '#38bdf812', borderColor: '#38bdf840' }]}>
+              <Text style={[styles.statNumber, { color: '#0284c7' }]}>{shiftStats.night}</Text>
+              <Text style={styles.statLabel}>Night (N)</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: 'rgba(100,100,100,0.08)', borderColor: 'rgba(100,100,100,0.2)' }]}>
+              <Text style={[styles.statNumber, { color: colors.textSecondary }]}>{shiftStats.off}</Text>
+              <Text style={styles.statLabel}>Off Days</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Search & Filter Bar */}
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>🔍 Search & Quick Presets</Text>
+
+          <TextInput
+            style={[
+              styles.searchInput,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.cardBorder,
+                color: colors.textPrimary,
+              },
+            ]}
+            placeholder="Search employee name, designation, department..."
+            placeholderTextColor={colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+
+          {/* Filter Chips */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
+            {(['ALL', 'MORNING', 'EVENING', 'NIGHT', 'OFF'] as const).map(sh => (
+              <TouchableOpacity
+                key={sh}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: filterShift === sh ? colors.accent : colors.background,
+                    borderColor: filterShift === sh ? colors.accent : colors.cardBorder,
+                  },
+                ]}
+                onPress={() => setFilterShift(sh)}
+              >
+                <Text
+                  style={{
+                    color: filterShift === sh ? '#fff' : colors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: '700',
+                  }}
+                >
+                  {sh === 'ALL' ? 'All Shifts' : sh}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Quick Actions / Presets */}
+          <View style={styles.presetRow}>
+            <TouchableOpacity
+              style={[styles.presetBtn, { borderColor: '#2563eb' }]}
+              onPress={() => handleApplyPresetToFiltered('MORNING')}
+            >
+              <Text style={[styles.presetBtnText, { color: '#2563eb' }]}>Set All Morning</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.presetBtn, { borderColor: '#8b5cf6' }]}
+              onPress={() => handleApplyPresetToFiltered('EVENING')}
+            >
+              <Text style={[styles.presetBtnText, { color: '#8b5cf6' }]}>Set All Evening</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.presetBtn, { borderColor: colors.accent }]}
+              onPress={() => handleApplyPresetToFiltered('ROTATIONAL')}
+            >
+              <Text style={[styles.presetBtnText, { color: colors.accent }]}>Set Rotational</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Roster Matrix Table */}
@@ -183,14 +472,18 @@ export const ShiftRosterScreen: React.FC = () => {
           ]}
         >
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-            👥 Weekly Shift Roster Grid ({selectedWeek})
+            👥 Weekly Shift Roster Grid ({filteredEmployees.length} Employees)
           </Text>
           <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-            Tap any shift badge to change employee shift assignment for that day.
+            Tap any day's shift badge to modify shift allocation for an employee.
           </Text>
 
-          {isLoadingRosters ? (
-            <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 14 }} />
+          {isLoadingRosters || isLoadingEmps ? (
+            <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 20 }} />
+          ) : filteredEmployees.length === 0 ? (
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              No employees matched the current filters.
+            </Text>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.tableGrid}>
@@ -205,7 +498,7 @@ export const ShiftRosterScreen: React.FC = () => {
                 </View>
 
                 {/* Employee Roster Rows */}
-                {employees.map(emp => {
+                {filteredEmployees.map(emp => {
                   const empRoster = customRosterMap[emp.id] || {
                     mon: 'MORNING',
                     tue: 'MORNING',
@@ -219,11 +512,11 @@ export const ShiftRosterScreen: React.FC = () => {
                   return (
                     <View key={emp.id} style={styles.tableDataRow}>
                       <View style={styles.tdEmpInfo}>
-                        <Text style={[styles.empNameText, { color: colors.textPrimary }]}>
+                        <Text style={[styles.empNameText, { color: colors.textPrimary }]} numberOfLines={1}>
                           {emp.name}
                         </Text>
-                        <Text style={[styles.empRoleText, { color: colors.textSecondary }]}>
-                          {emp.designation || 'Staff'}
+                        <Text style={[styles.empRoleText, { color: colors.textSecondary }]} numberOfLines={1}>
+                          {emp.designation || emp.department?.name || 'Staff'}
                         </Text>
                       </View>
 
@@ -307,6 +600,15 @@ export const ShiftRosterScreen: React.FC = () => {
               );
             })}
 
+            <TouchableOpacity
+              style={[styles.applyAllBtn, { backgroundColor: colors.background, borderColor: colors.accent }]}
+              onPress={() => handleApplyShiftToAllWorkingDays(selectedShift)}
+            >
+              <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 12 }}>
+                ⚡ Apply {selectedShift} to Mon-Fri for this Employee
+              </Text>
+            </TouchableOpacity>
+
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
                 style={[styles.modalCancelBtn, { borderColor: colors.cardBorder }]}
@@ -318,7 +620,7 @@ export const ShiftRosterScreen: React.FC = () => {
                 style={[styles.modalConfirmBtn, { backgroundColor: colors.accent }]}
                 onPress={handleSaveSingleShift}
               >
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Apply Shift</Text>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Apply Day Shift</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -373,6 +675,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 10,
   },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   cardTitle: {
     fontSize: 15,
     fontWeight: '800',
@@ -382,12 +689,80 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: 8,
   },
+  currentBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  currentBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
   weekChip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
     marginRight: 8,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  statBox: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  statLabel: {
+    fontSize: 9,
+    color: '#64748b',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  searchInput: {
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginRight: 6,
+  },
+  presetRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 6,
+  },
+  presetBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  presetBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  emptyText: {
+    textAlign: 'center',
+    paddingVertical: 20,
+    fontSize: 13,
   },
   tableGrid: {
     minWidth: 640,
@@ -418,6 +793,7 @@ const styles = StyleSheet.create({
   },
   tdEmpInfo: {
     width: 140,
+    paddingRight: 6,
   },
   empNameText: {
     fontSize: 13,
@@ -468,7 +844,7 @@ const styles = StyleSheet.create({
   },
   modalSubtitle: {
     fontSize: 12,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   shiftSelectCard: {
     padding: 12,
@@ -479,6 +855,13 @@ const styles = StyleSheet.create({
   shiftSelectTitle: {
     fontSize: 12,
     fontWeight: '800',
+  },
+  applyAllBtn: {
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    marginTop: 4,
   },
   modalBtnRow: {
     flexDirection: 'row',
@@ -499,3 +882,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+
