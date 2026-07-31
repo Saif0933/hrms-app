@@ -78,6 +78,21 @@ import { AssetInventoryScreen } from '../screens/assetManagement/AssetInventoryS
 import { AssetAllocationScreen } from '../screens/assetManagement/AssetAllocationScreen';
 import { RegisterAssetScreen } from '../screens/assetManagement/RegisterAssetScreen';
 
+// Letter Generator Screens
+import { GenerateLetterScreen } from '../screens/Letter/GenerateLetterScreen';
+import { IssuedLettersArchiveScreen } from '../screens/Letter/IssuedLettersArchiveScreen';
+import { LetterTemplatesScreen } from '../screens/Letter/LetterTemplatesScreen';
+
+// HR Help Desk Screens
+import { SupportTicketsScreen } from '../screens/helpdesk/SupportTicketsScreen';
+import { RaiseTicketScreen } from '../screens/helpdesk/RaiseTicketScreen';
+import { HelpdeskSlaAnalyticsScreen } from '../screens/helpdesk/HelpdeskSlaAnalyticsScreen';
+
+// Subscription & Plans Screens
+import { PlansPricingScreen } from '../screens/subscription/PlansPricingScreen';
+import { PlanComparisonScreen } from '../screens/subscription/PlanComparisonScreen';
+import { ManageSubscriptionScreen } from '../screens/subscription/ManageSubscriptionScreen';
+
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -149,6 +164,21 @@ export type RootStackParamList = {
   AssetInventory: undefined;
   AssetAllocation: undefined;
   RegisterAsset: undefined;
+
+  // Letter Generator Routes
+  GenerateLetter: undefined;
+  IssuedLettersArchive: undefined;
+  LetterTemplates: undefined;
+
+  // HR Help Desk Routes
+  SupportTickets: undefined;
+  RaiseTicket: undefined;
+  HelpdeskSlaAnalytics: undefined;
+
+  // Subscription & Plans Routes
+  PlansPricing: undefined;
+  PlanComparison: undefined;
+  ManageSubscription: undefined;
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<
@@ -463,6 +493,57 @@ export const AppStackNavigator = () => {
         name="RegisterAsset"
         component={RegisterAssetScreen}
         options={{ title: 'Register Asset' }}
+      />
+
+      {/* Letter Generator Stack Screens */}
+      <Stack.Screen
+        name="GenerateLetter"
+        component={GenerateLetterScreen}
+        options={{ title: 'Generate Letter' }}
+      />
+      <Stack.Screen
+        name="IssuedLettersArchive"
+        component={IssuedLettersArchiveScreen}
+        options={{ title: 'Issued Letters Archive' }}
+      />
+      <Stack.Screen
+        name="LetterTemplates"
+        component={LetterTemplatesScreen}
+        options={{ title: 'Letter Templates' }}
+      />
+
+      {/* HR Help Desk Stack Screens */}
+      <Stack.Screen
+        name="SupportTickets"
+        component={SupportTicketsScreen}
+        options={{ title: 'Support Tickets Queue' }}
+      />
+      <Stack.Screen
+        name="RaiseTicket"
+        component={RaiseTicketScreen}
+        options={{ title: 'Raise Support Ticket' }}
+      />
+      <Stack.Screen
+        name="HelpdeskSlaAnalytics"
+        component={HelpdeskSlaAnalyticsScreen}
+        options={{ title: 'Help Desk SLA Analytics' }}
+      />
+
+      {/* Subscription & Plans Stack Screens */}
+      <Stack.Screen
+        name="PlansPricing"
+        component={PlansPricingScreen}
+        options={{ title: 'Subscription Plans & Pricing' }}
+      />
+      <Stack.Screen
+        name="PlanComparison"
+        component={PlanComparisonScreen}
+        options={{ title: 'Feature Comparison Matrix' }}
+      />
+      <Stack.Screen
+        name="ManageSubscription"
+        component={ManageSubscriptionScreen}
+        options={{ title: 'Manage Subscription & Invoices' }}
       />
     </Stack.Navigator>
   );

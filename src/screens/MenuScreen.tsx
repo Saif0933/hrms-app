@@ -159,9 +159,36 @@ export const MenuScreen: React.FC = () => {
         { id: 'register', label: 'Register New Asset' },
       ],
     },
-    { id: 'letters', label: 'Letter Generator', icon: '✉️' },
-    { id: 'helpdesk', label: 'HR Help Desk', icon: '🎧' },
-    { id: 'subscription', label: 'Subscription & Plans', icon: '🌟' },
+    {
+      id: 'letters',
+      label: 'Letter Generator',
+      icon: '✉️',
+      subItems: [
+        { id: 'generate', label: 'Generate Official Letter' },
+        { id: 'archive', label: 'Issued Letters Archive' },
+        { id: 'templates', label: 'Corporate Letter Templates' },
+      ],
+    },
+    {
+      id: 'helpdesk',
+      label: 'HR Help Desk',
+      icon: '🎧',
+      subItems: [
+        { id: 'tickets', label: 'Support Tickets Queue' },
+        { id: 'raise', label: 'Raise Support Ticket' },
+        { id: 'sla', label: 'Help Desk SLA & Analytics' },
+      ],
+    },
+    {
+      id: 'subscription',
+      label: 'Subscription & Plans',
+      icon: '🌟',
+      subItems: [
+        { id: 'plans', label: 'Plans & Pricing' },
+        { id: 'compare', label: 'Feature Comparison Matrix' },
+        { id: 'manage', label: 'Manage Subscription & Invoices' },
+      ],
+    },
   ];
 
   const toggleDropdown = (id: string) => {
@@ -396,6 +423,57 @@ export const MenuScreen: React.FC = () => {
           break;
         default:
           navigation.navigate('AssetInventory');
+          break;
+      }
+    }
+
+    if (itemId === 'letters') {
+      switch (subItemId) {
+        case 'generate':
+          navigation.navigate('GenerateLetter');
+          break;
+        case 'archive':
+          navigation.navigate('IssuedLettersArchive');
+          break;
+        case 'templates':
+          navigation.navigate('LetterTemplates');
+          break;
+        default:
+          navigation.navigate('GenerateLetter');
+          break;
+      }
+    }
+
+    if (itemId === 'helpdesk') {
+      switch (subItemId) {
+        case 'tickets':
+          navigation.navigate('SupportTickets');
+          break;
+        case 'raise':
+          navigation.navigate('RaiseTicket');
+          break;
+        case 'sla':
+          navigation.navigate('HelpdeskSlaAnalytics');
+          break;
+        default:
+          navigation.navigate('SupportTickets');
+          break;
+      }
+    }
+
+    if (itemId === 'subscription') {
+      switch (subItemId) {
+        case 'plans':
+          navigation.navigate('PlansPricing');
+          break;
+        case 'compare':
+          navigation.navigate('PlanComparison');
+          break;
+        case 'manage':
+          navigation.navigate('ManageSubscription');
+          break;
+        default:
+          navigation.navigate('PlansPricing');
           break;
       }
     }
