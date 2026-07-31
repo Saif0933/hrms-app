@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
+  Alert,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -11,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useLogout } from '../api/hook/useAuth';
 import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../navigation/stack.tsx';
 
@@ -31,8 +33,24 @@ interface MenuItem {
 export const MenuScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark, toggleTheme } = useTheme();
+  const logout = useLogout();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const handleLogout = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to log out of your account?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log Out',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          navigation.replace('Login');
+        },
+      },
+    ]);
+  };
+
 
   const menuItems: MenuItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
@@ -590,6 +608,16 @@ export const MenuScreen: React.FC = () => {
           );
         })}
 
+        {/* Logout Button */}
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.logoutIcon}>🚪</Text>
+          <Text style={styles.logoutText}>Log Out</Text>
+        </TouchableOpacity>
+
         {/* Footer info */}
         <View style={[styles.footerContainer, { borderTopColor: colors.divider }]}>
           <Text style={[styles.footerBrand, { color: colors.footerText }]}>FactoCorp HRMS v4.2</Text>
@@ -713,6 +741,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '400',
   },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ef444415',
+    borderWidth: 1,
+    borderColor: '#ef444440',
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  logoutIcon: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  logoutText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ef4444',
+  },
   footerContainer: {
     marginTop: 20,
     alignItems: 'center',
@@ -746,4 +795,5 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
+
 

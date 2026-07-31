@@ -37,10 +37,11 @@ export const DashboardScreen: React.FC = () => {
     refetch,
   } = useDashboardData();
 
-  const [activeChartTab, setActiveChartTab] = useState<'attendance' | 'departments' | 'diversity'>('attendance');
+  const [activeInsightTab, setActiveInsightTab] = useState<'attendance' | 'departments' | 'diversity'>('attendance');
+  const [activeApprovalTab, setActiveApprovalTab] = useState<'leaves' | 'claims'>('leaves');
 
-  // Dynamic User Profile
-  const userName = profileResponse?.data?.user?.name || 'John Doe';
+  // Dynamic User Profile Data
+  const userName = profileResponse?.data?.user?.name || 'John';
   const greetingName = userName.split(' ')[0] || 'John';
   const userRole = profileResponse?.data?.user?.role || 'Software Engineer • HRMS Portal';
   const userInitials = userName
@@ -52,12 +53,8 @@ export const DashboardScreen: React.FC = () => {
         .toUpperCase()
     : 'JD';
 
-  const currentDateFormatted = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  const dateFormatted = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   const dbDashboard = dashboardResponse?.data;
   const kpis = dbDashboard?.kpis;
@@ -76,15 +73,12 @@ export const DashboardScreen: React.FC = () => {
     ]
   );
 
-  // Sync state if dashboardResponse arrives
   React.useEffect(() => {
     if (dbDashboard?.pendingApprovals) {
       setPendingLeaves(dbDashboard.pendingApprovals.leaves);
       setPendingClaims(dbDashboard.pendingApprovals.claims);
     }
   }, [dbDashboard]);
-
-  const pendingCount = pendingLeaves.length + pendingClaims.length;
 
   const handleApproveLeave = (id: string, name: string) => {
     setPendingLeaves(prev => prev.filter(item => item.id !== id));
@@ -126,12 +120,12 @@ export const DashboardScreen: React.FC = () => {
     { id: 'a3', user: 'Finance Lead', action: 'Expense Claim Processed', module: 'Claims', timestamp: '2 days ago', details: '₹3,500 reimbursed' },
   ];
 
-  const attendanceTrend = dbDashboard?.attendanceTrend || [
-    { name: 'Mon', Present: 98, Late: 2, Absent: 0 },
-    { name: 'Tue', Present: 96, Late: 4, Absent: 0 },
-    { name: 'Wed', Present: 95, Late: 3, Absent: 2 },
-    { name: 'Thu', Present: 97, Late: 1, Absent: 2 },
-    { name: 'Fri', Present: 92, Late: 6, Absent: 2 },
+  const attendanceTrend = [
+    { name: 'Mon', percentage: '98%', Present: 98, Late: 2, Absent: 0 },
+    { name: 'Tue', percentage: '96%', Present: 96, Late: 4, Absent: 0 },
+    { name: 'Wed', percentage: '95%', Present: 95, Late: 3, Absent: 2 },
+    { name: 'Thu', percentage: '97%', Present: 97, Late: 1, Absent: 2 },
+    { name: 'Fri', percentage: '92%', Present: 92, Late: 6, Absent: 2 },
   ];
 
   const deptDistribution = dbDashboard?.departmentDistribution || [
@@ -143,8 +137,8 @@ export const DashboardScreen: React.FC = () => {
   ];
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={colors.statusBar} backgroundColor={colors.statusBarBg} />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={isDark ? '#0f172a' : '#f8fafc'} />
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
@@ -152,509 +146,484 @@ export const DashboardScreen: React.FC = () => {
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={refetch}
-            colors={[colors.accent]}
-            tintColor={colors.accent}
+            colors={['#2563eb']}
+            tintColor="#2563eb"
           />
         }
       >
-        {/* Top App Bar Header */}
-        <View style={styles.topHeader}>
+        {/* Top App Bar Navigation Header */}
+        <View style={styles.topAppBar}>
           <TouchableOpacity
-            style={[
-              styles.menuIconButton,
-              {
-                backgroundColor: colors.hamburgerBg,
-                borderColor: colors.hamburgerBorder,
-              },
-            ]}
+            style={styles.hamburgerButton}
             onPress={() => navigation.navigate('Menu')}
             activeOpacity={0.7}
-            accessibilityLabel="Open Navigation Menu"
+            accessibilityLabel="Open Menu"
           >
-            <View style={[styles.hamburgerLine, { backgroundColor: colors.hamburgerLine }]} />
-            <View style={[styles.hamburgerLine, { backgroundColor: colors.hamburgerLine }]} />
-            <View style={[styles.hamburgerLine, { backgroundColor: colors.hamburgerLine }]} />
+            <View style={[styles.hamburgerLine, { backgroundColor: isDark ? '#f8fafc' : '#1e293b' }]} />
+            <View style={[styles.hamburgerLine, { backgroundColor: isDark ? '#f8fafc' : '#1e293b' }]} />
+            <View style={[styles.hamburgerLine, { backgroundColor: isDark ? '#f8fafc' : '#1e293b' }]} />
           </TouchableOpacity>
 
-          <View style={styles.topHeaderRight}>
+          <View style={styles.brandTitleContainer}>
+            <View style={styles.brandLogoBox}>
+              <Text style={styles.brandLogoIcon}>H</Text>
+            </View>
+            <Text style={[styles.brandTitleText, { color: isDark ? '#ffffff' : '#0f172a' }]}>HRMS Portal</Text>
+          </View>
+
+          <View style={styles.topRightActions}>
             <TouchableOpacity
-              style={[styles.themeToggleButton, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
+              style={[styles.circleIconButton, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}
               onPress={toggleTheme}
               activeOpacity={0.8}
             >
-              <Text style={styles.themeToggleIcon}>{isDark ? '☀️' : '🌙'}</Text>
+              <Text style={{ fontSize: 16 }}>{isDark ? '☀️' : '🌙'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.logoutHeaderButton}
+              style={[styles.circleIconButton, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}
               onPress={handleLogout}
               activeOpacity={0.8}
-              accessibilityLabel="Log Out"
             >
-              <Text style={styles.logoutHeaderIcon}>🚪</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.profileBadge} activeOpacity={0.8}>
-              <Text style={styles.avatarText}>{userInitials}</Text>
+              <Text style={{ fontSize: 14 }}>🔔</Text>
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>3</Text>
+              </View>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Dynamic Greeting Header Card */}
-        <View style={[styles.greetingCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-          <View style={styles.greetingTextContainer}>
-            <Text style={[styles.greetingTitle, { color: colors.textPrimary }]}>
-              Welcome back, {greetingName}! ✨
-            </Text>
-            <Text style={[styles.greetingSubtitle, { color: colors.textMuted }]}>
-              Enterprise dashboard snapshot • {currentDateFormatted}
-            </Text>
+        {/* Profile Greeting Banner */}
+        <View style={[styles.profileBanner, { backgroundColor: isDark ? '#1e293b' : '#e0f2fe' }]}>
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>{userInitials}</Text>
+            </View>
+            <View style={styles.onlineDot} />
           </View>
 
-          <View style={styles.headerActionsRow}>
-            <TouchableOpacity
-              style={[styles.headerActionButton, { backgroundColor: colors.accent }]}
-              onPress={() => navigation.navigate('GpsSelfiePunch')}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.headerActionText}>⏰ Clock In / Out</Text>
-            </TouchableOpacity>
+          <View style={styles.profileTextContainer}>
+            <Text style={[styles.greetingLabel, { color: isDark ? '#94a3b8' : '#475569' }]}>Good Morning,</Text>
+            <Text style={[styles.userNameText, { color: isDark ? '#ffffff' : '#0f172a' }]}>{greetingName}! 👋</Text>
+            <Text style={[styles.userRoleText, { color: isDark ? '#cbd5e1' : '#64748b' }]}>{userRole}</Text>
+          </View>
 
-            <TouchableOpacity
-              style={[
-                styles.headerActionButton,
-                styles.headerSecondaryAction,
-                { backgroundColor: colors.buttonSecondaryBg, borderColor: colors.buttonSecondaryBorder },
-              ]}
-              onPress={() => navigation.navigate('ApplyLeave')}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.headerActionText, { color: colors.buttonSecondaryText }]}>📅 Apply Leave</Text>
-            </TouchableOpacity>
+          <View style={styles.dateBadgeContainer}>
+            <Text style={[styles.dateDayText, { color: isDark ? '#94a3b8' : '#475569' }]}>{dayOfWeek}</Text>
+            <Text style={[styles.dateFormattedText, { color: isDark ? '#cbd5e1' : '#64748b' }]}>{dateFormatted}</Text>
           </View>
         </View>
 
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.accent} />
-            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading Dashboard Data...</Text>
+            <ActivityIndicator size="large" color="#2563eb" />
+            <Text style={styles.loadingText}>Loading Dashboard Data...</Text>
           </View>
         ) : (
           <>
-            {/* 5 KPI Cards Grid */}
-            <View style={styles.kpiGrid}>
-              {/* Card 1: Total Headcount */}
-              <View style={[styles.kpiCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-                <View style={styles.kpiHeader}>
-                  <Text style={[styles.kpiTag, { color: colors.textMuted }]}>HEADCOUNT</Text>
-                  <View style={[styles.kpiIconBox, { backgroundColor: '#3b82f615' }]}>
-                    <Text style={styles.kpiIconText}>👥</Text>
-                  </View>
+            {/* Key Metrics Section */}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionHeading, { color: isDark ? '#ffffff' : '#0f172a' }]}>Key Metrics</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('AttendanceReports' as any)}>
+                <Text style={styles.viewDetailsLink}>View Details →</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.metricsGrid}>
+              {/* Card 1: Total Employees (Blue Tint) */}
+              <View style={[styles.metricCard, { backgroundColor: isDark ? '#1e293b' : '#e0f2fe' }]}>
+                <View style={[styles.metricIconCircle, { backgroundColor: '#3b82f625' }]}>
+                  <Text style={{ fontSize: 18 }}>👥</Text>
                 </View>
-                <Text style={[styles.kpiValue, { color: colors.textPrimary }]}>
-                  {kpis ? kpis.totalEmployees : 148}
+                <Text style={[styles.metricLabel, { color: isDark ? '#cbd5e1' : '#475569' }]}>Total Employees</Text>
+                <Text style={[styles.metricValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
+                  {kpis ? kpis.totalEmployees.toLocaleString() : '1,248'}
                 </Text>
-                <Text style={styles.kpiBadgeGreen}>+1 new this month</Text>
+                <Text style={styles.metricTrendGreen}>↑ +12% vs last month</Text>
               </View>
 
-              {/* Card 2: Active Staff */}
-              <View style={[styles.kpiCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-                <View style={styles.kpiHeader}>
-                  <Text style={[styles.kpiTag, { color: colors.textMuted }]}>ACTIVE STAFF</Text>
-                  <View style={[styles.kpiIconBox, { backgroundColor: '#22c55e15' }]}>
-                    <Text style={styles.kpiIconText}>✅</Text>
-                  </View>
+              {/* Card 2: Today Present (Green Tint) */}
+              <View style={[styles.metricCard, { backgroundColor: isDark ? '#14532d30' : '#dcfce7' }]}>
+                <View style={[styles.metricIconCircle, { backgroundColor: '#22c55e25' }]}>
+                  <Text style={{ fontSize: 18 }}>📅</Text>
                 </View>
-                <Text style={[styles.kpiValue, { color: colors.textPrimary }]}>
-                  {kpis ? kpis.activeEmployees : 142}
+                <Text style={[styles.metricLabel, { color: isDark ? '#cbd5e1' : '#475569' }]}>Today Present</Text>
+                <Text style={[styles.metricValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
+                  {kpis ? `${kpis.activeEmployees.toLocaleString()} (92.6%)` : '1,156 (92.6%)'}
                 </Text>
-                <Text style={[styles.kpiSubtext, { color: colors.textSecondary }]}>
-                  {kpis ? kpis.probationEmployees : 6} on probation
-                </Text>
+                <Text style={styles.metricTrendGreen}>↑ +2.4% vs yesterday</Text>
               </View>
 
-              {/* Card 3: New Joinings */}
-              <View style={[styles.kpiCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-                <View style={styles.kpiHeader}>
-                  <Text style={[styles.kpiTag, { color: colors.textMuted }]}>NEW JOININGS</Text>
-                  <View style={[styles.kpiIconBox, { backgroundColor: '#a855f715' }]}>
-                    <Text style={styles.kpiIconText}>👤+</Text>
-                  </View>
+              {/* Card 3: Pending Leave (Orange Tint) */}
+              <View style={[styles.metricCard, { backgroundColor: isDark ? '#7c2d1230' : '#ffedd5' }]}>
+                <View style={[styles.metricIconCircle, { backgroundColor: '#f9731625' }]}>
+                  <Text style={{ fontSize: 18 }}>✈️</Text>
                 </View>
-                <Text style={[styles.kpiValue, { color: colors.textPrimary }]}>
-                  {kpis ? kpis.probationEmployees : 6}
+                <Text style={[styles.metricLabel, { color: isDark ? '#cbd5e1' : '#475569' }]}>Pending Leave</Text>
+                <Text style={[styles.metricValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
+                  {pendingLeaves.length}
                 </Text>
-                <Text style={[styles.kpiSubtext, { color: colors.textSecondary }]}>Recent recruits</Text>
+                <Text style={styles.metricSubOrange}>Needs your approval</Text>
               </View>
 
-              {/* Card 4: Out of Office */}
-              <View style={[styles.kpiCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-                <View style={styles.kpiHeader}>
-                  <Text style={[styles.kpiTag, { color: colors.textMuted }]}>OUT OF OFFICE</Text>
-                  <View style={[styles.kpiIconBox, { backgroundColor: '#f59e0b15' }]}>
-                    <Text style={styles.kpiIconText}>📅</Text>
-                  </View>
+              {/* Card 4: Pending Claims (Purple Tint) */}
+              <View style={[styles.metricCard, { backgroundColor: isDark ? '#581c8730' : '#f3e8ff' }]}>
+                <View style={[styles.metricIconCircle, { backgroundColor: '#a855f725' }]}>
+                  <Text style={{ fontSize: 18 }}>📄</Text>
                 </View>
-                <Text style={[styles.kpiValue, { color: colors.textPrimary }]}>
-                  {kpis ? kpis.leaveEmployees : 4}
+                <Text style={[styles.metricLabel, { color: isDark ? '#cbd5e1' : '#475569' }]}>Pending Claims</Text>
+                <Text style={[styles.metricValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
+                  {pendingClaims.length}
                 </Text>
-                <Text style={styles.kpiBadgeAmber}>Active Leave Logs</Text>
-              </View>
-
-              {/* Card 5: Pending Approvals */}
-              <View style={[styles.kpiCardFull, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-                <View style={styles.kpiHeader}>
-                  <Text style={[styles.kpiTag, { color: colors.textMuted }]}>PENDING APPROVALS</Text>
-                  <View style={[styles.kpiIconBox, { backgroundColor: '#ef444415' }]}>
-                    <Text style={styles.kpiIconText}>🛡️</Text>
-                  </View>
-                </View>
-                <View style={styles.kpiRowFlex}>
-                  <Text style={[styles.kpiValue, { color: colors.textPrimary }]}>
-                    {pendingCount}
-                  </Text>
-                  <Text style={styles.kpiBadgeRed}>Action Items Required</Text>
-                </View>
+                <Text style={styles.metricSubPurple}>Needs your approval</Text>
               </View>
             </View>
 
-            {/* HR Operational Analytics Card */}
-            <View style={[styles.sectionCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-              <View style={styles.sectionHeaderBetween}>
-                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>⚡ Operational Analytics</Text>
-                <View style={styles.tabContainer}>
-                  {(['attendance', 'departments', 'diversity'] as const).map(tab => (
-                    <TouchableOpacity
-                      key={tab}
-                      style={[
-                        styles.tabButton,
-                        activeChartTab === tab && { backgroundColor: colors.accent },
-                      ]}
-                      onPress={() => setActiveChartTab(tab)}
-                    >
-                      <Text
-                        style={[
-                          styles.tabButtonText,
-                          { color: activeChartTab === tab ? '#ffffff' : colors.textSecondary },
-                        ]}
-                      >
-                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+            {/* Quick Actions Section */}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionHeading, { color: isDark ? '#ffffff' : '#0f172a' }]}>Quick Actions</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Menu')}>
+                <Text style={styles.viewDetailsLink}>See All →</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.quickActionsRow}>
+              {/* Action 1: Leave Mgmt */}
+              <TouchableOpacity
+                style={[styles.quickActionItem, { backgroundColor: isDark ? '#14532d20' : '#e6f4ea' }]}
+                onPress={() => navigation.navigate('ApplyLeave')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.actionIconBox, { backgroundColor: '#22c55e20' }]}>
+                  <Text style={{ fontSize: 20 }}>🌱</Text>
                 </View>
+                <Text style={[styles.quickActionLabel, { color: '#16a34a' }]}>Leave Mgmt</Text>
+              </TouchableOpacity>
+
+              {/* Action 2: Claims */}
+              <TouchableOpacity
+                style={[styles.quickActionItem, { backgroundColor: isDark ? '#1e3a8a20' : '#e0f2fe' }]}
+                onPress={() => navigation.navigate('ExpenseReimbursements')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.actionIconBox, { backgroundColor: '#3b82f620' }]}>
+                  <Text style={{ fontSize: 20 }}>📄</Text>
+                </View>
+                <Text style={[styles.quickActionLabel, { color: '#2563eb' }]}>Claims</Text>
+              </TouchableOpacity>
+
+              {/* Action 3: Team Directory */}
+              <TouchableOpacity
+                style={[styles.quickActionItem, { backgroundColor: isDark ? '#581c8720' : '#f3e8ff' }]}
+                onPress={() => navigation.navigate('EmployeeDirectory')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.actionIconBox, { backgroundColor: '#a855f720' }]}>
+                  <Text style={{ fontSize: 20 }}>👥</Text>
+                </View>
+                <Text style={[styles.quickActionLabel, { color: '#9333ea' }]}>Team Directory</Text>
+              </TouchableOpacity>
+
+              {/* Action 4: My Profile */}
+              <TouchableOpacity
+                style={[styles.quickActionItem, { backgroundColor: isDark ? '#83184320' : '#ffe4e6' }]}
+                onPress={() => navigation.navigate('EmployeeMaster', {})}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.actionIconBox, { backgroundColor: '#f43f5e20' }]}>
+                  <Text style={{ fontSize: 20 }}>👤</Text>
+                </View>
+                <Text style={[styles.quickActionLabel, { color: '#e11d48' }]}>My Profile</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Workforce Insights Section */}
+            <View style={[styles.contentCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
+              <Text style={[styles.cardHeading, { color: isDark ? '#ffffff' : '#0f172a' }]}>Workforce Insights</Text>
+
+              {/* Pill Tabs */}
+              <View style={styles.pillTabsContainer}>
+                <TouchableOpacity
+                  style={[styles.pillTab, activeInsightTab === 'attendance' && styles.pillTabActive]}
+                  onPress={() => setActiveInsightTab('attendance')}
+                >
+                  <Text style={[styles.pillTabText, activeInsightTab === 'attendance' && styles.pillTabTextActive]}>
+                    Attendance Trend
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.pillTab, activeInsightTab === 'departments' && styles.pillTabActive]}
+                  onPress={() => setActiveInsightTab('departments')}
+                >
+                  <Text style={[styles.pillTabText, activeInsightTab === 'departments' && styles.pillTabTextActive]}>
+                    Departments
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.pillTab, activeInsightTab === 'diversity' && styles.pillTabActive]}
+                  onPress={() => setActiveInsightTab('diversity')}
+                >
+                  <Text style={[styles.pillTabText, activeInsightTab === 'diversity' && styles.pillTabTextActive]}>
+                    Diversity
+                  </Text>
+                </TouchableOpacity>
               </View>
 
-              {/* Attendance Tab */}
-              {activeChartTab === 'attendance' && (
-                <View style={styles.analyticsBody}>
-                  <View style={styles.legendRow}>
+              {activeInsightTab === 'attendance' && (
+                <View style={styles.chartContainer}>
+                  <View style={styles.chartLegendRow}>
                     <View style={styles.legendItem}>
-                      <View style={[styles.legendDot, { backgroundColor: '#3b82f6' }]} />
-                      <Text style={[styles.legendText, { color: colors.textSecondary }]}>Present</Text>
+                      <View style={[styles.legendDot, { backgroundColor: '#22c55e' }]} />
+                      <Text style={styles.legendLabel}>Present</Text>
                     </View>
                     <View style={styles.legendItem}>
                       <View style={[styles.legendDot, { backgroundColor: '#f59e0b' }]} />
-                      <Text style={[styles.legendText, { color: colors.textSecondary }]}>Late</Text>
+                      <Text style={styles.legendLabel}>Late</Text>
                     </View>
                     <View style={styles.legendItem}>
                       <View style={[styles.legendDot, { backgroundColor: '#ef4444' }]} />
-                      <Text style={[styles.legendText, { color: colors.textSecondary }]}>Absent</Text>
+                      <Text style={styles.legendLabel}>Absent</Text>
                     </View>
                   </View>
 
-                  <View style={styles.barList}>
-                    {attendanceTrend.map((day, idx) => (
-                      <View key={idx} style={styles.barRow}>
-                        <Text style={[styles.barDayLabel, { color: colors.textSecondary }]}>{day.name}</Text>
-                        <View style={styles.barTrack}>
-                          <View style={[styles.barSegment, { flex: day.Present, backgroundColor: '#3b82f6' }]} />
-                          <View style={[styles.barSegment, { flex: day.Late, backgroundColor: '#f59e0b' }]} />
-                          <View style={[styles.barSegment, { flex: day.Absent || 0.5, backgroundColor: '#ef4444' }]} />
+                  <View style={styles.verticalBarColumnsContainer}>
+                    {attendanceTrend.map((item, idx) => (
+                      <View key={idx} style={styles.barColumnWrapper}>
+                        <Text style={styles.barTopPercentText}>{item.percentage}</Text>
+                        <View style={styles.stackedBarTrack}>
+                          <View style={{ flex: item.Present, backgroundColor: '#22c55e', width: '100%' }} />
+                          <View style={{ flex: item.Late, backgroundColor: '#f59e0b', width: '100%' }} />
+                          <View style={{ flex: item.Absent || 0.5, backgroundColor: '#ef4444', width: '100%' }} />
                         </View>
-                        <Text style={[styles.barValueText, { color: colors.textMuted }]}>{day.Present}%</Text>
+                        <Text style={styles.barBottomDayLabel}>{item.name}</Text>
                       </View>
                     ))}
                   </View>
                 </View>
               )}
 
-              {/* Departments Tab */}
-              {activeChartTab === 'departments' && (
-                <View style={styles.analyticsBody}>
-                  {deptDistribution.map((dept, idx) => {
-                    const colorsList = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
-                    const barColor = colorsList[idx % colorsList.length];
-                    return (
-                      <View key={idx} style={styles.deptItem}>
-                        <View style={styles.deptHeader}>
-                          <Text style={[styles.deptName, { color: colors.textPrimary }]}>{dept.name}</Text>
-                          <Text style={[styles.deptCount, { color: colors.textSecondary }]}>{dept.value} Staff</Text>
-                        </View>
-                        <View style={[styles.deptTrack, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}>
-                          <View style={[styles.deptFill, { width: `${(dept.value / 50) * 100}%`, backgroundColor: barColor }]} />
-                        </View>
+              {activeInsightTab === 'departments' && (
+                <View style={{ paddingTop: 12 }}>
+                  {deptDistribution.map((dept, idx) => (
+                    <View key={idx} style={{ marginBottom: 12 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: isDark ? '#ffffff' : '#0f172a' }}>{dept.name}</Text>
+                        <Text style={{ fontSize: 12, color: '#64748b' }}>{dept.value} Employees</Text>
                       </View>
-                    );
-                  })}
-                </View>
-              )}
-
-              {/* Diversity Tab */}
-              {activeChartTab === 'diversity' && (
-                <View style={styles.analyticsBody}>
-                  <Text style={[styles.diversityTitle, { color: colors.textSecondary }]}>Gender Inclusion Ratio</Text>
-                  <View style={styles.diversityRow}>
-                    <View style={[styles.diversityBox, { backgroundColor: '#3b82f615', borderColor: '#3b82f640' }]}>
-                      <Text style={styles.diversityIcon}>👨</Text>
-                      <Text style={[styles.diversityCount, { color: '#3b82f6' }]}>
-                        {dbDashboard?.genderDiversity?.male ?? 88}
-                      </Text>
-                      <Text style={[styles.diversityLabel, { color: colors.textSecondary }]}>Male Staff</Text>
-                    </View>
-
-                    <View style={[styles.diversityBox, { backgroundColor: '#ec489915', borderColor: '#ec489940' }]}>
-                      <Text style={styles.diversityIcon}>👩</Text>
-                      <Text style={[styles.diversityCount, { color: '#ec4899' }]}>
-                        {dbDashboard?.genderDiversity?.female ?? 60}
-                      </Text>
-                      <Text style={[styles.diversityLabel, { color: colors.textSecondary }]}>Female Staff</Text>
-                    </View>
-                  </View>
-                </View>
-              )}
-            </View>
-
-            {/* Quick System Workflows Grid */}
-            <View style={[styles.sectionCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>🚀 Quick System Workflows</Text>
-              <View style={styles.workflowGrid}>
-                <TouchableOpacity
-                  style={[styles.workflowItem, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder }]}
-                  onPress={() => navigation.navigate('EmployeeMaster', {})}
-                  activeOpacity={0.75}
-                >
-                  <Text style={styles.workflowIcon}>➕</Text>
-                  <Text style={[styles.workflowText, { color: colors.textPrimary }]}>Add Employee</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.workflowItem, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder }]}
-                  onPress={() => navigation.navigate('SalaryProcessing')}
-                  activeOpacity={0.75}
-                >
-                  <Text style={styles.workflowIcon}>💳</Text>
-                  <Text style={[styles.workflowText, { color: colors.textPrimary }]}>Run Salaries</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.workflowItem, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder }]}
-                  onPress={() => navigation.navigate('KraGoalSetting')}
-                  activeOpacity={0.75}
-                >
-                  <Text style={styles.workflowIcon}>🏆</Text>
-                  <Text style={[styles.workflowText, { color: colors.textPrimary }]}>Appraisals</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.workflowItem, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder }]}
-                  onPress={() => navigation.navigate('JobRequisitions')}
-                  activeOpacity={0.75}
-                >
-                  <Text style={styles.workflowIcon}>💼</Text>
-                  <Text style={[styles.workflowText, { color: colors.textPrimary }]}>Create Job</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Mood Index Banner */}
-              <View style={[styles.moodBanner, { backgroundColor: isDark ? '#064e3b25' : '#ecfdf5', borderColor: '#10b98140' }]}>
-                <Text style={styles.moodIcon}>😊</Text>
-                <View style={styles.moodContent}>
-                  <Text style={[styles.moodTitle, { color: isDark ? '#34d399' : '#047857' }]}>
-                    Company Mood Index: Very Happy (84%)
-                  </Text>
-                  <Text style={[styles.moodSubtitle, { color: colors.textMuted }]}>
-                    Based on weekly enterprise pulse checks
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Pending Approvals Workflow Card */}
-            <View style={[styles.sectionCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-              <View style={styles.sectionHeaderBetween}>
-                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>📋 Pending Approvals</Text>
-                <View style={styles.badgeAmber}>
-                  <Text style={styles.badgeAmberText}>{pendingCount} Action Items</Text>
-                </View>
-              </View>
-
-              {pendingLeaves.length === 0 && pendingClaims.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                    🎉 All approvals are up to date!
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.approvalsList}>
-                  {/* Leaves */}
-                  {pendingLeaves.map(leave => (
-                    <View key={leave.id} style={[styles.approvalCard, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder }]}>
-                      <View style={styles.approvalHeader}>
-                        <Text style={[styles.approvalName, { color: colors.textPrimary }]}>{leave.employeeName}</Text>
-                        <View style={styles.badgeBlue}>
-                          <Text style={styles.badgeBlueText}>{leave.type}</Text>
-                        </View>
-                      </View>
-                      <Text style={[styles.approvalDetail, { color: colors.textSecondary }]}>
-                        {leave.startDate} - {leave.endDate} ({leave.days}d) • "{leave.reason}"
-                      </Text>
-                      <View style={styles.approvalActions}>
-                        <TouchableOpacity
-                          style={[styles.btnApprove, { backgroundColor: '#22c55e' }]}
-                          onPress={() => handleApproveLeave(leave.id, leave.employeeName)}
-                        >
-                          <Text style={styles.btnActionText}>✓ Approve</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.btnReject, { backgroundColor: '#ef4444' }]}
-                          onPress={() => handleRejectLeave(leave.id, leave.employeeName)}
-                        >
-                          <Text style={styles.btnActionText}>✕ Reject</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))}
-
-                  {/* Claims */}
-                  {pendingClaims.map(claim => (
-                    <View key={claim.id} style={[styles.approvalCard, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder }]}>
-                      <View style={styles.approvalHeader}>
-                        <Text style={[styles.approvalName, { color: colors.textPrimary }]}>{claim.employeeName}</Text>
-                        <View style={styles.badgePurple}>
-                          <Text style={styles.badgePurpleText}>{claim.type}</Text>
-                        </View>
-                      </View>
-                      <Text style={[styles.approvalDetail, { color: colors.textSecondary }]}>
-                        Amount: ₹{claim.amount.toLocaleString()} • Applied: {claim.date} • "{claim.reason}"
-                      </Text>
-                      <View style={styles.approvalActions}>
-                        <TouchableOpacity
-                          style={[styles.btnApprove, { backgroundColor: '#22c55e' }]}
-                          onPress={() => handleApproveClaim(claim.id, claim.employeeName, claim.amount)}
-                        >
-                          <Text style={styles.btnActionText}>✓ Approve</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.btnReject, { backgroundColor: '#ef4444' }]}
-                          onPress={() => handleRejectClaim(claim.id, claim.employeeName)}
-                        >
-                          <Text style={styles.btnActionText}>✕ Reject</Text>
-                        </TouchableOpacity>
+                      <View style={{ height: 8, backgroundColor: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
+                        <View style={{ height: '100%', width: `${(dept.value / 50) * 100}%`, backgroundColor: '#2563eb', borderRadius: 4 }} />
                       </View>
                     </View>
                   ))}
                 </View>
               )}
+
+              {activeInsightTab === 'diversity' && (
+                <View style={{ flexDirection: 'row', gap: 12, paddingTop: 12 }}>
+                  <View style={{ flex: 1, padding: 16, backgroundColor: '#e0f2fe', borderRadius: 14, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 24 }}>👨</Text>
+                    <Text style={{ fontSize: 22, fontWeight: '800', color: '#2563eb', marginTop: 6 }}>88 Staff</Text>
+                    <Text style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>Male Employees</Text>
+                  </View>
+                  <View style={{ flex: 1, padding: 16, backgroundColor: '#ffe4e6', borderRadius: 14, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 24 }}>👩</Text>
+                    <Text style={{ fontSize: 22, fontWeight: '800', color: '#e11d48', marginTop: 6 }}>60 Staff</Text>
+                    <Text style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>Female Employees</Text>
+                  </View>
+                </View>
+              )}
             </View>
 
-            {/* Session Audit Logs */}
-            <View style={[styles.sectionCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>📜 Session Audit Logs</Text>
-              <View style={styles.auditList}>
-                {auditLogs.map((log, index) => (
-                  <View key={log.id || index.toString()} style={styles.auditItem}>
-                    <View style={[styles.auditDot, { backgroundColor: index % 2 === 0 ? '#3b82f6' : '#22c55e' }]} />
-                    <View style={styles.auditContent}>
-                      <View style={styles.auditHeader}>
-                        <Text style={[styles.auditAction, { color: colors.textPrimary }]}>{log.action}</Text>
-                        <Text style={[styles.auditTime, { color: colors.textMuted }]}>{log.timestamp}</Text>
-                      </View>
-                      <Text style={[styles.auditDetails, { color: colors.textSecondary }]}>{log.details}</Text>
-                      <Text style={[styles.auditUser, { color: colors.textMuted }]}>Logged by: {log.user}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
+            {/* Pending Approvals Section */}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionHeading, { color: isDark ? '#ffffff' : '#0f172a' }]}>Pending Approvals</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('LeaveApprovals')}>
+                <Text style={styles.viewDetailsLink}>View All →</Text>
+              </TouchableOpacity>
             </View>
 
-            {/* Celebrations & Holidays Grid */}
-            <View style={styles.doubleGrid}>
-              {/* Celebrations */}
-              <View style={[styles.halfCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>🎂 Celebrations</Text>
-                <View style={styles.celebrationItem}>
-                  <Text style={styles.celebEmoji}>🎂</Text>
-                  <View style={styles.celebContent}>
-                    <Text style={[styles.celebTitle, { color: colors.textPrimary }]}>Aarav Sharma's Birthday</Text>
-                    <Text style={[styles.celebSub, { color: colors.textMuted }]}>Turns a year older today!</Text>
-                  </View>
-                </View>
-
-                <View style={styles.celebrationItem}>
-                  <Text style={styles.celebEmoji}>💼</Text>
-                  <View style={styles.celebContent}>
-                    <Text style={[styles.celebTitle, { color: colors.textPrimary }]}>2-Year Work Anniversary</Text>
-                    <Text style={[styles.celebSub, { color: colors.textMuted }]}>Neha Patel (2 Yrs at HRMS)</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Upcoming Holidays */}
-              <View style={[styles.halfCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>🏖️ Upcoming Holidays</Text>
-                <View style={styles.holidayItem}>
-                  <View>
-                    <Text style={[styles.holidayName, { color: colors.textPrimary }]}>Independence Day</Text>
-                    <Text style={[styles.holidayType, { color: colors.textMuted }]}>Public Holiday</Text>
-                  </View>
-                  <View style={[styles.dateChip, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}>
-                    <Text style={[styles.dateChipText, { color: colors.textSecondary }]}>Aug 15</Text>
-                  </View>
-                </View>
-
-                <View style={styles.holidayItem}>
-                  <View>
-                    <Text style={[styles.holidayName, { color: colors.textPrimary }]}>Ganesh Chaturthi</Text>
-                    <Text style={[styles.holidayType, { color: colors.textMuted }]}>Gazetted Holiday</Text>
-                  </View>
-                  <View style={[styles.dateChip, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}>
-                    <Text style={[styles.dateChipText, { color: colors.textSecondary }]}>Sep 14</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            {/* Organizational Structure Preview */}
-            <View style={[styles.sectionCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>🌳 Organizational Structure</Text>
-              <View style={styles.orgPreviewBox}>
-                <View style={[styles.orgNodeTop, { backgroundColor: '#3b82f615', borderColor: '#3b82f650' }]}>
-                  <Text style={[styles.orgName, { color: '#3b82f6' }]}>Vikram Malhotra</Text>
-                  <Text style={[styles.orgRole, { color: colors.textMuted }]}>CEO / EXECUTIVE</Text>
-                </View>
-
-                <View style={[styles.lineVertical, { backgroundColor: colors.divider }]} />
-
-                <View style={styles.orgNodeRow}>
-                  <View style={[styles.orgNodeChild, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder }]}>
-                    <Text style={[styles.orgNameChild, { color: colors.textPrimary }]}>Neha Patel</Text>
-                    <Text style={[styles.orgRoleChild, { color: colors.textMuted }]}>Engineering Lead</Text>
-                  </View>
-
-                  <View style={[styles.orgNodeChild, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder }]}>
-                    <Text style={[styles.orgNameChild, { color: colors.textPrimary }]}>Shalini Sen</Text>
-                    <Text style={[styles.orgRoleChild, { color: colors.textMuted }]}>HR Lead</Text>
-                  </View>
-                </View>
+            <View style={[styles.contentCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
+              {/* Approval Tabs */}
+              <View style={styles.pillTabsContainer}>
+                <TouchableOpacity
+                  style={[styles.pillTab, activeApprovalTab === 'leaves' && styles.pillTabActive]}
+                  onPress={() => setActiveApprovalTab('leaves')}
+                >
+                  <Text style={[styles.pillTabText, activeApprovalTab === 'leaves' && styles.pillTabTextActive]}>
+                    Leave Requests ({pendingLeaves.length})
+                  </Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.btnOrgLink}
-                  onPress={() => navigation.navigate('OrgChart')}
-                  activeOpacity={0.8}
+                  style={[styles.pillTab, activeApprovalTab === 'claims' && styles.pillTabActive]}
+                  onPress={() => setActiveApprovalTab('claims')}
                 >
-                  <Text style={styles.btnOrgLinkText}>View Full Org Chart →</Text>
+                  <Text style={[styles.pillTabText, activeApprovalTab === 'claims' && styles.pillTabTextActive]}>
+                    Travel Claims ({pendingClaims.length})
+                  </Text>
                 </TouchableOpacity>
+              </View>
+
+              {activeApprovalTab === 'leaves' && (
+                <View style={{ gap: 14, paddingTop: 6 }}>
+                  {pendingLeaves.length === 0 ? (
+                    <Text style={{ textAlign: 'center', color: '#64748b', paddingVertical: 12 }}>
+                      🎉 All leave approvals completed!
+                    </Text>
+                  ) : (
+                    pendingLeaves.map(item => (
+                      <View key={item.id} style={styles.approvalItemCard}>
+                        <View style={styles.approvalItemTopRow}>
+                          <View style={styles.approvalUserFlex}>
+                            <View style={[styles.avatarInitialsCircle, { backgroundColor: '#dcfce7' }]}>
+                              <Text style={{ color: '#15803d', fontWeight: '700', fontSize: 13 }}>
+                                {item.employeeName.split(' ').map(n => n[0]).join('')}
+                              </Text>
+                            </View>
+                            <View>
+                              <Text style={styles.approvalUserName}>{item.employeeName}</Text>
+                              <Text style={styles.approvalSubtitle}>
+                                {item.type} • {item.startDate} – {item.endDate}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.statusPendingBadge}>
+                            <Text style={styles.statusPendingText}>Pending</Text>
+                          </View>
+                        </View>
+
+                        <Text style={styles.approvalDetailLine}>
+                          📅 {item.days} {item.days === 1 ? 'day' : 'days'} • {item.reason}
+                        </Text>
+
+                        <View style={styles.approvalButtonsRow}>
+                          <TouchableOpacity
+                            style={styles.btnOutlineReject}
+                            onPress={() => handleRejectLeave(item.id, item.employeeName)}
+                          >
+                            <Text style={styles.btnRejectText}>Reject</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.btnSolidApprove}
+                            onPress={() => handleApproveLeave(item.id, item.employeeName)}
+                          >
+                            <Text style={styles.btnApproveText}>Approve</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
+              )}
+
+              {activeApprovalTab === 'claims' && (
+                <View style={{ gap: 14, paddingTop: 6 }}>
+                  {pendingClaims.length === 0 ? (
+                    <Text style={{ textAlign: 'center', color: '#64748b', paddingVertical: 12 }}>
+                      🎉 All claim approvals completed!
+                    </Text>
+                  ) : (
+                    pendingClaims.map(item => (
+                      <View key={item.id} style={styles.approvalItemCard}>
+                        <View style={styles.approvalItemTopRow}>
+                          <View style={styles.approvalUserFlex}>
+                            <View style={[styles.avatarInitialsCircle, { backgroundColor: '#f3e8ff' }]}>
+                              <Text style={{ color: '#7e22ce', fontWeight: '700', fontSize: 13 }}>
+                                {item.employeeName.split(' ').map(n => n[0]).join('')}
+                              </Text>
+                            </View>
+                            <View>
+                              <Text style={styles.approvalUserName}>{item.employeeName}</Text>
+                              <Text style={styles.approvalSubtitle}>
+                                {item.type} • ₹{item.amount.toLocaleString()}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.statusPendingBadge}>
+                            <Text style={styles.statusPendingText}>Pending</Text>
+                          </View>
+                        </View>
+
+                        <Text style={styles.approvalDetailLine}>
+                          📄 Applied {item.date} • {item.reason}
+                        </Text>
+
+                        <View style={styles.approvalButtonsRow}>
+                          <TouchableOpacity
+                            style={styles.btnOutlineReject}
+                            onPress={() => handleRejectClaim(item.id, item.employeeName)}
+                          >
+                            <Text style={styles.btnRejectText}>Reject</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.btnSolidApprove}
+                            onPress={() => handleApproveClaim(item.id, item.employeeName, item.amount)}
+                          >
+                            <Text style={styles.btnApproveText}>Approve</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* Recent Activity Section */}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionHeading, { color: isDark ? '#ffffff' : '#0f172a' }]}>Recent Activity</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('MusterRoll')}>
+                <Text style={styles.viewDetailsLink}>View All →</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.contentCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
+              <View style={styles.recentActivityList}>
+                {/* Item 1 */}
+                <View style={styles.activityItemRow}>
+                  <View style={[styles.activityIconCircle, { backgroundColor: '#dcfce7' }]}>
+                    <Text style={{ color: '#16a34a', fontWeight: '800', fontSize: 14 }}>✓</Text>
+                  </View>
+                  <View style={styles.activityTextFlex}>
+                    <Text style={[styles.activityTitleText, { color: isDark ? '#ffffff' : '#0f172a' }]}>Check-in Registered</Text>
+                    <Text style={styles.activitySubtitleText}>John Doe • Attendance</Text>
+                  </View>
+                  <Text style={styles.activityTimestampText}>Today, 09:15 AM</Text>
+                </View>
+
+                <View style={styles.itemDivider} />
+
+                {/* Item 2 */}
+                <View style={styles.activityItemRow}>
+                  <View style={[styles.activityIconCircle, { backgroundColor: '#e0f2fe' }]}>
+                    <Text style={{ fontSize: 14 }}>📅</Text>
+                  </View>
+                  <View style={styles.activityTextFlex}>
+                    <Text style={[styles.activityTitleText, { color: isDark ? '#ffffff' : '#0f172a' }]}>Casual Leave Approved</Text>
+                    <Text style={styles.activitySubtitleText}>HR Admin • Leave Management</Text>
+                  </View>
+                  <Text style={styles.activityTimestampText}>Yesterday, 04:30 PM</Text>
+                </View>
+
+                <View style={styles.itemDivider} />
+
+                {/* Item 3 */}
+                <View style={styles.activityItemRow}>
+                  <View style={[styles.activityIconCircle, { backgroundColor: '#f3e8ff' }]}>
+                    <Text style={{ fontSize: 14 }}>📄</Text>
+                  </View>
+                  <View style={styles.activityTextFlex}>
+                    <Text style={[styles.activityTitleText, { color: isDark ? '#ffffff' : '#0f172a' }]}>Expense Claim Processed</Text>
+                    <Text style={styles.activitySubtitleText}>Finance Lead • Claims</Text>
+                  </View>
+                  <Text style={styles.activityTimestampText}>2 days ago</Text>
+                </View>
               </View>
             </View>
           </>
@@ -670,26 +639,16 @@ const styles = StyleSheet.create({
   },
   container: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 24,
   },
-  topHeader: {
+  topAppBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
   },
-  topHeaderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  menuIconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 10,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  hamburgerButton: {
+    padding: 8,
   },
   hamburgerLine: {
     width: 20,
@@ -697,78 +656,118 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     marginVertical: 2,
   },
-  themeToggleButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 1,
+  brandTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  brandLogoBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  themeToggleIcon: {
-    fontSize: 18,
-  },
-  logoutHeaderButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 1,
-    borderColor: '#ef444440',
-    backgroundColor: '#ef444415',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoutHeaderIcon: {
+  brandLogoIcon: {
+    color: '#ffffff',
+    fontWeight: '900',
     fontSize: 16,
   },
-  profileBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  brandTitleText: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  topRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  circleIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  profileBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 20,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 14,
+  },
+  avatarCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
     color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  greetingCard: {
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
-  greetingTextContainer: {
-    marginBottom: 14,
-  },
-  greetingTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
   },
-  greetingSubtitle: {
-    fontSize: 12,
-    marginTop: 4,
+  onlineDot: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#22c55e',
+    borderWidth: 2,
+    borderColor: '#ffffff',
   },
-  headerActionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  headerActionButton: {
+  profileTextContainer: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  headerSecondaryAction: {
-    borderWidth: 1,
-  },
-  headerActionText: {
-    color: '#ffffff',
-    fontWeight: '600',
+  greetingLabel: {
     fontSize: 13,
+    fontWeight: '500',
+  },
+  userNameText: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginTop: 1,
+  },
+  userRoleText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  dateBadgeContainer: {
+    alignItems: 'flex-end',
+  },
+  dateDayText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dateFormattedText: {
+    fontSize: 11,
+    marginTop: 2,
   },
   loadingContainer: {
     paddingVertical: 60,
@@ -777,119 +776,145 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    fontWeight: '500',
+    color: '#64748b',
   },
-  kpiGrid: {
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  sectionHeading: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  viewDetailsLink: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     rowGap: 12,
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  kpiCard: {
+  metricCard: {
     width: '48%',
+    borderRadius: 18,
     padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
   },
-  kpiCardFull: {
-    width: '100%',
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  kpiHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  metricIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
-  kpiTag: {
-    fontSize: 10,
+  metricLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  metricValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  metricTrendGreen: {
+    fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    color: '#16a34a',
+    marginTop: 4,
   },
-  kpiIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+  metricSubOrange: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ea580c',
+    marginTop: 4,
+  },
+  metricSubPurple: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#9333ea',
+    marginTop: 4,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
+  },
+  quickActionItem: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  kpiIconText: {
-    fontSize: 12,
-  },
-  kpiValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    marginTop: 8,
-  },
-  kpiRowFlex: {
-    flexDirection: 'row',
+  actionIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    marginBottom: 6,
   },
-  kpiBadgeGreen: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#22c55e',
-    marginTop: 4,
-  },
-  kpiBadgeAmber: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#f59e0b',
-    marginTop: 4,
-  },
-  kpiBadgeRed: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#ef4444',
-    marginTop: 4,
-  },
-  kpiSubtext: {
-    fontSize: 10,
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  sectionCard: {
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  sectionHeaderBetween: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#00000010',
-    borderRadius: 8,
-    padding: 2,
-  },
-  tabButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  tabButtonText: {
+  quickActionLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
+    textAlign: 'center',
   },
-  analyticsBody: {
+  contentCard: {
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  cardHeading: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 14,
+  },
+  pillTabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 14,
+  },
+  pillTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  pillTabActive: {
+    backgroundColor: '#2563eb',
+  },
+  pillTabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  pillTabTextActive: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  chartContainer: {
     paddingTop: 4,
   },
-  legendRow: {
+  chartLegendRow: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 12,
+    justifyContent: 'flex-end',
+    gap: 14,
+    marginBottom: 16,
   },
   legendItem: {
     flexDirection: 'row',
@@ -901,362 +926,160 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  legendText: {
+  legendLabel: {
     fontSize: 11,
-    fontWeight: '500',
+    color: '#64748b',
+    fontWeight: '600',
   },
-  barList: {
-    gap: 8,
-  },
-  barRow: {
+  verticalBarColumnsContainer: {
     flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'flex-end',
+    height: 140,
+    paddingBottom: 4,
+  },
+  barColumnWrapper: {
     alignItems: 'center',
-    gap: 8,
-  },
-  barDayLabel: {
-    width: 32,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  barTrack: {
-    flex: 1,
-    height: 12,
-    borderRadius: 6,
-    flexDirection: 'row',
-    overflow: 'hidden',
-    backgroundColor: '#00000010',
-  },
-  barSegment: {
+    width: 44,
     height: '100%',
+    justifyContent: 'flex-end',
   },
-  barValueText: {
-    width: 36,
+  barTopPercentText: {
     fontSize: 11,
-    textAlign: 'right',
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 6,
+  },
+  stackedBarTrack: {
+    width: 30,
+    height: 90,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  barBottomDayLabel: {
+    fontSize: 11,
     fontWeight: '600',
+    color: '#64748b',
+    marginTop: 8,
   },
-  deptItem: {
-    marginBottom: 10,
+  approvalItemCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 14,
+    padding: 12,
   },
-  deptHeader: {
+  approvalItemTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    alignItems: 'flex-start',
   },
-  deptName: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  deptCount: {
-    fontSize: 11,
-  },
-  deptTrack: {
-    height: 8,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  deptFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  diversityTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 10,
-  },
-  diversityRow: {
+  approvalUserFlex: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  diversityBox: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
     alignItems: 'center',
+    gap: 10,
   },
-  diversityIcon: {
-    fontSize: 22,
+  avatarInitialsCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  diversityCount: {
-    fontSize: 20,
+  approvalUserName: {
+    fontSize: 14,
     fontWeight: '800',
-    marginTop: 4,
+    color: '#0f172a',
   },
-  diversityLabel: {
+  approvalSubtitle: {
     fontSize: 11,
-    marginTop: 2,
+    color: '#64748b',
+    marginTop: 1,
   },
-  workflowGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 14,
-  },
-  workflowItem: {
-    width: '48%',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  workflowIcon: {
-    fontSize: 20,
-    marginBottom: 4,
-  },
-  workflowText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  moodBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 10,
-  },
-  moodIcon: {
-    fontSize: 22,
-  },
-  moodContent: {
-    flex: 1,
-  },
-  moodTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  moodSubtitle: {
-    fontSize: 10,
-    marginTop: 2,
-  },
-  badgeAmber: {
-    backgroundColor: '#f59e0b20',
+  statusPendingBadge: {
+    backgroundColor: '#ffedd5',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 12,
+    borderRadius: 8,
   },
-  badgeAmberText: {
-    color: '#d97706',
+  statusPendingText: {
+    color: '#c2410c',
     fontSize: 10,
     fontWeight: '700',
   },
-  emptyState: {
-    paddingVertical: 20,
-    alignItems: 'center',
-  },
-  emptyText: {
+  approvalDetailLine: {
     fontSize: 12,
+    color: '#475569',
+    marginTop: 8,
+    marginBottom: 10,
   },
-  approvalsList: {
+  approvalButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
     gap: 10,
   },
-  approvalCard: {
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
+  btnOutlineReject: {
+    borderWidth: 1.5,
+    borderColor: '#ef4444',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
-  approvalHeader: {
+  btnRejectText: {
+    color: '#ef4444',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  btnSolidApprove: {
+    backgroundColor: '#16a34a',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  btnApproveText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  recentActivityList: {
+    gap: 4,
+  },
+  activityItemRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    paddingVertical: 6,
   },
-  approvalName: {
+  activityIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  activityTextFlex: {
+    flex: 1,
+  },
+  activityTitleText: {
     fontSize: 13,
     fontWeight: '700',
   },
-  badgeBlue: {
-    backgroundColor: '#3b82f620',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  badgeBlueText: {
-    color: '#2563eb',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  badgePurple: {
-    backgroundColor: '#a855f720',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  badgePurpleText: {
-    color: '#9333ea',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  approvalDetail: {
+  activitySubtitleText: {
     fontSize: 11,
-    marginBottom: 8,
-  },
-  approvalActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  btnApprove: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  btnReject: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  btnActionText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  auditList: {
-    gap: 10,
-  },
-  auditItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  auditDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginTop: 4,
-  },
-  auditContent: {
-    flex: 1,
-  },
-  auditHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  auditAction: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  auditTime: {
-    fontSize: 10,
-  },
-  auditDetails: {
-    fontSize: 11,
+    color: '#64748b',
     marginTop: 2,
   },
-  auditUser: {
-    fontSize: 9,
-    marginTop: 2,
-  },
-  doubleGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
-  },
-  halfCard: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  celebrationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  celebEmoji: {
-    fontSize: 18,
-  },
-  celebContent: {
-    flex: 1,
-  },
-  celebTitle: {
+  activityTimestampText: {
     fontSize: 11,
-    fontWeight: '700',
+    color: '#94a3b8',
+    fontWeight: '500',
   },
-  celebSub: {
-    fontSize: 9,
-    marginTop: 1,
-  },
-  holidayItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  holidayName: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  holidayType: {
-    fontSize: 9,
-    marginTop: 1,
-  },
-  dateChip: {
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  dateChipText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  orgPreviewBox: {
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  orgNodeTop: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  orgName: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  orgRole: {
-    fontSize: 9,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  lineVertical: {
-    width: 2,
-    height: 14,
+  itemDivider: {
+    height: 1,
+    backgroundColor: '#f1f5f9',
     marginVertical: 4,
   },
-  orgNodeRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  orgNodeChild: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  orgNameChild: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  orgRoleChild: {
-    fontSize: 8,
-    marginTop: 1,
-  },
-  btnOrgLink: {
-    marginTop: 4,
-  },
-  btnOrgLinkText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#2563eb',
-  },
 });
+
+
 
 
 
