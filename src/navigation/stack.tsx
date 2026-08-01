@@ -242,7 +242,12 @@ export const AppStackNavigator = () => {
       <Stack.Screen
         name="Menu"
         component={MenuScreen}
-        options={{ title: 'Navigation Menu' }}
+        options={{
+          headerShown: false,
+          presentation: 'transparentModal',
+          animation: 'fade',
+          contentStyle: { backgroundColor: 'transparent' },
+        }}
       />
       <Stack.Screen
         name="EmployeeDirectory"

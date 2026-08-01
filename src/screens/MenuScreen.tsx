@@ -1,8 +1,10 @@
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
+  BackHandler,
+  Dimensions,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -12,11 +14,16 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useLogout } from '../api/hook/useAuth';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useLogout, useProfile } from '../api/hook/useAuth';
 import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Menu'>;
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const SIDEBAR_WIDTH = Math.min(SCREEN_WIDTH * 0.84, 340);
 
 interface SubMenuItem {
   id: string;
@@ -34,8 +41,75 @@ export const MenuScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark, toggleTheme } = useTheme();
   const logout = useLogout();
+  const { data: profileResponse } = useProfile();
+
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Animated values for drawer sliding and backdrop fading
+  const slideAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const isClosingRef = useRef(false);
+
+  // User Profile Data
+  const userName = profileResponse?.data?.user?.name || 'John Doe';
+  const userRole = profileResponse?.data?.user?.role || 'Software Engineer • HRMS Portal';
+  const userInitials = userName
+    ? userName
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .substring(0, 2)
+        .toUpperCase()
+    : 'JD';
+
+  useEffect(() => {
+    // Slide in from left & fade in backdrop
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Hardware back handler for Android
+    const onBackPress = () => {
+      handleClose();
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => backHandler.remove();
+  }, []);
+
+  const handleClose = (onFinished?: () => void) => {
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
+
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: -SIDEBAR_WIDTH,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      navigation.goBack();
+      if (onFinished) {
+        onFinished();
+      }
+    });
+  };
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to log out of your account?', [
@@ -43,14 +117,15 @@ export const MenuScreen: React.FC = () => {
       {
         text: 'Log Out',
         style: 'destructive',
-        onPress: async () => {
-          await logout();
-          navigation.replace('Login');
+        onPress: () => {
+          handleClose(async () => {
+            await logout();
+            navigation.replace('Login');
+          });
         },
       },
     ]);
   };
-
 
   const menuItems: MenuItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
@@ -213,7 +288,7 @@ export const MenuScreen: React.FC = () => {
     setOpenDropdown(openDropdown === id ? null : id);
   };
 
-  const handleSelectMenuItem = (itemId: string, subItemId?: string) => {
+  const navigateToRoute = (itemId: string, subItemId?: string) => {
     if (itemId === 'dashboard') {
       navigation.navigate('Dashboard');
       return;
@@ -497,6 +572,12 @@ export const MenuScreen: React.FC = () => {
     }
   };
 
+  const handleSelectMenuItem = (itemId: string, subItemId?: string) => {
+    handleClose(() => {
+      navigateToRoute(itemId, subItemId);
+    });
+  };
+
   const filteredMenuItems = menuItems.filter(item => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
@@ -506,195 +587,322 @@ export const MenuScreen: React.FC = () => {
   });
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={colors.statusBar} backgroundColor={colors.statusBarBg} />
+    <View style={styles.overlayRoot}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
-      {/* Top Header */}
-      <View style={[styles.header, { backgroundColor: colors.headerBackground, borderBottomColor: colors.headerBorder }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: colors.cardBackground }]}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.backButtonIcon, { color: colors.textPrimary }]}>←</Text>
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Navigation Menu</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Symbosys HRMS Portal</Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.themeToggleButton, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
-          onPress={toggleTheme}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.themeToggleIcon}>{isDark ? '☀️' : '🌙'}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Search Bar */}
-      <View style={[styles.searchContainer, { backgroundColor: colors.background }]}>
-        <TextInput
+      {/* Dark Semi-transparent Backdrop */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={() => handleClose()}>
+        <Animated.View
           style={[
-            styles.searchInput,
+            styles.backdrop,
             {
-              backgroundColor: colors.inputBackground,
-              borderColor: colors.inputBorder,
-              color: colors.inputText,
+              opacity: fadeAnim,
             },
           ]}
-          placeholder="Search modules..."
-          placeholderTextColor={colors.inputPlaceholder}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
         />
-      </View>
+      </Pressable>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {filteredMenuItems.map(item => {
-          const isOpen = openDropdown === item.id || searchQuery.trim().length > 0;
-          const hasSubItems = item.subItems && item.subItems.length > 0;
+      {/* Sliding Sidebar Drawer Panel */}
+      <Animated.View
+        style={[
+          styles.sidebarContainer,
+          {
+            width: SIDEBAR_WIDTH,
+            backgroundColor: colors.background,
+            borderRightColor: colors.cardBorder,
+            transform: [{ translateX: slideAnim }],
+          },
+        ]}
+      >
+        <SafeAreaView style={styles.safeArea}>
+          {/* User Profile Drawer Header */}
+          <View style={[styles.sidebarHeader, { backgroundColor: isDark ? '#1e293b' : '#e0f2fe', borderBottomColor: colors.cardBorder }]}>
+            <View style={styles.profileRow}>
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarText}>{userInitials}</Text>
+                <View style={styles.onlineBadge} />
+              </View>
 
-          return (
-            <View
-              key={item.id}
-              style={[
-                styles.menuCard,
-                {
-                  backgroundColor: colors.cardBackground,
-                  borderColor: colors.cardBorder,
-                },
-              ]}
-            >
-              <TouchableOpacity
-                style={styles.menuHeaderButton}
-                onPress={() => {
-                  if (hasSubItems) {
-                    toggleDropdown(item.id);
-                  } else {
-                    handleSelectMenuItem(item.id);
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.menuHeaderLeft}>
-                  <Text style={styles.menuIcon}>{item.icon}</Text>
-                  <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>{item.label}</Text>
+              <View style={styles.profileInfo}>
+                <Text style={[styles.profileName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>
+                  {userName}
+                </Text>
+                <Text style={[styles.profileRole, { color: isDark ? '#94a3b8' : '#475569' }]} numberOfLines={1}>
+                  {userRole}
+                </Text>
+                <View style={styles.statusPill}>
+                  <View style={styles.statusDot} />
+                  <Text style={styles.statusPillText}>Active • HRMS Portal</Text>
                 </View>
+              </View>
 
-                {hasSubItems && (
-                  <Text style={[styles.dropdownArrow, { color: colors.textSecondary }]}>
-                    {isOpen ? '▲' : '▼'}
-                  </Text>
-                )}
-              </TouchableOpacity>
+              {/* Action Buttons: Theme Switcher & Close Drawer */}
+              <View style={styles.headerActionBtns}>
+                <TouchableOpacity
+                  style={[styles.iconBtn, { backgroundColor: isDark ? '#334155' : '#ffffff' }]}
+                  onPress={toggleTheme}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ fontSize: 14 }}>{isDark ? '☀️' : '🌙'}</Text>
+                </TouchableOpacity>
 
-              {/* Sub-menu accordion */}
-              {hasSubItems && isOpen && (
-                <View style={[styles.subMenuContainer, { backgroundColor: colors.subItemBg, borderTopColor: colors.subItemBorder }]}>
-                  {item.subItems?.map(sub => (
-                    <TouchableOpacity
-                      key={sub.id}
-                      style={styles.subMenuItemButton}
-                      onPress={() => handleSelectMenuItem(item.id, sub.id)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.subMenuDot, { backgroundColor: colors.accent }]} />
-                      <Text style={[styles.subMenuLabel, { color: colors.subItemText }]}>{sub.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <TouchableOpacity
+                  style={[styles.iconBtn, { backgroundColor: isDark ? '#334155' : '#ffffff' }]}
+                  onPress={() => handleClose()}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.closeIconText, { color: isDark ? '#f8fafc' : '#0f172a' }]}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          {/* Module Search Bar */}
+          <View style={[styles.searchSection, { backgroundColor: colors.background, borderBottomColor: colors.divider }]}>
+            <View style={[styles.searchBox, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}>
+              <Text style={styles.searchIcon}>🔍</Text>
+              <TextInput
+                style={[styles.searchInput, { color: colors.inputText }]}
+                placeholder="Search modules..."
+                placeholderTextColor={colors.inputPlaceholder}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Text style={{ color: colors.textMuted, fontSize: 14, paddingHorizontal: 6 }}>✕</Text>
+                </TouchableOpacity>
               )}
             </View>
-          );
-        })}
-
-        {/* Logout Button */}
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.logoutIcon}>🚪</Text>
-          <Text style={styles.logoutText}>Log Out</Text>
-        </TouchableOpacity>
-
-        {/* Footer info */}
-        <View style={[styles.footerContainer, { borderTopColor: colors.divider }]}>
-          <Text style={[styles.footerBrand, { color: colors.footerText }]}>FactoCorp HRMS v4.2</Text>
-          <Text style={[styles.footerServer, { color: colors.textMuted }]}>Server: Cloud Secure</Text>
-          <View style={styles.syncStatus}>
-            <View style={styles.syncDot} />
-            <Text style={styles.syncText}>Live Sync Active</Text>
           </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+
+          {/* Accordion Categories List */}
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            {filteredMenuItems.map(item => {
+              const isOpen = openDropdown === item.id || searchQuery.trim().length > 0;
+              const hasSubItems = item.subItems && item.subItems.length > 0;
+              const subCount = item.subItems ? item.subItems.length : 0;
+
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.menuCard,
+                    {
+                      backgroundColor: colors.cardBackground,
+                      borderColor: colors.cardBorder,
+                    },
+                  ]}
+                >
+                  <TouchableOpacity
+                    style={styles.menuHeaderButton}
+                    onPress={() => {
+                      if (hasSubItems && !searchQuery.trim()) {
+                        toggleDropdown(item.id);
+                      } else {
+                        handleSelectMenuItem(item.id);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.menuHeaderLeft}>
+                      <View style={[styles.menuIconBox, { backgroundColor: isDark ? '#334155' : '#f1f5f9' }]}>
+                        <Text style={styles.menuIcon}>{item.icon}</Text>
+                      </View>
+                      <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>{item.label}</Text>
+                    </View>
+
+                    {hasSubItems && (
+                      <View style={styles.menuHeaderRight}>
+                        <View style={[styles.badgePill, { backgroundColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                          <Text style={[styles.badgeText, { color: isDark ? '#cbd5e1' : '#475569' }]}>{subCount}</Text>
+                        </View>
+                        <Text style={[styles.dropdownArrow, { color: colors.textSecondary }]}>
+                          {isOpen ? '▲' : '▼'}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Sub-menu accordion */}
+                  {hasSubItems && isOpen && (
+                    <View style={[styles.subMenuContainer, { backgroundColor: colors.subItemBg, borderTopColor: colors.subItemBorder }]}>
+                      {item.subItems?.map(sub => (
+                        <TouchableOpacity
+                          key={sub.id}
+                          style={styles.subMenuItemButton}
+                          onPress={() => handleSelectMenuItem(item.id, sub.id)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.subMenuDot, { backgroundColor: colors.accent }]} />
+                          <Text style={[styles.subMenuLabel, { color: colors.subItemText }]}>{sub.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+
+            {/* Logout Button */}
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.logoutIcon}>🚪</Text>
+              <Text style={styles.logoutText}>Sign Out Account</Text>
+            </TouchableOpacity>
+
+            {/* Footer info */}
+            <View style={[styles.footerContainer, { borderTopColor: colors.divider }]}>
+              <Text style={[styles.footerBrand, { color: colors.footerText }]}>Symbosys HRMS v4.2</Text>
+              <Text style={[styles.footerServer, { color: colors.textMuted }]}>Server: Cloud Secure Enterprise</Text>
+              <View style={styles.syncStatus}>
+                <View style={styles.syncDot} />
+                <Text style={styles.syncText}>Live Sync Active</Text>
+              </View>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Animated.View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  overlayRoot: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
+  sidebarContainer: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    elevation: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    borderRightWidth: 1,
+  },
   safeArea: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
+  sidebarHeader: {
+    paddingHorizontal: 14,
     paddingVertical: 14,
     borderBottomWidth: 1,
   },
-  backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    justifyContent: 'center',
+  profileRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 12,
   },
-  backButtonIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  avatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginRight: 10,
   },
-  headerTitleContainer: {
+  avatarText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  onlineBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: '#22c55e',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  profileInfo: {
     flex: 1,
+    marginRight: 6,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+  profileName: {
+    fontSize: 15,
+    fontWeight: '800',
   },
-  headerSubtitle: {
-    fontSize: 12,
+  profileRole: {
+    fontSize: 11,
     marginTop: 1,
   },
-  themeToggleButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 1,
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#22c55e',
+    marginRight: 4,
+  },
+  statusPillText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#22c55e',
+  },
+  headerActionBtns: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  themeToggleIcon: {
-    fontSize: 16,
-  },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  searchInput: {
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+  closeIconText: {
     fontSize: 14,
+    fontWeight: '700',
+  },
+  searchSection: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderWidth: 1,
   },
+  searchIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    paddingVertical: 2,
+  },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    padding: 12,
+    paddingBottom: 30,
   },
   menuCard: {
-    borderRadius: 12,
-    marginBottom: 10,
+    borderRadius: 10,
+    marginBottom: 8,
     overflow: 'hidden',
     borderWidth: 1,
   },
@@ -702,44 +910,65 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 14,
+    padding: 10,
   },
   menuHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
+  menuIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
   menuIcon: {
-    fontSize: 18,
-    marginRight: 12,
+    fontSize: 15,
   },
   menuLabel: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
   },
+  menuHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  badgePill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
   dropdownArrow: {
-    fontSize: 10,
-    marginLeft: 8,
+    fontSize: 9,
+    marginLeft: 2,
   },
   subMenuContainer: {
-    paddingVertical: 6,
-    paddingHorizontal: 16,
+    paddingVertical: 4,
+    paddingHorizontal: 14,
     borderTopWidth: 1,
   },
   subMenuItemButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
   subMenuDot: {
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
     borderRadius: 3,
-    marginRight: 12,
+    marginRight: 10,
   },
   subMenuLabel: {
-    fontSize: 13,
-    fontWeight: '400',
+    fontSize: 12,
+    fontWeight: '500',
   },
   logoutButton: {
     flexDirection: 'row',
@@ -748,52 +977,50 @@ const styles = StyleSheet.create({
     backgroundColor: '#ef444415',
     borderWidth: 1,
     borderColor: '#ef444440',
-    borderRadius: 12,
-    paddingVertical: 14,
-    marginTop: 10,
-    marginBottom: 10,
+    borderRadius: 10,
+    paddingVertical: 12,
+    marginTop: 8,
+    marginBottom: 8,
   },
   logoutIcon: {
-    fontSize: 18,
+    fontSize: 16,
     marginRight: 8,
   },
   logoutText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#ef4444',
   },
   footerContainer: {
-    marginTop: 20,
+    marginTop: 12,
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderTopWidth: 1,
   },
   footerBrand: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   footerServer: {
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 2,
   },
   syncStatus: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
+    marginTop: 4,
   },
   syncDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: '#22c55e',
-    marginRight: 6,
+    marginRight: 5,
   },
   syncText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
     color: '#22c55e',
     textTransform: 'uppercase',
   },
 });
-
-
