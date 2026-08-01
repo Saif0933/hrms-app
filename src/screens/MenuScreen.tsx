@@ -5,7 +5,6 @@ import {
   BackHandler,
   Dimensions,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -19,6 +18,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLogout, useProfile } from '../api/hook/useAuth';
 import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../navigation/stack.tsx';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Menu'>;
 
@@ -46,7 +46,7 @@ export const MenuScreen: React.FC = () => {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Animated values for drawer sliding and backdrop fading
+  // Animated values for sidebar sliding and backdrop fade
   const slideAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const isClosingRef = useRef(false);
@@ -64,7 +64,7 @@ export const MenuScreen: React.FC = () => {
     : 'JD';
 
   useEffect(() => {
-    // Slide in from left & fade in backdrop
+    // Slide in from left & fade in backdrop overlay
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: 0,
@@ -78,7 +78,7 @@ export const MenuScreen: React.FC = () => {
       }),
     ]).start();
 
-    // Hardware back handler for Android
+    // Android hardware back button handler
     const onBackPress = () => {
       handleClose();
       return true;
@@ -590,7 +590,7 @@ export const MenuScreen: React.FC = () => {
     <View style={styles.overlayRoot}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
-      {/* Dark Semi-transparent Backdrop */}
+      {/* Dark Semi-transparent Backdrop Overlay */}
       <Pressable style={StyleSheet.absoluteFill} onPress={() => handleClose()}>
         <Animated.View
           style={[
@@ -615,8 +615,13 @@ export const MenuScreen: React.FC = () => {
         ]}
       >
         <SafeAreaView style={styles.safeArea}>
-          {/* User Profile Drawer Header */}
+          {/* Drawer Profile Header */}
           <View style={[styles.sidebarHeader, { backgroundColor: isDark ? '#1e293b' : '#e0f2fe', borderBottomColor: colors.cardBorder }]}>
+            {/* Sheet Drag Handle Indicator */}
+            <View style={styles.sheetHandleContainer}>
+              <View style={[styles.sheetHandleBar, { backgroundColor: isDark ? '#475569' : '#cbd5e1' }]} />
+            </View>
+
             <View style={styles.profileRow}>
               <View style={styles.avatarCircle}>
                 <Text style={styles.avatarText}>{userInitials}</Text>
@@ -657,7 +662,7 @@ export const MenuScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Module Search Bar */}
+          {/* Module Search Section */}
           <View style={[styles.searchSection, { backgroundColor: colors.background, borderBottomColor: colors.divider }]}>
             <View style={[styles.searchBox, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}>
               <Text style={styles.searchIcon}>🔍</Text>
@@ -784,20 +789,34 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    elevation: 16,
+    borderTopRightRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+    elevation: 25,
     shadowColor: '#000000',
-    shadowOffset: { width: 4, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    borderRightWidth: 1,
+    shadowOffset: { width: 10, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    borderRightWidth: 1.5,
   },
   safeArea: {
     flex: 1,
   },
   sidebarHeader: {
     paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingTop: 6,
+    paddingBottom: 14,
     borderBottomWidth: 1,
+  },
+  sheetHandleContainer: {
+    alignItems: 'center',
+    paddingVertical: 6,
+    marginBottom: 4,
+  },
+  sheetHandleBar: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
   },
   profileRow: {
     flexDirection: 'row',
