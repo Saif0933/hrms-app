@@ -28,6 +28,7 @@ import { AttendanceRegularizationScreen } from '../screens/attendance/Attendance
 import { MusterRollScreen } from '../screens/attendance/MusterRollScreen';
 import { AttendanceReportsScreen } from '../screens/attendance/AttendanceReportsScreen';
 import { GeofencingConfigScreen } from '../screens/attendance/GeofencingConfigScreen';
+import { AttendanceHistoryScreen } from '../screens/attendance/AttendanceHistory';
 
 // Leave Screens
 import { ApplyLeaveScreen } from '../screens/leave/ApplyLeaveScreen';
@@ -115,6 +116,7 @@ export type RootStackParamList = {
   MusterRoll: undefined;
   AttendanceReports: undefined;
   GeofencingConfig: undefined;
+  AttendanceHistory: undefined;
 
   // Leave Routes
   ApplyLeave: undefined;
@@ -325,6 +327,11 @@ export const AppStackNavigator = () => {
         name="GeofencingConfig"
         component={GeofencingConfigScreen}
         options={{ title: 'Geofencing Config' }}
+      />
+      <Stack.Screen
+        name="AttendanceHistory"
+        component={AttendanceHistoryScreen}
+        options={{ headerShown: false }}
       />
 
       {/* Leave Stack Screens */}

@@ -1,10 +1,10 @@
-import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 
 
 // export const Production_URL = "https://attendance.symbosys.com/api/v1";
-export const BASE_URL = "http://192.168.1.11:5000/api/v1";
-export const IMAGE_BASE_URL = "http://192.168.1.11:5000"; //
+export const BASE_URL = "http://192.168.1.8:5000/api/v1";
+export const IMAGE_BASE_URL = "http://192.168.1.8:5000"; //
 //  Assuming images are served from root or specific uploads folder
 //192.168.1.9, localhost
   
