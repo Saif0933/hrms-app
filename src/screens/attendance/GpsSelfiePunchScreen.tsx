@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,7 +16,13 @@ import {
 import ReactNativeBiometrics from 'react-native-biometrics';
 // @ts-ignore
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useCreatePunch, usePunches } from '../../api/hook/useAttendance';
+import {
+  useCreatePunch,
+  useGeofences,
+  usePunches,
+  useRosters,
+  useShiftTimings,
+} from '../../api/hook/useAttendance';
 import { useProfile } from '../../api/hook/useAuth';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';
@@ -24,6 +30,22 @@ import { RootStackParamList } from '../../navigation/stack.tsx';
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'GpsSelfiePunch'>;
 
 const rnBiometrics = new ReactNativeBiometrics({ allowDeviceCredentials: true });
+
+// Haversine Distance Formula (in Meters)
+const calculateDistanceInMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371e3; // Earth radius in meters
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+};
 
 export const GpsSelfiePunchScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -41,17 +63,69 @@ export const GpsSelfiePunchScreen: React.FC = () => {
   const [biometryType, setBiometryType] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // Dynamic TanStack Attendance Queries
+  // Dynamic Attendance Queries
   const { data: punchesRes, refetch: refetchPunches, isRefetching } = usePunches(employeeId);
   const createPunchMutation = useCreatePunch();
+  const { data: geoRes } = useGeofences();
+  const { data: timingsRes } = useShiftTimings();
+
+  // ISO Week Generator
+  const getCurrentIsoWeek = (): string => {
+    const date = new Date();
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+    return `${d.getUTCFullYear()}-W${weekNo < 10 ? '0' + weekNo : weekNo}`;
+  };
+
+  const currentWeek = useMemo(() => getCurrentIsoWeek(), []);
+  const { data: rosterRes } = useRosters(currentWeek);
 
   const punches = punchesRes?.data || [];
+  const geofences = useMemo(() => geoRes?.data || [], [geoRes?.data]);
+  const activeGeofences = useMemo(() => geofences.filter(g => g.isActive !== false), [geofences]);
+  const shiftTimings = useMemo(() => timingsRes?.data || [], [timingsRes?.data]);
+  const rosters = useMemo(() => rosterRes?.data || [], [rosterRes?.data]);
 
   // Today's Date & Day calculation
   const todayDateObj = new Date();
   const todayDayName = todayDateObj.toLocaleDateString('en-US', { weekday: 'long' }); // e.g. "Monday"
   const todayDateFormatted = todayDateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }); // e.g. "03 Aug 2026"
   const todayKeyStr = todayDateObj.toDateString();
+
+  // Today's assigned shift details calculation
+  const dayKey = useMemo(() => {
+    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+    return days[todayDateObj.getDay()];
+  }, []);
+
+  const employeeRoster = useMemo(() => {
+    return rosters.find(r => r.employeeId === employeeId);
+  }, [rosters, employeeId]);
+
+  const assignedShiftCode = useMemo(() => {
+    if (employeeRoster && (employeeRoster as any)[dayKey]) {
+      return String((employeeRoster as any)[dayKey]);
+    }
+    return 'MORNING';
+  }, [employeeRoster, dayKey]);
+
+  const assignedShiftDetail = useMemo(() => {
+    const found = shiftTimings.find(t => t.code === assignedShiftCode);
+    if (found) return found;
+    if (assignedShiftCode === 'OFF') {
+      return { code: 'OFF', name: 'Week Off', startTime: '-', endTime: '-', shortLabel: 'OFF', color: '#94a3b8' };
+    }
+    if (assignedShiftCode === 'EVENING') {
+      return { code: 'EVENING', name: 'Evening Shift', startTime: '02:00 PM', endTime: '11:00 PM', shortLabel: 'E (14-23)', color: '#8b5cf6' };
+    }
+    if (assignedShiftCode === 'NIGHT') {
+      return { code: 'NIGHT', name: 'Night Shift', startTime: '10:00 PM', endTime: '07:00 AM', shortLabel: 'N (22-07)', color: '#38bdf8' };
+    }
+    return { code: 'MORNING', name: 'Morning Shift', startTime: '09:00 AM', endTime: '06:00 PM', shortLabel: 'M (09-18)', color: '#2563eb' };
+  }, [assignedShiftCode, shiftTimings]);
 
   // Filter Punches for TODAY
   const todayPunches = punches.filter(p => {
@@ -100,7 +174,58 @@ export const GpsSelfiePunchScreen: React.FC = () => {
     setIsUserManualSelection(true);
   };
 
+  // Shift & Geofence Validation Function before Punching IN / OUT
+  const validateGeofenceAndShift = (): boolean => {
+    // 1. SHIFT VALIDATION
+    if (assignedShiftDetail.code === 'OFF') {
+      Alert.alert(
+        'Week Off Restriction 🏖️',
+        `Today (${todayDayName}) is scheduled as your Week Off according to your assigned shift roster.`
+      );
+      return false;
+    }
+
+    // 2. GEOFENCE LOCATION VALIDATION
+    // User GPS location
+    const currentLat = 23.357429;
+    const currentLng = 85.311441;
+
+    if (activeGeofences.length > 0) {
+      let isInsideGeofence = false;
+      let matchedLocationName = '';
+      let minDistance = Infinity;
+      let requiredRadius = 100;
+
+      activeGeofences.forEach(g => {
+        const dist = calculateDistanceInMeters(currentLat, currentLng, g.lat, g.lng);
+        if (dist <= g.radius) {
+          isInsideGeofence = true;
+          matchedLocationName = g.name;
+        }
+        if (dist < minDistance) {
+          minDistance = dist;
+          requiredRadius = g.radius;
+          matchedLocationName = g.name;
+        }
+      });
+
+      if (!isInsideGeofence) {
+        Alert.alert(
+          'Geofence Location Restriction 📍',
+          `Punch Restricted! You must be inside your assigned geofence location (${matchedLocationName}).\n\nYour Current Distance: ${Math.round(minDistance)}m\nAllowed Radius: ${requiredRadius}m`
+        );
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handlePunchWithBiometrics = async () => {
+    if (!validateGeofenceAndShift()) {
+      return;
+    }
+
     setIsAuthenticating(true);
     try {
       const result = await rnBiometrics.simplePrompt({
@@ -138,8 +263,8 @@ export const GpsSelfiePunchScreen: React.FC = () => {
         employeeId,
         type: currentPunchedType,
         method: 'FINGERPRINT_PASSWORD_GPS',
-        lat: 19.076,
-        lng: 72.8777,
+        lat: 23.357429,
+        lng: 85.311441,
         selfiePreview: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
       },
       {
@@ -147,7 +272,7 @@ export const GpsSelfiePunchScreen: React.FC = () => {
           const nextType = currentPunchedType === 'In' ? 'Out' : 'In';
           Alert.alert(
             `Punch ${currentPunchedType} Successful! ⏱️`,
-            `Successfully recorded Punch ${currentPunchedType} on ${todayDayName}, ${todayDateFormatted} at ${new Date().toLocaleTimeString()}`
+            `Successfully recorded Punch ${currentPunchedType} on ${todayDayName}, ${todayDateFormatted} at ${new Date().toLocaleTimeString()} for assigned shift ${assignedShiftDetail.name}.`
           );
           setPunchType(nextType);
           setIsUserManualSelection(false);
@@ -193,6 +318,32 @@ export const GpsSelfiePunchScreen: React.FC = () => {
         <View style={styles.greetingContainer}>
           <Text style={styles.greetingTitle}>Hello, {greetingName}</Text>
           <Text style={styles.greetingSubtitle}>Mark your daily attendance</Text>
+        </View>
+
+        {/* Assigned Shift & Geofence Location Status Card */}
+        <View style={styles.assignedShiftCard}>
+          <View style={styles.shiftCardHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.shiftCardLabel}>ASSIGNED SHIFT ({todayDayName.toUpperCase()})</Text>
+              <Text style={[styles.shiftCardTitleText, { color: assignedShiftDetail.color || '#064e3b' }]}>
+                {assignedShiftDetail.name} ({assignedShiftDetail.startTime} - {assignedShiftDetail.endTime})
+              </Text>
+            </View>
+            <View style={[styles.shiftBadgePill, { backgroundColor: (assignedShiftDetail.color || '#064e3b') + '18', borderColor: assignedShiftDetail.color || '#064e3b' }]}>
+              <Text style={[styles.shiftBadgePillText, { color: assignedShiftDetail.color || '#064e3b' }]}>
+                {assignedShiftDetail.shortLabel || assignedShiftDetail.code}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.geofenceDivider} />
+
+          <View style={styles.geofenceRow}>
+            <MaterialCommunityIcons name="map-marker-radius" size={18} color="#10b981" />
+            <Text style={styles.geofenceText}>
+              Geofence Zone: {activeGeofences.length > 0 ? activeGeofences[0].name : 'Main Office Ranchi'} • Authorized Location 📍
+            </Text>
+          </View>
         </View>
 
         {/* Prominent Today's Date & Day Display Card */}
@@ -304,8 +455,6 @@ export const GpsSelfiePunchScreen: React.FC = () => {
           )}
         </TouchableOpacity>
 
-
-
         {/* View Attendance History Button */}
         <TouchableOpacity
           style={styles.historyBtn}
@@ -354,23 +503,77 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 28,
+    paddingTop: 10,
+    paddingBottom: 24,
   },
   greetingContainer: {
-    marginTop: 4,
+    marginBottom: 12,
   },
   greetingTitle: {
-    fontSize: 26,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '900',
     color: '#0f172a',
-    letterSpacing: 0.3,
+    letterSpacing: -0.3,
   },
   greetingSubtitle: {
-    fontSize: 14,
-    color: '#475569',
-    marginTop: 2,
+    fontSize: 13,
+    color: '#64748b',
     fontWeight: '500',
+    marginTop: 2,
+  },
+  assignedShiftCard: {
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: '#64748b',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  shiftCardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  shiftCardLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748b',
+    letterSpacing: 0.5,
+  },
+  shiftCardTitleText: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  shiftBadgePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  shiftBadgePillText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  geofenceDivider: {
+    height: 1,
+    backgroundColor: '#f1f5f9',
+    marginVertical: 10,
+  },
+  geofenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  geofenceText: {
+    fontSize: 12,
+    color: '#334155',
+    fontWeight: '600',
   },
   todayDateCard: {
     backgroundColor: '#ffffff',
@@ -378,10 +581,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 16,
     padding: 14,
-    marginTop: 14,
-    gap: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
+    marginBottom: 20,
+    shadowColor: '#64748b',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
   },
@@ -389,14 +592,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginBottom: 10,
   },
   todayDateText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: '#064e3b',
   },
   todayPunchStatusRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
   punchStatusPill: {
@@ -405,68 +610,67 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     borderRadius: 10,
     gap: 6,
   },
   punchStatusLabel: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   centerContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 18,
+    marginVertical: 10,
   },
   dashedCircleTarget: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    borderWidth: 3,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 2.5,
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 10,
   },
   innerMintCircle: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 105,
+    width: 176,
+    height: 176,
+    borderRadius: 88,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     position: 'relative',
   },
   laserScanLine: {
     position: 'absolute',
-    width: '80%',
+    top: 45,
+    left: 0,
+    right: 0,
     height: 2,
-    top: '50%',
-    zIndex: 1,
   },
   sensorTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0f172a',
-    marginTop: 16,
+    marginTop: 14,
   },
   sensorSubtitle: {
-    fontSize: 13,
-    color: '#475569',
-    marginTop: 4,
-    fontWeight: '500',
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+    marginBottom: 16,
   },
   pillContainer: {
     flexDirection: 'row',
-    width: 210,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: '#eef2ff',
+    borderRadius: 30,
     padding: 4,
-    marginTop: 18,
+    width: 240,
   },
   pillTab: {
     flex: 1,
-    borderRadius: 20,
+    paddingVertical: 10,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -488,12 +692,16 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   punchButton: {
-    width: '100%',
-    height: 54,
-    borderRadius: 14,
-    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 16,
     alignItems: 'center',
-    marginVertical: 10,
+    justifyContent: 'center',
+    marginVertical: 14,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   punchBtnContent: {
     flexDirection: 'row',
@@ -501,70 +709,25 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   punchBtnText: {
-    fontSize: 18,
-    fontWeight: '900',
     color: '#ffffff',
-    letterSpacing: 0.8,
-  },
-  todayLogsSection: {
-    marginTop: 10,
-    marginBottom: 6,
-    gap: 10,
-  },
-  todayLogsTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginBottom: 2,
-  },
-  punchLogCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderColor: '#e2e8f0',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-  },
-  logTypeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 6,
-  },
-  logTypeText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  logDateText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  logTimeText: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 2,
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   historyBtn: {
-    width: '100%',
-    height: 50,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#10b981',
-    backgroundColor: '#e6f7f3',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: '#e6f7f3',
+    borderColor: '#a7f3d0',
+    borderWidth: 1,
   },
   historyBtnText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: '#064e3b',
-    letterSpacing: 0.3,
   },
 });

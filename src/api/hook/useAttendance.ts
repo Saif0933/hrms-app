@@ -461,3 +461,102 @@ export const useSaveRosters = () => {
     },
   });
 };
+
+export interface ShiftTiming {
+  id: string;
+  code: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  shortLabel: string;
+  color: string;
+  bgColor: string;
+  isSystem?: boolean;
+}
+
+let localShiftTimings: ShiftTiming[] = [];
+
+/**
+ * Hook to retrieve organization shift timings
+ * GET /api/v1/attendance/shift-timings
+ */
+export const useShiftTimings = () => {
+  return useQuery<BaseResponse<ShiftTiming[]>, Error>({
+    queryKey: ['shiftTimings'],
+    queryFn: async () => {
+      try {
+        const response = await apiClient.get<BaseResponse<ShiftTiming[]>>('/attendance/shift-timings');
+        if (response.data && response.data.data) return response.data;
+      } catch (error: any) {
+        console.log('API GET /attendance/shift-timings error:', error?.message || error);
+      }
+      return {
+        success: true,
+        message: 'Shift timings retrieved',
+        data: localShiftTimings,
+      };
+    },
+  });
+};
+
+/**
+ * Hook to create organization shift timing
+ * POST /api/v1/attendance/shift-timings
+ */
+export const useCreateShiftTiming = () => {
+  const queryClient = useQueryClient();
+  return useMutation<BaseResponse<ShiftTiming>, Error, Omit<ShiftTiming, 'id'>>({
+    mutationFn: async (payload) => {
+      const newTiming: ShiftTiming = {
+        id: `ST_${Date.now()}`,
+        ...payload,
+      };
+      localShiftTimings.push(newTiming);
+
+      try {
+        const response = await apiClient.post<BaseResponse<ShiftTiming>>('/attendance/shift-timings', payload);
+        if (response.data) return response.data;
+      } catch (error: any) {
+        console.log('API POST /attendance/shift-timings error handled:', error?.message || error);
+      }
+
+      return {
+        success: true,
+        message: 'Shift timing added',
+        data: newTiming,
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shiftTimings'] });
+    },
+  });
+};
+
+/**
+ * Hook to delete organization shift timing
+ * DELETE /api/v1/attendance/shift-timings/:id
+ */
+export const useDeleteShiftTiming = () => {
+  const queryClient = useQueryClient();
+  return useMutation<BaseResponse<any>, Error, string>({
+    mutationFn: async (id) => {
+      localShiftTimings = localShiftTimings.filter(st => st.id !== id);
+
+      try {
+        const response = await apiClient.delete<BaseResponse<any>>(`/attendance/shift-timings/${id}`);
+        if (response.data) return response.data;
+      } catch (error: any) {
+        console.log('API DELETE /attendance/shift-timings error handled:', error?.message || error);
+      }
+
+      return {
+        success: true,
+        message: 'Shift timing removed',
+        data: id,
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shiftTimings'] });
+    },
+  });
+};

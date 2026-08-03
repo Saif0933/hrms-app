@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Asset, launchImageLibrary } from 'react-native-image-picker';
 import { useUploadDocument } from '../../api/hook/useDocuments';
 import { useEmployees } from '../../api/hook/useEmployee';
 import { useTheme } from '../../context/ThemeContext';
@@ -27,9 +28,11 @@ export const UploadDocumentScreen: React.FC = () => {
   const { colors } = useTheme();
 
   const [selectedEmpId, setSelectedEmpId] = useState('EMP001');
-  const [docName, setDocName] = useState('Employment_Agreement_2026.pdf');
+  const [docName, setDocName] = useState('');
   const [docCategory, setDocCategory] = useState<CategoryType>('Contract');
-  const [expiresOn, setExpiresOn] = useState('2027-12-31');
+  const [expiresOn, setExpiresOn] = useState('');
+  const [selectedFile, setSelectedFile] = useState<Asset | null>(null);
+  const [isPickingFile, setIsPickingFile] = useState(false);
 
   // TanStack Queries & Mutations
   const { data: empRes } = useEmployees();
@@ -37,28 +40,66 @@ export const UploadDocumentScreen: React.FC = () => {
 
   const employees = empRes?.data || [];
 
+  const handlePickFileFromManager = () => {
+    setIsPickingFile(true);
+    launchImageLibrary(
+      {
+        mediaType: 'photo',
+        selectionLimit: 1,
+        quality: 1,
+        includeBase64: false,
+      },
+      response => {
+        setIsPickingFile(false);
+        if (response.didCancel) {
+          console.log('User cancelled document picker');
+          return;
+        }
+        if (response.errorMessage) {
+          Alert.alert('File Picker Error', response.errorMessage);
+          return;
+        }
+        if (response.assets && response.assets.length > 0) {
+          const pickedAsset = response.assets[0];
+          setSelectedFile(pickedAsset);
+          if (pickedAsset.fileName) {
+            setDocName(pickedAsset.fileName);
+          }
+        }
+      }
+    );
+  };
+
   const handleUploadDocument = () => {
-    if (!docName.trim()) {
-      Alert.alert('Validation Error', 'Please specify Document Title.');
+    const finalDocName = docName.trim() || selectedFile?.fileName || 'Document_Vault_File';
+
+    if (!selectedFile) {
+      Alert.alert(
+        'File Selection Required 📁',
+        'Please tap the File Upload box below to select a document file from your mobile storage before uploading.'
+      );
       return;
     }
 
     uploadDocMutation.mutate(
       {
         employeeId: selectedEmpId,
-        name: docName.trim(),
+        name: finalDocName,
         category: docCategory,
         expiresOn: expiresOn.trim() || null,
+        fileUri: selectedFile.uri,
+        fileName: selectedFile.fileName || finalDocName,
+        fileType: selectedFile.type,
       },
       {
         onSuccess: () => {
           Alert.alert(
             'Document Uploaded 📄',
-            `${docName} has been encrypted and stored in the secure document vault!`
+            `${finalDocName} has been encrypted and stored in the secure document vault!`
           );
           navigation.goBack();
         },
-        onError: err => Alert.alert('Error', err.message),
+        onError: err => Alert.alert('Upload Error', err.message || 'Failed to upload document.'),
       }
     );
   };
@@ -187,39 +228,73 @@ export const UploadDocumentScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Form Input Card */}
+        {/* Form Input Card & Attachment Section */}
         <View
           style={[
             styles.card,
             { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
           ]}
         >
-          <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DOCUMENT FILE NAME *</Text>
+          <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SELECT DOCUMENT FILE *</Text>
+
+          {/* Mobile File Manager Attachment Drop Zone */}
+          <TouchableOpacity
+            style={[
+              styles.fileDropBox,
+              {
+                backgroundColor: selectedFile ? 'rgba(16, 185, 129, 0.08)' : colors.background,
+                borderColor: selectedFile ? '#10b981' : colors.cardBorder,
+              },
+            ]}
+            onPress={handlePickFileFromManager}
+            activeOpacity={0.8}
+            disabled={isPickingFile}
+          >
+            {isPickingFile ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : selectedFile ? (
+              <>
+                <Text style={{ fontSize: 32 }}>📄</Text>
+                <Text style={[styles.fileDropText, { color: '#065f46', fontWeight: '800' }]}>
+                  {selectedFile.fileName || docName || 'Selected File'}
+                </Text>
+                <Text style={[styles.fileDropSub, { color: '#047857' }]}>
+                  {selectedFile.type || 'Document'} • {selectedFile.fileSize ? (selectedFile.fileSize / 1024 / 1024).toFixed(2) + ' MB' : 'Ready'}
+                </Text>
+                <View style={styles.changeFileBadge}>
+                  <Text style={styles.changeFileBadgeText}>Tap to change file</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={{ fontSize: 32 }}>📁</Text>
+                <Text style={[styles.fileDropText, { color: colors.textPrimary }]}>
+                  Tap to select file from Mobile Storage
+                </Text>
+                <Text style={[styles.fileDropSub, { color: colors.textSecondary }]}>
+                  Opens Mobile File Manager / Storage • Max 15MB
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <Text style={[styles.inputLabel, { color: colors.textSecondary, marginTop: 10 }]}>DOCUMENT DISPLAY TITLE *</Text>
           <TextInput
             style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
             value={docName}
             onChangeText={setDocName}
-            placeholder="e.g. Passport_Scan.pdf"
+            placeholder="e.g. Passport_Scan.pdf or Aadhaar_Card.jpg"
+            placeholderTextColor={colors.textSecondary}
           />
 
-          <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>EXPIRATION DATE (OPTIONAL)</Text>
+          <Text style={[styles.inputLabel, { color: colors.textSecondary, marginTop: 4 }]}>EXPIRATION DATE (OPTIONAL)</Text>
           <TextInput
             style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
             value={expiresOn}
             onChangeText={setExpiresOn}
-            placeholder="YYYY-MM-DD"
+            placeholder="YYYY-MM-DD (e.g. 2027-12-31)"
+            placeholderTextColor={colors.textSecondary}
           />
-
-          {/* Attachment Box Visualizer */}
-          <TouchableOpacity style={[styles.fileDropBox, { backgroundColor: colors.background, borderColor: colors.cardBorder }]}>
-            <Text style={{ fontSize: 32 }}>📁</Text>
-            <Text style={[styles.fileDropText, { color: colors.textPrimary }]}>
-              {docName || 'Tap to select PDF/Image file from device'}
-            </Text>
-            <Text style={[styles.fileDropSub, { color: colors.textSecondary }]}>
-              Max File Size: 15MB • Supported: PDF, PNG, JPG
-            </Text>
-          </TouchableOpacity>
 
           <TouchableOpacity
             style={[
@@ -327,22 +402,34 @@ const styles = StyleSheet.create({
   fileDropBox: {
     padding: 20,
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderStyle: 'dashed',
     alignItems: 'center',
     gap: 6,
     marginTop: 4,
   },
   fileDropText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     textAlign: 'center',
   },
   fileDropSub: {
-    fontSize: 10,
+    fontSize: 11,
+  },
+  changeFileBadge: {
+    backgroundColor: '#d1fae5',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginTop: 4,
+  },
+  changeFileBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#065f46',
   },
   submitBtn: {
-    marginTop: 8,
+    marginTop: 14,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

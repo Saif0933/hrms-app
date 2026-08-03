@@ -14,14 +14,22 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRosters, useSaveRosters } from '../../api/hook/useAttendance';
-import { useEmployees } from '../../api/hook/useEmployee';
+import {
+  useCreateShiftTiming,
+  useDeleteShiftTiming,
+  useRosters,
+  useSaveRosters,
+  useShiftTimings,
+  ShiftTiming,
+} from '../../api/hook/useAttendance';
+import { useEmployees, Employee } from '../../api/hook/useEmployee';
+
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ShiftRoster'>;
 
-type ShiftCode = 'MORNING' | 'EVENING' | 'NIGHT' | 'OFF';
+export type ShiftCode = 'MORNING' | 'EVENING' | 'NIGHT' | 'OFF' | string;
 
 // ISO Week Generator Helper
 const getCurrentIsoWeek = (): string => {
@@ -65,6 +73,13 @@ export const ShiftRosterScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
 
+  // Organization Shift Timings API Hooks
+  const { data: timingsRes } = useShiftTimings();
+  const createShiftTimingMutation = useCreateShiftTiming();
+  const deleteShiftTimingMutation = useDeleteShiftTiming();
+
+  const shiftTimings = useMemo(() => timingsRes?.data || [], [timingsRes?.data]);
+
   // Current ISO Week calculation
   const currentIsoWeek = useMemo(() => getCurrentIsoWeek(), []);
   const weekOptions = useMemo(() => getWeekOptions(currentIsoWeek), [currentIsoWeek]);
@@ -72,7 +87,7 @@ export const ShiftRosterScreen: React.FC = () => {
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterShift, setFilterShift] = useState<'ALL' | ShiftCode>('ALL');
+  const [filterShift, setFilterShift] = useState<string>('ALL');
 
   // API Hooks
   const { data: rosterRes, isLoading: isLoadingRosters } = useRosters(selectedWeek);
@@ -89,6 +104,14 @@ export const ShiftRosterScreen: React.FC = () => {
   const [editingDay, setEditingDay] = useState<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'>('mon');
   const [selectedShift, setSelectedShift] = useState<ShiftCode>('MORNING');
 
+  // Add New Shift Timing Modal State
+  const [addShiftModalOpen, setAddShiftModalOpen] = useState(false);
+  const [newShiftName, setNewShiftName] = useState('');
+  const [newShiftCode, setNewShiftCode] = useState('');
+  const [newStartTime, setNewStartTime] = useState('09:30 AM');
+  const [newEndTime, setNewEndTime] = useState('06:30 PM');
+  const [newShiftColor, setNewShiftColor] = useState('#10b981');
+
   // Dynamic Roster Mapping State
   const [customRosterMap, setCustomRosterMap] = useState<Record<string, Record<string, ShiftCode>>>({});
 
@@ -98,7 +121,7 @@ export const ShiftRosterScreen: React.FC = () => {
 
     const initialMap: Record<string, Record<string, ShiftCode>> = {};
 
-    employees.forEach((emp, index) => {
+    employees.forEach((emp: Employee, index: number) => {
       const found = rosters.find(r => r.employeeId === emp.id);
       if (found) {
         initialMap[emp.id] = {
@@ -111,7 +134,6 @@ export const ShiftRosterScreen: React.FC = () => {
           sun: (found.sun as ShiftCode) || 'OFF',
         };
       } else {
-        // Dynamic fallback shift distribution per employee
         const defaultShift: ShiftCode = index % 3 === 0 ? 'MORNING' : index % 3 === 1 ? 'EVENING' : 'NIGHT';
         initialMap[emp.id] = {
           mon: defaultShift,
@@ -130,7 +152,7 @@ export const ShiftRosterScreen: React.FC = () => {
 
   // Filtered employees list
   const filteredEmployees = useMemo(() => {
-    return employees.filter(emp => {
+    return employees.filter((emp: Employee) => {
       const q = searchQuery.toLowerCase();
       const matchesSearch =
         !searchQuery ||
@@ -157,6 +179,7 @@ export const ShiftRosterScreen: React.FC = () => {
     let evening = 0;
     let night = 0;
     let off = 0;
+    let custom = 0;
 
     Object.values(customRosterMap).forEach(empRoster => {
       ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(d => {
@@ -164,25 +187,25 @@ export const ShiftRosterScreen: React.FC = () => {
         if (s === 'MORNING') morning++;
         else if (s === 'EVENING') evening++;
         else if (s === 'NIGHT') night++;
-        else off++;
+        else if (s === 'OFF') off++;
+        else custom++;
       });
     });
 
-    return { morning, evening, night, off, total: morning + evening + night + off };
+    return { morning, evening, night, off, custom, total: morning + evening + night + off + custom };
   }, [customRosterMap]);
 
-  const getShiftBadge = (shift: ShiftCode | string) => {
-    switch (shift) {
-      case 'MORNING':
-        return { bg: '#2563eb15', border: '#2563eb', text: '#2563eb', label: 'M (09-18)' };
-      case 'EVENING':
-        return { bg: '#8b5cf615', border: '#8b5cf6', text: '#8b5cf6', label: 'E (14-23)' };
-      case 'NIGHT':
-        return { bg: '#0f172a', border: '#334155', text: '#38bdf8', label: 'N (22-07)' };
-      case 'OFF':
-      default:
-        return { bg: 'rgba(100,100,100,0.1)', border: 'rgba(100,100,100,0.2)', text: '#94a3b8', label: 'OFF' };
+  const getShiftBadge = (shift: string) => {
+    const found = shiftTimings.find(t => t.code === shift);
+    if (found) {
+      return {
+        bg: found.bgColor,
+        border: found.color,
+        text: found.color === '#38bdf8' ? '#38bdf8' : found.color,
+        label: found.shortLabel,
+      };
     }
+    return { bg: 'rgba(100,100,100,0.1)', border: 'rgba(100,100,100,0.2)', text: '#94a3b8', label: shift };
   };
 
   const handleOpenEditShift = (
@@ -235,7 +258,7 @@ export const ShiftRosterScreen: React.FC = () => {
 
   const handleApplyPresetToFiltered = (preset: 'MORNING' | 'EVENING' | 'ROTATIONAL') => {
     const updatedMap = { ...customRosterMap };
-    filteredEmployees.forEach((emp, i) => {
+    filteredEmployees.forEach((emp: Employee, i: number) => {
       let targetShift: ShiftCode = 'MORNING';
       if (preset === 'EVENING') targetShift = 'EVENING';
       else if (preset === 'ROTATIONAL') {
@@ -256,8 +279,80 @@ export const ShiftRosterScreen: React.FC = () => {
     Alert.alert('Preset Applied 🪄', `Applied ${preset} preset schedule to ${filteredEmployees.length} employee(s).`);
   };
 
+  // Organization Add New Shift Timing Handler
+  const handleAddShiftTiming = () => {
+    if (!newShiftName.trim() || !newShiftCode.trim()) {
+      Alert.alert('Validation Error', 'Please enter Shift Name and Shift Code.');
+      return;
+    }
+
+    const codeUpper = newShiftCode.trim().toUpperCase().replace(/\s+/g, '_');
+
+    if (shiftTimings.some(t => t.code === codeUpper)) {
+      Alert.alert('Duplicate Code', `Shift Code "${codeUpper}" already exists in your organization. Please enter a unique code.`);
+      return;
+    }
+
+    const startHour = newStartTime.trim().split(':')[0] || '09';
+    const endHour = newEndTime.trim().split(':')[0] || '18';
+    const shortLabel = `${codeUpper.substring(0, 3)} (${startHour}-${endHour})`;
+
+    createShiftTimingMutation.mutate(
+      {
+        code: codeUpper,
+        name: newShiftName.trim(),
+        startTime: newStartTime.trim() || '09:00 AM',
+        endTime: newEndTime.trim() || '06:00 PM',
+        shortLabel,
+        color: newShiftColor,
+        bgColor: `${newShiftColor}18`,
+        isSystem: false,
+      },
+      {
+        onSuccess: () => {
+          Alert.alert(
+            'Shift Timing Added ⏰',
+            `Organization Shift "${newShiftName.trim()}" (${newStartTime} - ${newEndTime}) has been saved successfully!`
+          );
+          setNewShiftName('');
+          setNewShiftCode('');
+          setAddShiftModalOpen(false);
+        },
+        onError: err => Alert.alert('Error', err.message),
+      }
+    );
+  };
+
+  // Organization Delete Shift Timing Handler
+  const handleDeleteShiftTiming = (id: string, name: string, isSystem?: boolean) => {
+    if (isSystem) {
+      Alert.alert('System Default', `Shift "${name}" is a default system shift and cannot be deleted.`);
+      return;
+    }
+
+    Alert.alert(
+      'Delete Shift Timing 🗑️',
+      `Are you sure you want to remove "${name}" shift timing from your organization configuration?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteShiftTimingMutation.mutate(id, {
+              onSuccess: () => {
+                Alert.alert('Shift Deleted', `Shift "${name}" removed successfully.`);
+              },
+              onError: err => Alert.alert('Error', err.message),
+            });
+          },
+        },
+      ]
+    );
+  };
+
   const handleSaveFullRoster = () => {
-    const payload = employees.map(emp => ({
+    const payload = employees.map((emp: Employee) => ({
       employeeId: emp.id,
       mon: customRosterMap[emp.id]?.mon || 'MORNING',
       tue: customRosterMap[emp.id]?.tue || 'MORNING',
@@ -310,7 +405,7 @@ export const ShiftRosterScreen: React.FC = () => {
         <View style={styles.headerTitleContainer}>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Shift & Roster Manager</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-            Dynamic Weekly Shift Schedules ({selectedWeek})
+            Dynamic Organization Shift Schedules ({selectedWeek})
           </Text>
         </View>
       </View>
@@ -360,6 +455,65 @@ export const ShiftRosterScreen: React.FC = () => {
               );
             })}
           </ScrollView>
+        </View>
+
+        {/* Organization Shift Timings Configuration Card */}
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
+          ]}
+        >
+          <View style={styles.cardHeaderRow}>
+            <View>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>⏰ Organization Shift Timings</Text>
+              <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+                Add & manage company shift timing rules
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.addTimingBtn, { backgroundColor: colors.accent }]}
+              onPress={() => setAddShiftModalOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.addTimingBtnText}>+ Add Shift</Text>
+            </TouchableOpacity>
+          </View>
+
+          {shiftTimings.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
+              {shiftTimings.map(t => (
+                <View
+                  key={t.id || t.code}
+                  style={[
+                    styles.timingChipCard,
+                    { backgroundColor: t.bgColor, borderColor: t.color },
+                  ]}
+                >
+                  <View style={styles.timingChipHeader}>
+                    <View style={[styles.colorDot, { backgroundColor: t.color }]} />
+                    <Text style={[styles.timingNameText, { color: t.color === '#38bdf8' ? '#38bdf8' : colors.textPrimary }]}>
+                      {t.name}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteShiftTiming(t.id, t.name, t.isSystem)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={{ marginLeft: 6 }}
+                    >
+                      <Text style={{ fontSize: 11, color: '#ef4444', fontWeight: '800' }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={[styles.timingHoursText, { color: colors.textSecondary }]}>
+                    {t.startTime} - {t.endTime}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={{ fontSize: 12, color: colors.textSecondary, fontStyle: 'italic', marginVertical: 6 }}>
+              No organization shift timings added yet. Tap "+ Add Shift" to add your company shift timings.
+            </Text>
+          )}
         </View>
 
         {/* Shift Summary Analytics Card */}
@@ -416,7 +570,7 @@ export const ShiftRosterScreen: React.FC = () => {
 
           {/* Filter Chips */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
-            {(['ALL', 'MORNING', 'EVENING', 'NIGHT', 'OFF'] as const).map(sh => (
+            {['ALL', ...shiftTimings.map(t => t.code)].map(sh => (
               <TouchableOpacity
                 key={sh}
                 style={[
@@ -498,7 +652,7 @@ export const ShiftRosterScreen: React.FC = () => {
                 </View>
 
                 {/* Employee Roster Rows */}
-                {filteredEmployees.map(emp => {
+                {filteredEmployees.map((emp: Employee) => {
                   const empRoster = customRosterMap[emp.id] || {
                     mon: 'MORNING',
                     tue: 'MORNING',
@@ -577,28 +731,37 @@ export const ShiftRosterScreen: React.FC = () => {
               {editingEmpName} • Day: {editingDay.toUpperCase()}
             </Text>
 
-            {(['MORNING', 'EVENING', 'NIGHT', 'OFF'] as const).map(sh => {
-              const isSelected = selectedShift === sh;
-              const info = getShiftBadge(sh);
+            <ScrollView style={{ maxHeight: 260 }}>
+              <View style={{ gap: 8 }}>
+                {shiftTimings.map(st => {
+                  const isSelected = selectedShift === st.code;
+                  const info = getShiftBadge(st.code);
 
-              return (
-                <TouchableOpacity
-                  key={sh}
-                  style={[
-                    styles.shiftSelectCard,
-                    {
-                      backgroundColor: isSelected ? info.bg : colors.background,
-                      borderColor: isSelected ? info.border : colors.cardBorder,
-                    },
-                  ]}
-                  onPress={() => setSelectedShift(sh)}
-                >
-                  <Text style={[styles.shiftSelectTitle, { color: info.text }]}>
-                    {sh} SHIFT ({info.label})
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                  return (
+                    <TouchableOpacity
+                      key={st.code}
+                      style={[
+                        styles.shiftSelectCard,
+                        {
+                          backgroundColor: isSelected ? info.bg : colors.background,
+                          borderColor: isSelected ? info.border : colors.cardBorder,
+                        },
+                      ]}
+                      onPress={() => setSelectedShift(st.code)}
+                    >
+                      <Text style={[styles.shiftSelectTitle, { color: info.text }]}>
+                        {st.name.toUpperCase()} ({info.label})
+                      </Text>
+                      {st.startTime !== '-' && (
+                        <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }}>
+                          Hours: {st.startTime} - {st.endTime}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
 
             <TouchableOpacity
               style={[styles.applyAllBtn, { backgroundColor: colors.background, borderColor: colors.accent }]}
@@ -621,6 +784,114 @@ export const ShiftRosterScreen: React.FC = () => {
                 onPress={handleSaveSingleShift}
               >
                 <Text style={{ color: '#fff', fontWeight: '700' }}>Apply Day Shift</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add New Organization Shift Timing Modal */}
+      <Modal visible={addShiftModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground }]}>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
+              ⏰ Add Organization Shift Timing
+            </Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              Add custom organization shift timing rules & hours for your employees.
+            </Text>
+
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SHIFT NAME *</Text>
+            <TextInput
+              style={[
+                styles.modalInput,
+                { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText },
+              ]}
+              placeholder="e.g. General Shift, Early Morning, Rotational"
+              placeholderTextColor={colors.textSecondary}
+              value={newShiftName}
+              onChangeText={setNewShiftName}
+            />
+
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SHIFT CODE *</Text>
+            <TextInput
+              style={[
+                styles.modalInput,
+                { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText },
+              ]}
+              placeholder="e.g. GENERAL, FLEXI, MID, SPLIT"
+              placeholderTextColor={colors.textSecondary}
+              value={newShiftCode}
+              onChangeText={setNewShiftCode}
+              autoCapitalize="characters"
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>START TIME *</Text>
+                <TextInput
+                  style={[
+                    styles.modalInput,
+                    { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText },
+                  ]}
+                  placeholder="09:30 AM"
+                  placeholderTextColor={colors.textSecondary}
+                  value={newStartTime}
+                  onChangeText={setNewStartTime}
+                />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>END TIME *</Text>
+                <TextInput
+                  style={[
+                    styles.modalInput,
+                    { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText },
+                  ]}
+                  placeholder="06:30 PM"
+                  placeholderTextColor={colors.textSecondary}
+                  value={newEndTime}
+                  onChangeText={setNewEndTime}
+                />
+              </View>
+            </View>
+
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>THEME COLOR</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginVertical: 4 }}>
+              {['#2563eb', '#8b5cf6', '#10b981', '#f59e0b', '#e11d48', '#0284c7'].map(c => (
+                <TouchableOpacity
+                  key={c}
+                  style={[
+                    styles.colorOption,
+                    { backgroundColor: c },
+                    newShiftColor === c && { borderWidth: 3, borderColor: colors.textPrimary },
+                  ]}
+                  onPress={() => setNewShiftColor(c)}
+                />
+              ))}
+            </View>
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={[styles.modalCancelBtn, { borderColor: colors.cardBorder }]}
+                onPress={() => setAddShiftModalOpen(false)}
+              >
+                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalConfirmBtn,
+                  { backgroundColor: colors.accent },
+                  createShiftTimingMutation.isPending && { opacity: 0.7 },
+                ]}
+                onPress={handleAddShiftTiming}
+                disabled={createShiftTimingMutation.isPending}
+              >
+                {createShiftTimingMutation.isPending ? (
+                  <ActivityIndicator color="#ffffff" size="small" />
+                ) : (
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>Save Organization Shift</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -687,7 +958,7 @@ const styles = StyleSheet.create({
   cardSubtitle: {
     fontSize: 12,
     marginTop: 2,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   currentBadge: {
     paddingHorizontal: 8,
@@ -697,6 +968,43 @@ const styles = StyleSheet.create({
   currentBadgeText: {
     fontSize: 10,
     fontWeight: '700',
+  },
+  addTimingBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  addTimingBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  timingChipCard: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginRight: 8,
+    minWidth: 130,
+  },
+  timingChipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  colorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  timingNameText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  timingHoursText: {
+    fontSize: 11,
+    marginTop: 2,
+    fontWeight: '600',
   },
   weekChip: {
     paddingHorizontal: 14,
@@ -846,6 +1154,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 4,
   },
+  inputLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginTop: 4,
+  },
+  modalInput: {
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 13,
+  },
+  colorOption: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
   shiftSelectCard: {
     padding: 12,
     borderRadius: 10,
@@ -882,4 +1208,3 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
-
