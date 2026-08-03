@@ -48,6 +48,8 @@ export const AttendanceHistoryScreen: React.FC = () => {
     return d;
   }, [selectedMonthOffset]);
 
+
+
   const monthYearLabel = useMemo(() => {
     return currentMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   }, [currentMonthDate]);
@@ -62,7 +64,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
     punches.forEach(p => {
       const pDate = new Date(p.time);
       if (pDate.getFullYear() === targetYear && pDate.getMonth() === targetMonth) {
-        const key = pDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const key = pDate.toLocaleDateString('en-US', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
         const timeStr = pDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         if (!map.has(key)) {
@@ -150,6 +152,8 @@ export const AttendanceHistoryScreen: React.FC = () => {
             <Text style={[styles.summaryValue, { color: '#ef4444' }]}>{stats.late}</Text>
           </View>
         </View>
+
+
 
         {/* Month Selector Bar */}
         <View style={styles.monthSelectorBar}>
@@ -464,4 +468,5 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
+
 });

@@ -21,6 +21,17 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
+
+      <!-- Google Maps API Key -->
+      <meta-data
+        android:name="com.google.android.geo.API_KEY"
+        android:value="AIzaSyDp1m24jCv0artNLvNYGiRemEEjwAduk20" />
+
+      <!-- Ola Maps API Key -->
+      <meta-data
+        android:name="com.olamaps.API_KEY"
+        android:value="AbLgb9uuCk5EsknyN9nd1hol4dk85ehUH7izgU1e" />
+
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"

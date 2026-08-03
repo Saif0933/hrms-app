@@ -6,6 +6,7 @@ import {
   Alert,
   Image,
   SafeAreaView,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -36,6 +37,7 @@ export const GpsSelfiePunchScreen: React.FC = () => {
   const greetingName = userName.split(' ')[0] || 'Alex';
 
   const [punchType, setPunchType] = useState<'In' | 'Out'>('In');
+  const [isUserManualSelection, setIsUserManualSelection] = useState(false);
   const [biometryType, setBiometryType] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -45,17 +47,36 @@ export const GpsSelfiePunchScreen: React.FC = () => {
 
   const punches = punchesRes?.data || [];
 
-  // Automatically determine Punch IN or Punch OUT based on latest punch log today
+  // Today's Date & Day calculation
+  const todayDateObj = new Date();
+  const todayDayName = todayDateObj.toLocaleDateString('en-US', { weekday: 'long' }); // e.g. "Monday"
+  const todayDateFormatted = todayDateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }); // e.g. "03 Aug 2026"
+  const todayKeyStr = todayDateObj.toDateString();
+
+  // Filter Punches for TODAY
+  const todayPunches = punches.filter(p => {
+    if (!p.time) return false;
+    return new Date(p.time).toDateString() === todayKeyStr;
+  });
+
+  const todayPunchIn = todayPunches.find(p => p.type === 'In');
+  const todayPunchOut = todayPunches.slice().reverse().find(p => p.type === 'Out');
+
+  // Auto-set initial default punch type based ONLY on today's activity, UNLESS user selected manually
   useEffect(() => {
-    if (punches && punches.length > 0) {
-      const lastPunch = punches[punches.length - 1];
-      if (lastPunch?.type === 'In') {
+    if (isUserManualSelection) return;
+
+    if (todayPunches.length > 0) {
+      const lastPunchToday = todayPunches[todayPunches.length - 1];
+      if (lastPunchToday?.type === 'In') {
         setPunchType('Out');
-      } else if (lastPunch?.type === 'Out') {
+      } else {
         setPunchType('In');
       }
+    } else {
+      setPunchType('In');
     }
-  }, [punches]);
+  }, [punches, isUserManualSelection]);
 
   useEffect(() => {
     rnBiometrics
@@ -72,6 +93,11 @@ export const GpsSelfiePunchScreen: React.FC = () => {
 
   const handleRefresh = async () => {
     await Promise.all([refetchPunches(), refetchProfile()]);
+  };
+
+  const handleSelectPunchType = (type: 'In' | 'Out') => {
+    setPunchType(type);
+    setIsUserManualSelection(true);
   };
 
   const handlePunchWithBiometrics = async () => {
@@ -106,10 +132,11 @@ export const GpsSelfiePunchScreen: React.FC = () => {
   };
 
   const handlePunchSubmit = () => {
+    const currentPunchedType = punchType;
     createPunchMutation.mutate(
       {
         employeeId,
-        type: punchType,
+        type: currentPunchedType,
         method: 'FINGERPRINT_PASSWORD_GPS',
         lat: 19.076,
         lng: 72.8777,
@@ -117,11 +144,13 @@ export const GpsSelfiePunchScreen: React.FC = () => {
       },
       {
         onSuccess: () => {
+          const nextType = currentPunchedType === 'In' ? 'Out' : 'In';
           Alert.alert(
-            `Punch ${punchType} Successful! ⏱️`,
-            `Successfully checked ${punchType.toLowerCase()} at ${new Date().toLocaleTimeString()}`
+            `Punch ${currentPunchedType} Successful! ⏱️`,
+            `Successfully recorded Punch ${currentPunchedType} on ${todayDayName}, ${todayDateFormatted} at ${new Date().toLocaleTimeString()}`
           );
-          setPunchType(punchType === 'In' ? 'Out' : 'In');
+          setPunchType(nextType);
+          setIsUserManualSelection(false);
           handleRefresh();
         },
         onError: err => {
@@ -159,26 +188,52 @@ export const GpsSelfiePunchScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Main Content Area */}
-      <View style={styles.content}>
-        {/* Greeting Section */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Greeting & Date Info Card */}
         <View style={styles.greetingContainer}>
           <Text style={styles.greetingTitle}>Hello, {greetingName}</Text>
-          <Text style={styles.greetingSubtitle}>Mark your attendance</Text>
+          <Text style={styles.greetingSubtitle}>Mark your daily attendance</Text>
+        </View>
+
+        {/* Prominent Today's Date & Day Display Card */}
+        <View style={styles.todayDateCard}>
+          <View style={styles.todayDateHeaderRow}>
+            <MaterialCommunityIcons name="calendar-month-outline" size={22} color="#064e3b" />
+            <Text style={styles.todayDateText}>{todayDayName}, {todayDateFormatted}</Text>
+          </View>
+          <View style={styles.todayPunchStatusRow}>
+            <View style={[styles.punchStatusPill, { backgroundColor: todayPunchIn ? '#d1fae5' : '#f1f5f9' }]}>
+              <MaterialCommunityIcons name="login" size={16} color={todayPunchIn ? '#065f46' : '#64748b'} />
+              <Text style={[styles.punchStatusLabel, { color: todayPunchIn ? '#065f46' : '#64748b' }]}>
+                IN: {todayPunchIn ? new Date(todayPunchIn.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+              </Text>
+            </View>
+            <View style={[styles.punchStatusPill, { backgroundColor: todayPunchOut ? '#fee2e2' : '#f1f5f9' }]}>
+              <MaterialCommunityIcons name="logout" size={16} color={todayPunchOut ? '#991b1b' : '#64748b'} />
+              <Text style={[styles.punchStatusLabel, { color: todayPunchOut ? '#991b1b' : '#64748b' }]}>
+                OUT: {todayPunchOut ? new Date(todayPunchOut.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Center Fingerprint Circle Visual Target */}
         <View style={styles.centerContainer}>
           <TouchableOpacity
-            style={styles.dashedCircleTarget}
+            style={[
+              styles.dashedCircleTarget,
+              { borderColor: punchType === 'In' ? '#10b981' : '#ef4444' },
+            ]}
             onPress={handlePunchWithBiometrics}
             activeOpacity={0.8}
             disabled={isAuthenticating || createPunchMutation.isPending}
           >
-            <View style={styles.innerMintCircle}>
-              {/* Laser Scanning Line */}
-              <View style={styles.laserScanLine} />
-              <MaterialCommunityIcons name="fingerprint" size={76} color="#10b981" />
+            <View style={[
+              styles.innerMintCircle,
+              { backgroundColor: punchType === 'In' ? '#e6f7f3' : '#fef2f2' },
+            ]}>
+              <View style={[styles.laserScanLine, { backgroundColor: punchType === 'In' ? '#a7f3d0' : '#fca5a5' }]} />
+              <MaterialCommunityIcons name="fingerprint" size={76} color={punchType === 'In' ? '#10b981' : '#ef4444'} />
             </View>
           </TouchableOpacity>
 
@@ -191,9 +246,9 @@ export const GpsSelfiePunchScreen: React.FC = () => {
             <TouchableOpacity
               style={[
                 styles.pillTab,
-                punchType === 'In' && styles.activePillTab,
+                punchType === 'In' && styles.activePillTabIn,
               ]}
-              onPress={() => setPunchType('In')}
+              onPress={() => handleSelectPunchType('In')}
               activeOpacity={0.8}
             >
               <Text
@@ -209,9 +264,9 @@ export const GpsSelfiePunchScreen: React.FC = () => {
             <TouchableOpacity
               style={[
                 styles.pillTab,
-                punchType === 'Out' && styles.activePillTab,
+                punchType === 'Out' && styles.activePillTabOut,
               ]}
-              onPress={() => setPunchType('Out')}
+              onPress={() => handleSelectPunchType('Out')}
               activeOpacity={0.8}
             >
               <Text
@@ -238,16 +293,18 @@ export const GpsSelfiePunchScreen: React.FC = () => {
           activeOpacity={0.85}
         >
           {createPunchMutation.isPending || isAuthenticating ? (
-            <ActivityIndicator color="#0f172a" />
+            <ActivityIndicator color="#ffffff" />
           ) : (
             <View style={styles.punchBtnContent}>
-              <MaterialCommunityIcons name="fingerprint" size={26} color="#0f172a" />
+              <MaterialCommunityIcons name="fingerprint" size={26} color="#ffffff" />
               <Text style={styles.punchBtnText}>
                 PUNCH {punchType.toUpperCase()}
               </Text>
             </View>
           )}
         </TouchableOpacity>
+
+
 
         {/* View Attendance History Button */}
         <TouchableOpacity
@@ -258,7 +315,7 @@ export const GpsSelfiePunchScreen: React.FC = () => {
           <MaterialCommunityIcons name="history" size={22} color="#064e3b" />
           <Text style={styles.historyBtnText}>View Attendance History</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -295,39 +352,77 @@ const styles = StyleSheet.create({
   refreshBtn: {
     padding: 6,
   },
-  content: {
-    flex: 1,
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 10,
-    paddingBottom: 16,
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 28,
   },
   greetingContainer: {
-    marginTop: 8,
+    marginTop: 4,
   },
   greetingTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
     color: '#0f172a',
     letterSpacing: 0.3,
   },
   greetingSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#475569',
-    marginTop: 4,
+    marginTop: 2,
     fontWeight: '500',
+  },
+  todayDateCard: {
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 14,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  todayDateHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  todayDateText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#064e3b',
+  },
+  todayPunchStatusRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  punchStatusPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  punchStatusLabel: {
+    fontSize: 13,
+    fontWeight: '800',
   },
   centerContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 10,
+    marginVertical: 18,
   },
   dashedCircleTarget: {
-    width: 250,
-    height: 250,
-    borderRadius: 125,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
     borderWidth: 3,
-    borderColor: '#10b981',
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
@@ -336,8 +431,7 @@ const styles = StyleSheet.create({
   innerMintCircle: {
     width: '100%',
     height: '100%',
-    borderRadius: 120,
-    backgroundColor: '#e6f7f3',
+    borderRadius: 105,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -346,30 +440,29 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: '80%',
     height: 2,
-    backgroundColor: '#a7f3d0',
     top: '50%',
     zIndex: 1,
   },
   sensorTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: '#0f172a',
-    marginTop: 24,
+    marginTop: 16,
   },
   sensorSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#475569',
-    marginTop: 6,
+    marginTop: 4,
     fontWeight: '500',
   },
   pillContainer: {
     flexDirection: 'row',
-    width: 200,
+    width: 210,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#dbeafe',
+    backgroundColor: '#e2e8f0',
     padding: 4,
-    marginTop: 22,
+    marginTop: 18,
   },
   pillTab: {
     flex: 1,
@@ -377,8 +470,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  activePillTab: {
+  activePillTabIn: {
     backgroundColor: '#10b981',
+  },
+  activePillTabOut: {
+    backgroundColor: '#ef4444',
   },
   pillText: {
     fontSize: 14,
@@ -389,15 +485,15 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   inactivePillText: {
-    color: '#334155',
+    color: '#475569',
   },
   punchButton: {
     width: '100%',
-    height: 56,
+    height: 54,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
+    marginVertical: 10,
   },
   punchBtnContent: {
     flexDirection: 'row',
@@ -407,8 +503,50 @@ const styles = StyleSheet.create({
   punchBtnText: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#0f172a',
+    color: '#ffffff',
     letterSpacing: 0.8,
+  },
+  todayLogsSection: {
+    marginTop: 10,
+    marginBottom: 6,
+    gap: 10,
+  },
+  todayLogsTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 2,
+  },
+  punchLogCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+  },
+  logTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 6,
+  },
+  logTypeText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  logDateText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  logTimeText: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
   },
   historyBtn: {
     width: '100%',
@@ -421,7 +559,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 10,
+    marginTop: 12,
   },
   historyBtnText: {
     fontSize: 15,
