@@ -1,3 +1,5 @@
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,16 +15,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useEmployees } from '../../api/hook/useEmployee';
 import {
   useAllocateLeave,
   useCreateLeaveType,
   useDeleteLeaveType,
-  useLeaveAllocations,
-  useLeaveTypes,
+  useLeaveTypes
 } from '../../api/hook/useLeave';
-import { useEmployees } from '../../api/hook/useEmployee';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 

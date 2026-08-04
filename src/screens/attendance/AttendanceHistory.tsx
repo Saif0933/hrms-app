@@ -36,7 +36,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
   // Dynamic Auth & Punches
   const { data: profileResponse, refetch: refetchProfile } = useProfile();
   const user = profileResponse?.data?.user;
-  const employeeId = user?.id || 'EMP001';
+  const employeeId = user?.employeeId || user?.id || 'EMP001';
 
   const { data: punchesRes, isLoading, refetch: refetchPunches, isRefetching } = usePunches(employeeId);
   const punches = punchesRes?.data || [];
@@ -47,8 +47,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
     d.setMonth(d.getMonth() + selectedMonthOffset);
     return d;
   }, [selectedMonthOffset]);
-
-
 
   const monthYearLabel = useMemo(() => {
     return currentMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -62,25 +60,47 @@ export const AttendanceHistoryScreen: React.FC = () => {
     const map = new Map<string, { in?: string; out?: string; dateObj: Date }>();
 
     punches.forEach(p => {
-      const pDate = new Date(p.time);
-      if (pDate.getFullYear() === targetYear && pDate.getMonth() === targetMonth) {
+      let pDate: Date | null = null;
+      if (p.createdAt) {
+        const d = new Date(p.createdAt);
+        if (!isNaN(d.getTime())) pDate = d;
+      }
+      if (!pDate) {
+        const d = new Date(p.time);
+        if (!isNaN(d.getTime())) pDate = d;
+      }
+      if (!pDate) {
+        pDate = new Date();
+        if (typeof p.time === 'string' && p.time.toLowerCase().includes('yesterday')) {
+          pDate.setDate(pDate.getDate() - 1);
+        }
+      }
+
+      const matchesMonth = selectedMonthOffset === 0 || (pDate.getFullYear() === targetYear && pDate.getMonth() === targetMonth);
+      if (matchesMonth) {
         const key = pDate.toLocaleDateString('en-US', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
-        const timeStr = pDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        let timeStr = '';
+        if (p.time && p.time.includes(',')) {
+          timeStr = p.time.split(',')[1].trim();
+        } else {
+          timeStr = pDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
 
         if (!map.has(key)) {
           map.set(key, { dateObj: pDate });
         }
         const entry = map.get(key)!;
-        if (p.type === 'In' && !entry.in) {
+        const typeStr = (p.type || '').toLowerCase();
+        if (typeStr.includes('in') && !entry.in) {
           entry.in = timeStr;
-        } else if (p.type === 'Out') {
+        } else if (typeStr.includes('out')) {
           entry.out = timeStr;
         }
       }
     });
 
     const apiEntries: DayHistoryGroup[] = Array.from(map.entries()).map(([dateKey, val]) => {
-      const isLate = val.in ? val.in > '09:00 AM' : false;
+      const isLate = val.in ? val.in > '09:30 AM' : false;
       return {
         dateKey,
         dateObj: val.dateObj,
@@ -91,7 +111,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
     });
 
     return apiEntries;
-  }, [punches, currentMonthDate]);
+  }, [punches, currentMonthDate, selectedMonthOffset]);
 
   // Dynamic Statistics calculation from real data
   const stats = useMemo(() => {

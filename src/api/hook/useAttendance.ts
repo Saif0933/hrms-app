@@ -98,6 +98,7 @@ let localRegularizations: RegularizationRequest[] = [
 export const usePunches = (employeeId: string) => {
   return useQuery<BaseResponse<PunchLog[]>, Error>({
     queryKey: ['attendancePunches', employeeId],
+    refetchInterval: 3000,
     queryFn: async () => {
       try {
         const response = await apiClient.get<BaseResponse<PunchLog[]>>(`/attendance/punches/${employeeId}`);

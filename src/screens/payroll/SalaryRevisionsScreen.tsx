@@ -1,3 +1,5 @@
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -11,8 +13,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEmployees, useUpdateEmployeeSalary } from '../../api/hook/useEmployee';
 import { useApplyBulkRevision } from '../../api/hook/usePayroll';
 import { useTheme } from '../../context/ThemeContext';

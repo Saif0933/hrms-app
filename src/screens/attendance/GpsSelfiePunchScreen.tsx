@@ -127,14 +127,52 @@ export const GpsSelfiePunchScreen: React.FC = () => {
     return { code: 'MORNING', name: 'Morning Shift', startTime: '09:00 AM', endTime: '06:00 PM', shortLabel: 'M (09-18)', color: '#2563eb' };
   }, [assignedShiftCode, shiftTimings]);
 
-  // Filter Punches for TODAY
-  const todayPunches = punches.filter(p => {
-    if (!p.time) return false;
-    return new Date(p.time).toDateString() === todayKeyStr;
-  });
+  const getPunchDate = (p: any): Date => {
+    if (p.createdAt) {
+      const d = new Date(p.createdAt);
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (p.time) {
+      const d = new Date(p.time);
+      if (!isNaN(d.getTime())) return d;
 
-  const todayPunchIn = todayPunches.find(p => p.type === 'In');
-  const todayPunchOut = todayPunches.slice().reverse().find(p => p.type === 'Out');
+      // Extract hours & minutes from time strings like "Today, 06:35 PM" or "Yesterday, 09:30 AM"
+      const str = String(p.time);
+      const dateObj = new Date();
+      if (str.toLowerCase().includes('yesterday')) {
+        dateObj.setDate(dateObj.getDate() - 1);
+      }
+      const match = str.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (match) {
+        let hrs = parseInt(match[1], 10);
+        const mins = parseInt(match[2], 10);
+        const ampm = match[3].toUpperCase();
+        if (ampm === 'PM' && hrs < 12) hrs += 12;
+        if (ampm === 'AM' && hrs === 12) hrs = 0;
+        dateObj.setHours(hrs, mins, 0, 0);
+        return dateObj;
+      }
+    }
+    return new Date();
+  };
+
+  const formatDisplayTime = (p: any): string => {
+    if (!p) return '--:--';
+    const d = getPunchDate(p);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Filter & sort Punches for TODAY chronologically
+  const todayPunches = punches
+    .filter(p => {
+      if (!p) return false;
+      const d = getPunchDate(p);
+      return d.toDateString() === todayKeyStr;
+    })
+    .sort((a, b) => getPunchDate(a).getTime() - getPunchDate(b).getTime());
+
+  const todayPunchIn = todayPunches.find(p => p.type?.toLowerCase().includes('in'));
+  const todayPunchOut = todayPunches.slice().reverse().find(p => p.type?.toLowerCase().includes('out'));
 
   // Auto-set initial default punch type based ONLY on today's activity, UNLESS user selected manually
   useEffect(() => {
@@ -356,13 +394,13 @@ export const GpsSelfiePunchScreen: React.FC = () => {
             <View style={[styles.punchStatusPill, { backgroundColor: todayPunchIn ? '#d1fae5' : '#f1f5f9' }]}>
               <MaterialCommunityIcons name="login" size={16} color={todayPunchIn ? '#065f46' : '#64748b'} />
               <Text style={[styles.punchStatusLabel, { color: todayPunchIn ? '#065f46' : '#64748b' }]}>
-                IN: {todayPunchIn ? new Date(todayPunchIn.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                IN: {formatDisplayTime(todayPunchIn)}
               </Text>
             </View>
             <View style={[styles.punchStatusPill, { backgroundColor: todayPunchOut ? '#fee2e2' : '#f1f5f9' }]}>
               <MaterialCommunityIcons name="logout" size={16} color={todayPunchOut ? '#991b1b' : '#64748b'} />
               <Text style={[styles.punchStatusLabel, { color: todayPunchOut ? '#991b1b' : '#64748b' }]}>
-                OUT: {todayPunchOut ? new Date(todayPunchOut.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                OUT: {formatDisplayTime(todayPunchOut)}
               </Text>
             </View>
           </View>

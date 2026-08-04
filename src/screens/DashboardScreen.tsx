@@ -1,3 +1,5 @@
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -11,13 +13,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLogout, useProfile } from '../api/hook/useAuth';
 import {
-  useDashboardData,
-  PendingLeaveApproval,
   PendingClaimApproval,
+  PendingLeaveApproval,
+  useDashboardData,
 } from '../api/hook/useDashboard';
 import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../navigation/stack.tsx';
