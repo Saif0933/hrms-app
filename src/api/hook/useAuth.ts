@@ -1,10 +1,11 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../apiClient';
 
 // Type definitions matching backend controller schemas and database models
 export interface User {
   id: string;
+  employeeId?: string | null;
   name: string;
   email: string | null;
   phone: string;

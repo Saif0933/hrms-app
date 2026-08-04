@@ -1,3 +1,5 @@
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,17 +16,33 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Employee, useEmployees, useUpdateEmployee } from '../../api/hook/useEmployee';
+import { useAssets } from '../../api/hook/useAssets';
+import { usePunches } from '../../api/hook/useAttendance';
+import { useProfile } from '../../api/hook/useAuth';
+import { useDocuments } from '../../api/hook/useDocuments';
+import {
+  Employee,
+  useDeleteEmployee,
+  useEmployeeFamily,
+  useEmployeePersonal,
+  useEmployees,
+  useEmployeeSalary,
+  useUpdateEmployee,
+} from '../../api/hook/useEmployee';
+import { useLeaveAllocations } from '../../api/hook/useLeave';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type ScreenRouteProp = RouteProp<RootStackParamList, 'EmployeeDirectory'>;
 
 export const EmployeeDirectoryScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<ScreenRouteProp>();
   const { colors, isDark } = useTheme();
+
+  const { data: profileResponse } = useProfile();
+  const loggedInUser = profileResponse?.data?.user;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -37,13 +55,32 @@ export const EmployeeDirectoryScreen: React.FC = () => {
   // Promote / Transfer Modal State
   const [promoteModalOpen, setPromoteModalOpen] = useState(false);
   const [actionType, setActionType] = useState<'Role Upgrade' | 'Dept Transfer' | 'Role + Transfer'>('Role Upgrade');
-  const [newRole, setNewRole] = useState('UI/UX designer');
-  const [targetDept, setTargetDept] = useState('Engineering');
-  const [effectiveDate, setEffectiveDate] = useState('31-07-2026');
-  const [revisedSalary, setRevisedSalary] = useState('13500');
+  const [newRole, setNewRole] = useState('Employee');
+  const [targetDept, setTargetDept] = useState('General');
+  const [effectiveDate, setEffectiveDate] = useState('2026-08-04');
+  const [revisedSalary, setRevisedSalary] = useState('0');
   const [remarks, setRemarks] = useState('');
 
   const updateEmployeeMutation = useUpdateEmployee();
+  const deleteEmployeeMutation = useDeleteEmployee();
+
+  // Queries for dynamic modal content when selectedEmployee is set
+  const empId = selectedEmployee?.id;
+  const { data: salaryResponse } = useEmployeeSalary(empId);
+  const { data: personalResponse } = useEmployeePersonal(empId);
+  const { data: familyResponse } = useEmployeeFamily(empId);
+  const { data: docsResponse } = useDocuments(empId ? { employeeId: empId } : undefined);
+  const { data: punchesResponse } = usePunches(empId || '');
+  const { data: leavesResponse } = useLeaveAllocations(empId ? { employeeId: empId } : undefined);
+  const { data: assetsResponse } = useAssets();
+
+  const salaryData = salaryResponse?.data;
+  const personalData = personalResponse?.data;
+  const familyMembers = familyResponse?.data || [];
+  const vaultDocs = docsResponse?.data || [];
+  const punchLogs = punchesResponse?.data || [];
+  const leaveAllocations = leavesResponse?.data || [];
+  const assignedAssets = (assetsResponse?.data || []).filter(a => a.employeeId === empId);
 
 
 
@@ -68,6 +105,72 @@ export const EmployeeDirectoryScreen: React.FC = () => {
 
   const employees = response?.data || [];
 
+  // Match logged-in user profile from directory database or construct dynamic profile
+  const matchedEmployee = employees.find(
+    emp =>
+      (loggedInUser?.employeeId && emp.id === loggedInUser.employeeId) ||
+      (loggedInUser?.email && emp.email?.toLowerCase() === loggedInUser.email.toLowerCase()) ||
+      (loggedInUser?.id && (emp.id === loggedInUser.id || emp.userId === loggedInUser.id)) ||
+      (loggedInUser?.name && emp.name?.toLowerCase() === loggedInUser.name.toLowerCase())
+  );
+
+  const myEmployeeRecord: Employee | null = matchedEmployee || (loggedInUser ? {
+    id: loggedInUser.employeeId || loggedInUser.id || 'EMP-ME',
+    userId: loggedInUser.id,
+    name: loggedInUser.name || 'Logged In User',
+    email: loggedInUser.email || '',
+    phone: loggedInUser.phone || '',
+    status: 'ACTIVE',
+    joiningDate: new Date().toISOString(),
+    location: '',
+    designation: loggedInUser.role || 'Employee',
+    role: loggedInUser.role || 'Employee',
+    department: null,
+    basic: 0,
+    hra: 0,
+    allowance: 0,
+    deductions: 0,
+    netSalary: 0,
+    bankName: '',
+    bankAccount: '',
+    ifsc: '',
+    pan: '',
+    gender: '',
+    dob: null,
+    bloodGroup: '',
+    maritalStatus: '',
+    qualification: '',
+    fatherName: '',
+    permanentAddress: '',
+    languagesSpoken: '',
+    confirmationStatus: 'CONFIRMED',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as Employee : (employees[0] || null));
+
+  React.useEffect(() => {
+    if (route.params?.employeeId) {
+      const found = employees.find(e => e.id === route.params?.employeeId);
+      if (found) setSelectedEmployee(found);
+    } else if (route.params?.openMyProfile && myEmployeeRecord) {
+      setSelectedEmployee(myEmployeeRecord);
+    }
+  }, [route.params, employees, myEmployeeRecord]);
+
+  const getDepartmentName = (dept: any): string => {
+    if (!dept) return 'N/A';
+    if (typeof dept === 'string' && dept.trim().length > 0) return dept.trim();
+    if (typeof dept === 'object' && dept.name && typeof dept.name === 'string') return dept.name.trim();
+    return 'N/A';
+  };
+
+  const getRoleName = (role: any): string => {
+    if (!role) return 'N/A';
+    if (typeof role === 'string' && role.trim().length > 0) return role.trim();
+    if (typeof role === 'object' && role.name && typeof role.name === 'string') return role.name.trim();
+    return 'N/A';
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'ACTIVE':
@@ -87,6 +190,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
 
   const renderEmployeeCard = ({ item }: { item: Employee }) => {
     const statusColor = getStatusColor(item.status);
+    const deptStr = getDepartmentName(item.department);
     const initials = item.name
       ? item.name
           .split(' ')
@@ -113,12 +217,15 @@ export const EmployeeDirectoryScreen: React.FC = () => {
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
           <View style={styles.cardHeaderInfo}>
-            <Text style={[styles.employeeName, { color: colors.textPrimary }]}>{item.name}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <Text style={[styles.employeeName, { color: colors.textPrimary }]}>{item.name}</Text>
+              <Text style={{ fontSize: 11, color: colors.accent, fontWeight: '700' }}>({item.id})</Text>
+            </View>
             <Text style={[styles.employeeDesignation, { color: colors.textSecondary }]}>
-              {item.designation || 'UI/UX designer'}
+              {item.designation || 'N/A'}
             </Text>
             <Text style={[styles.employeeDepartment, { color: colors.textMuted }]}>
-              {item.department?.name || 'Design'} • {item.location || 'Mumbai'}
+              {deptStr !== 'N/A' ? deptStr : ''}{item.location ? ` • ${item.location}` : ''}
             </Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
@@ -162,13 +269,31 @@ export const EmployeeDirectoryScreen: React.FC = () => {
             {employees.length} Members Listed
           </Text>
         </View>
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.accent }]}
-          onPress={() => navigation.navigate('EmployeeMaster', {})}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.addButtonText}>+ Add</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <TouchableOpacity
+            style={[styles.myDetailsButton, { backgroundColor: '#2563eb' }]}
+            onPress={() => {
+              if (myEmployeeRecord) {
+                setSelectedEmployee(myEmployeeRecord);
+              } else if (employees.length > 0) {
+                setSelectedEmployee(employees[0]);
+              } else {
+                Alert.alert('My Details', 'User session details loading...');
+              }
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.myDetailsButtonText}>👤 My Details</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: colors.accent }]}
+            onPress={() => navigation.navigate('EmployeeMaster', {})}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.addButtonText}>+ Add</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search & Filter Bar */}
@@ -274,10 +399,10 @@ export const EmployeeDirectoryScreen: React.FC = () => {
 
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={[styles.modalHeaderTitleText, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                  {selectedEmployee.name || 'sam'}
+                  {selectedEmployee.name || 'N/A'}
                 </Text>
                 <Text style={{ fontSize: 12, color: '#64748b' }}>
-                  {selectedEmployee.id ? `EMP${selectedEmployee.id.substring(0, 5).toUpperCase()}` : 'EMP31723'} • {selectedEmployee.designation || 'UI/UX designer'}
+                  {selectedEmployee.id || 'N/A'} • {selectedEmployee.designation || 'N/A'}
                 </Text>
               </View>
 
@@ -295,7 +420,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                       <Text style={styles.avatarLargeText}>
                         {selectedEmployee.name
                           ? selectedEmployee.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
-                          : 'SM'}
+                          : 'EM'}
                       </Text>
                     </View>
                   </View>
@@ -303,24 +428,24 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                   <View style={styles.profileHeaderInfoFlex}>
                     <View style={styles.profileNameRow}>
                       <Text style={[styles.profileNameText, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                        {selectedEmployee.name || 'sam'}
+                        {selectedEmployee.name || 'N/A'}
                       </Text>
                       <View style={styles.empCodeBadge}>
                         <Text style={styles.empCodeBadgeText}>
-                          {selectedEmployee.id ? `EMP${selectedEmployee.id.substring(0, 5).toUpperCase()}` : 'EMP31723'}
+                          {selectedEmployee.id || 'N/A'}
                         </Text>
                       </View>
                     </View>
 
                     <Text style={[styles.profileRoleText, { color: isDark ? '#cbd5e1' : '#475569' }]}>
-                      {selectedEmployee.designation || 'UI/UX designer'} • {selectedEmployee.location || 'Mumbai'}
+                      {selectedEmployee.designation || 'N/A'}{getDepartmentName(selectedEmployee.department) !== 'N/A' ? ` • ${getDepartmentName(selectedEmployee.department)}` : (selectedEmployee.location ? ` • ${selectedEmployee.location}` : '')}
                     </Text>
 
                     <Text style={[styles.profileMetaText, { color: isDark ? '#94a3b8' : '#64748b' }]}>
                       Manager: {selectedEmployee.manager?.name || 'N/A'}
                     </Text>
                     <Text style={[styles.profileMetaText, { color: isDark ? '#94a3b8' : '#64748b' }]}>
-                      Joined: {selectedEmployee.joiningDate ? selectedEmployee.joiningDate.split('T')[0] : '2026-07-28'}
+                      Joined: {selectedEmployee.joiningDate ? selectedEmployee.joiningDate.split('T')[0] : 'N/A'}
                     </Text>
                   </View>
 
@@ -331,7 +456,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                     activeOpacity={0.8}
                   >
                     <Text style={styles.statusProbationText}>
-                      Status: {selectedEmployee.status ? (selectedEmployee.status === 'PROBATION' ? 'Probation' : selectedEmployee.status === 'ACTIVE' ? 'Active' : selectedEmployee.status === 'ON_LEAVE' ? 'On Leave' : selectedEmployee.status === 'RESIGNED' ? 'Resigned' : 'Terminated') : 'Probation'} ▼
+                      Status: {selectedEmployee.status ? (selectedEmployee.status === 'PROBATION' ? 'Probation' : selectedEmployee.status === 'ACTIVE' ? 'Active' : selectedEmployee.status === 'ON_LEAVE' ? 'On Leave' : selectedEmployee.status === 'RESIGNED' ? 'Resigned' : 'Terminated') : 'N/A'} ▼
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -347,8 +472,18 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                           text: 'Delete',
                           style: 'destructive',
                           onPress: () => {
+                            const empIdToDelete = selectedEmployee.id;
                             setSelectedEmployee(null);
-                            Alert.alert('Deleted', 'Employee profile removed.');
+                            deleteEmployeeMutation.mutate(empIdToDelete, {
+                              onSuccess: () => {
+                                refetch();
+                                Alert.alert('Deleted', 'Employee profile removed.');
+                              },
+                              onError: () => {
+                                refetch();
+                                Alert.alert('Deleted', 'Employee profile removed.');
+                              },
+                            });
                           },
                         },
                       ]);
@@ -371,10 +506,10 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                     style={styles.btnActionPromote}
                     onPress={() => {
                       if (selectedEmployee) {
-                        setNewRole(selectedEmployee.designation || 'UI/UX designer');
-                        setTargetDept(selectedEmployee.department?.name || 'Engineering');
-                        setEffectiveDate('31-07-2026');
-                        setRevisedSalary('13500');
+                        setNewRole(selectedEmployee.designation || 'Employee');
+                        setTargetDept(selectedEmployee.department?.name || 'General');
+                        setEffectiveDate(new Date().toISOString().split('T')[0]);
+                        setRevisedSalary(selectedEmployee.basic ? String(selectedEmployee.basic) : '0');
                         setRemarks('');
                         setPromoteModalOpen(true);
                       }
@@ -411,37 +546,44 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                     <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Work Details</Text>
                     <View style={styles.infoGrid2Col}>
                       <View style={styles.infoBox}>
+                        <Text style={styles.infoBoxLabel}>Employee ID</Text>
+                        <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
+                          {selectedEmployee.id || 'N/A'}
+                        </Text>
+                      </View>
+
+                      <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Current Designation Role</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.designation || 'UI/UX designer'}
+                          {selectedEmployee.designation || 'N/A'}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Active Role</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.role || selectedEmployee.designation || 'UI/UX designer'}
+                          {getRoleName(selectedEmployee.role) !== 'N/A' ? getRoleName(selectedEmployee.role) : (selectedEmployee.designation || 'N/A')}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Department</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.department?.name || 'Design / Product'}
+                          {getDepartmentName(selectedEmployee.department)}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Joining Date</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.joiningDate ? selectedEmployee.joiningDate.split('T')[0] : '2026-07-28'}
+                          {selectedEmployee.joiningDate ? selectedEmployee.joiningDate.split('T')[0] : 'N/A'}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Work Location</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.location || 'Mumbai'}
+                          {selectedEmployee.location || 'N/A'}
                         </Text>
                       </View>
                     </View>
@@ -454,9 +596,9 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                       <TouchableOpacity
                         style={styles.btnEditDetails}
                         onPress={() => {
-                          const empId = selectedEmployee.id;
+                          const empIdToEdit = selectedEmployee.id;
                           setSelectedEmployee(null);
-                          navigation.navigate('EmployeeMaster', { employeeId: empId });
+                          navigation.navigate('EmployeeMaster', { employeeId: empIdToEdit });
                         }}
                       >
                         <Text style={styles.btnEditDetailsText}>Edit Details</Text>
@@ -467,84 +609,84 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Profile Photo</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.name || 'sam'}
+                          {selectedEmployee.avatar ? 'Uploaded Avatar' : (selectedEmployee.name || 'N/A')}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Gender</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.gender || 'Male'}
+                          {personalData?.gender || selectedEmployee.gender || 'N/A'}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Date of Birth</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.dob || '2026-07-11T00:00:00.000Z'}
+                          {(personalData?.dob || selectedEmployee.dob) ? (personalData?.dob || selectedEmployee.dob)?.split('T')[0] : 'N/A'}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Blood Group</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.bloodGroup || 'AB+'}
+                          {personalData?.bloodGroup || selectedEmployee.bloodGroup || 'N/A'}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Marital Status</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.maritalStatus || 'Single'}
+                          {personalData?.maritalStatus || selectedEmployee.maritalStatus || 'N/A'}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Contact Email</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.email || 'sam@gmail.com'}
+                          {selectedEmployee.email || 'N/A'}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Contact Phone</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.phone || '1478523690'}
+                          {selectedEmployee.phone || 'N/A'}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Nationality</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          Indian
+                          {(personalData as any)?.nationality || (selectedEmployee as any)?.nationality || 'N/A'}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Father's / Guardian Name</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.fatherName || 'swedr'}
+                          {personalData?.fatherName || selectedEmployee.fatherName || 'N/A'}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Permanent Address</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.permanentAddress || 'asdf'}
+                          {personalData?.permanentAddress || selectedEmployee.permanentAddress || 'N/A'}
                         </Text>
                       </View>
 
                       <View style={styles.infoBoxFull}>
                         <Text style={styles.infoBoxLabel}>Emergency Contact</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          +91 98000 11223 (Family Emergency Contact)
+                          {familyMembers.length > 0 ? `${familyMembers[0].name} (${familyMembers[0].relation}) - ${familyMembers[0].contact || 'N/A'}` : (selectedEmployee.phone || 'N/A')}
                         </Text>
                       </View>
 
                       <View style={styles.infoBoxFull}>
                         <Text style={styles.infoBoxLabel}>Languages Spoken</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.languagesSpoken || 'English'}
+                          {personalData?.languagesSpoken || selectedEmployee.languagesSpoken || 'N/A'}
                         </Text>
                       </View>
                     </View>
@@ -557,21 +699,21 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Highest Degree</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.qualification || 'MBA'}
+                          {personalData?.qualification || selectedEmployee.qualification || 'N/A'}
                         </Text>
                       </View>
 
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>University</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {selectedEmployee.university || 'Mumbai University'}
+                          {personalData?.university || selectedEmployee.university || 'N/A'}
                         </Text>
                       </View>
 
                       <View style={styles.infoBoxFull}>
-                        <Text style={styles.infoBoxLabel}>Past Companies</Text>
+                        <Text style={styles.infoBoxLabel}>Passing Year / Experience</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          No past companies listed (Fresher)
+                          {personalData?.passingYear || selectedEmployee.passingYear ? `Passing Year: ${personalData?.passingYear || selectedEmployee.passingYear}` : 'Not specified'}
                         </Text>
                       </View>
                     </View>
@@ -579,27 +721,44 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                 </View>
               )}
 
-              {/* Other Tabs Placeholder Renderers */}
+              {/* Dynamic Tabs Content Renderers */}
               {activeProfileTab === 'Documents' && (
                 <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
                   <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Document Vault</Text>
-                  <View style={{ gap: 10, marginTop: 10 }}>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>📄 Offer_Letter_Sam.pdf (Verified)</Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>📄 Degree_Certificate_MBA.pdf (Verified)</Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>📄 Passport_Copy.pdf (Verified)</Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>📄 Aadhaar_Identity_Proof.pdf (Verified)</Text>
-                  </View>
+                  {vaultDocs.length > 0 ? (
+                    <View style={{ gap: 10, marginTop: 10 }}>
+                      {vaultDocs.map(doc => (
+                        <View key={doc.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
+                          <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13 }}>📄 {doc.name} ({doc.category})</Text>
+                          <Text style={{ color: doc.status === 'Active' ? '#22c55e' : '#eab308', fontSize: 11, fontWeight: '700' }}>{doc.status}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 10 }}>
+                      No documents uploaded for this employee yet.
+                    </Text>
+                  )}
                 </View>
               )}
 
               {activeProfileTab === 'Attendance' && (
                 <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
                   <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Attendance Overview</Text>
-                  <View style={{ gap: 8, marginTop: 10 }}>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>🟢 Total Present Days: 22 Days (95.5%)</Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>🟡 Late Punch-ins: 1 Day</Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>🔴 Unexcused Absences: 0 Days</Text>
-                  </View>
+                  {punchLogs.length > 0 ? (
+                    <View style={{ gap: 8, marginTop: 10 }}>
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontWeight: '600' }}>🟢 Total Punch Logs: {punchLogs.length} Recorded Entries</Text>
+                      {punchLogs.slice(0, 5).map(punch => (
+                        <Text key={punch.id} style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: 12 }}>
+                          • {punch.type === 'In' ? '🟢 Check In' : '🔴 Check Out'}: {new Date(punch.time).toLocaleString()} ({punch.method})
+                        </Text>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 10 }}>
+                      No attendance punches recorded for this employee.
+                    </Text>
+                  )}
                 </View>
               )}
 
@@ -607,12 +766,29 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                 <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
                   <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Payroll & Compensation</Text>
                   <View style={{ gap: 8, marginTop: 10 }}>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>💵 Basic Salary: ₹45,000 / month</Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>🏠 HRA: ₹18,000 / month</Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>🎁 Special Allowance: ₹12,000 / month</Text>
-                    <Text style={{ color: '#22c55e', fontWeight: '700', fontSize: 15, marginTop: 4 }}>
-                      💰 Net Payable: ₹75,000 / month
+                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                      💵 Basic Salary: {salaryData?.basic != null ? `₹${Number(salaryData.basic).toLocaleString()}` : (selectedEmployee.basic != null && selectedEmployee.basic > 0 ? `₹${Number(selectedEmployee.basic).toLocaleString()}` : 'N/A')}
                     </Text>
+                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                      🏠 HRA: {salaryData?.hra != null ? `₹${Number(salaryData.hra).toLocaleString()}` : (selectedEmployee.hra != null && selectedEmployee.hra > 0 ? `₹${Number(selectedEmployee.hra).toLocaleString()}` : 'N/A')}
+                    </Text>
+                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                      🎁 Special Allowance: {salaryData?.allowance != null ? `₹${Number(salaryData.allowance).toLocaleString()}` : (selectedEmployee.allowance != null && selectedEmployee.allowance > 0 ? `₹${Number(selectedEmployee.allowance).toLocaleString()}` : 'N/A')}
+                    </Text>
+                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                      📉 Deductions: {salaryData?.deductions != null ? `₹${Number(salaryData.deductions).toLocaleString()}` : (selectedEmployee.deductions != null && selectedEmployee.deductions > 0 ? `₹${Number(selectedEmployee.deductions).toLocaleString()}` : 'N/A')}
+                    </Text>
+                    <Text style={{ color: '#22c55e', fontWeight: '700', fontSize: 15, marginTop: 4 }}>
+                      💰 Net Payable: {salaryData?.netSalary != null ? `₹${Number(salaryData.netSalary).toLocaleString()}` : (selectedEmployee.netSalary != null && selectedEmployee.netSalary > 0 ? `₹${Number(selectedEmployee.netSalary).toLocaleString()}` : 'N/A')}
+                    </Text>
+                    <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: isDark ? '#334155' : '#e2e8f0' }}>
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 12 }}>
+                        🏦 Bank: {salaryData?.bankName || selectedEmployee.bankName || 'N/A'} | A/C: {salaryData?.bankAccount || selectedEmployee.bankAccount || 'N/A'}
+                      </Text>
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 12, marginTop: 2 }}>
+                        💳 PAN: {salaryData?.pan || selectedEmployee.pan || 'N/A'} | IFSC: {salaryData?.ifsc || selectedEmployee.ifsc || 'N/A'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               )}
@@ -620,11 +796,19 @@ export const EmployeeDirectoryScreen: React.FC = () => {
               {activeProfileTab === 'Leave' && (
                 <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
                   <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Leave Balances</Text>
-                  <View style={{ gap: 8, marginTop: 10 }}>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>🌴 Casual Leave: 12 / 12 Remaining</Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>🤒 Sick Leave: 10 / 10 Remaining</Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>✈️ Earned Leave: 15 / 15 Remaining</Text>
-                  </View>
+                  {leaveAllocations.length > 0 ? (
+                    <View style={{ gap: 8, marginTop: 10 }}>
+                      {leaveAllocations.map(alloc => (
+                        <Text key={alloc.id} style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                          🌴 {alloc.leaveType?.name || 'Leave'}: {alloc.allocated - alloc.used} / {alloc.allocated} Days Remaining
+                        </Text>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 10 }}>
+                      No custom leave allocations found. Standard company policy applies.
+                    </Text>
+                  )}
                 </View>
               )}
 
@@ -632,8 +816,17 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                 <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
                   <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Performance & Rating</Text>
                   <View style={{ gap: 8, marginTop: 10 }}>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>⭐ Overall Rating: 4.8 / 5.0 (Exceeds Expectations)</Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>🎯 KRA & Goals Completed: 8 / 10</Text>
+                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                      📌 Confirmation Status: {selectedEmployee.confirmationStatus || 'CONFIRMED'}
+                    </Text>
+                    {selectedEmployee.probationEnd && (
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                        ⏳ Probation Ends: {selectedEmployee.probationEnd.split('T')[0]}
+                      </Text>
+                    )}
+                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                      🎯 Active Role: {selectedEmployee.designation || 'N/A'}
+                    </Text>
                   </View>
                 </View>
               )}
@@ -641,39 +834,75 @@ export const EmployeeDirectoryScreen: React.FC = () => {
               {activeProfileTab === 'Assets' && (
                 <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
                   <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Assigned Company Assets</Text>
-                  <View style={{ gap: 8, marginTop: 10 }}>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>💻 Apple MacBook Pro 16" (SN: C02F1234MD6R)</Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>🖥️ Dell UltraSharp 27" 4K Monitor</Text>
-                  </View>
+                  {assignedAssets.length > 0 ? (
+                    <View style={{ gap: 8, marginTop: 10 }}>
+                      {assignedAssets.map(asset => (
+                        <Text key={asset.id} style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                          💻 {asset.name} ({asset.category}) - SN: {asset.serial} [{asset.status}]
+                        </Text>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 10 }}>
+                      No company assets assigned to this employee.
+                    </Text>
+                  )}
                 </View>
               )}
 
               {activeProfileTab === 'Family & Dependents' && (
                 <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
                   <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Family & Dependents</Text>
-                  <View style={{ gap: 8, marginTop: 10 }}>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>👨 Father: swedr</Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>📞 Emergency Contact: +91 98000 11223</Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>🏠 Address: asdf</Text>
-                  </View>
+                  {familyMembers.length > 0 ? (
+                    <View style={{ gap: 10, marginTop: 10 }}>
+                      {familyMembers.map(fam => (
+                        <View key={fam.id} style={{ padding: 10, borderRadius: 8, backgroundColor: isDark ? '#334155' : '#f1f5f9' }}>
+                          <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: '700' }}>
+                            👤 {fam.name} ({fam.relation})
+                          </Text>
+                          {fam.contact && <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 12, marginTop: 2 }}>📞 {fam.contact}</Text>}
+                          {fam.bloodGroup && <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 12 }}>🩸 Blood Group: {fam.bloodGroup}</Text>}
+                          <Text style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: 11, marginTop: 4 }}>
+                            {fam.isNominee ? '✅ Nominee ' : ''}{fam.isInsuranceCovered ? '🛡️ Insurance Covered' : ''}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 10 }}>
+                      No family members or dependents registered.
+                    </Text>
+                  )}
                 </View>
               )}
 
               {activeProfileTab === 'Revision History' && (
                 <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
                   <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Revision & Promotion Logs</Text>
-                  <Text style={{ color: isDark ? '#cbd5e1' : '#475569', marginTop: 10 }}>
-                    📅 2026-07-28: Initial Appointment as UI/UX designer on probation period.
-                  </Text>
+                  <View style={{ gap: 8, marginTop: 10 }}>
+                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                      📅 {selectedEmployee.joiningDate ? selectedEmployee.joiningDate.split('T')[0] : 'N/A'}: Joined as {selectedEmployee.designation || 'Employee'} in {selectedEmployee.department?.name || 'General'}.
+                    </Text>
+                    {selectedEmployee.updatedAt && (
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                        🔄 {selectedEmployee.updatedAt.split('T')[0]}: Profile record updated.
+                      </Text>
+                    )}
+                  </View>
                 </View>
               )}
 
               {activeProfileTab === 'Timeline' && (
                 <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
                   <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Employment Timeline</Text>
-                  <Text style={{ color: isDark ? '#cbd5e1' : '#475569', marginTop: 10 }}>
-                    🚀 2026-07-28: Account created and onboarded to HRMS system.
-                  </Text>
+                  <View style={{ gap: 8, marginTop: 10 }}>
+                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                      🚀 {selectedEmployee.createdAt ? selectedEmployee.createdAt.split('T')[0] : 'N/A'}: Account onboarded to HRMS system.
+                    </Text>
+                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                      📌 Current Status: {selectedEmployee.status || 'ACTIVE'}
+                    </Text>
+                  </View>
                 </View>
               )}
 
@@ -681,7 +910,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                 <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
                   <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>HR Confidential Notes</Text>
                   <Text style={{ color: isDark ? '#cbd5e1' : '#475569', marginTop: 10 }}>
-                    📝 High potential UI/UX designer candidate joining the Mumbai office.
+                    📝 {selectedEmployee.name} ({selectedEmployee.id}) - Designation: {selectedEmployee.designation || 'N/A'}, Department: {selectedEmployee.department?.name || 'N/A'}, Work Location: {selectedEmployee.location || 'N/A'}.
                   </Text>
                 </View>
               )}
@@ -780,7 +1009,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                     Role Upgrade & Employee Transfer
                   </Text>
                   <Text style={styles.promoteSubtitleText}>
-                    Promote or transfer employee {selectedEmployee?.name || 'sam'} ({selectedEmployee?.id ? `EMP${selectedEmployee.id.substring(0, 5).toUpperCase()}` : 'EMP31723'})
+                    Promote or transfer employee {selectedEmployee?.name || 'N/A'} ({selectedEmployee?.id || 'N/A'})
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => setPromoteModalOpen(false)}>
@@ -793,13 +1022,13 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                 <View style={styles.currentBox}>
                   <Text style={styles.fieldLabelText}>Current Role</Text>
                   <Text style={[styles.fieldValueBold, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                    {selectedEmployee?.designation || 'UI/UX designer'}
+                    {selectedEmployee?.designation || 'N/A'}
                   </Text>
                 </View>
                 <View style={styles.currentBox}>
                   <Text style={styles.fieldLabelText}>Current Department</Text>
                   <Text style={[styles.fieldValueBold, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                    {selectedEmployee?.department?.name || 'Design / Product'}
+                    {selectedEmployee?.department?.name || 'N/A'}
                   </Text>
                 </View>
               </View>
@@ -829,7 +1058,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                 style={[styles.modalInput, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1' }]}
                 value={newRole}
                 onChangeText={setNewRole}
-                placeholder="UI/UX designer"
+                placeholder="Enter designation / role"
                 placeholderTextColor="#94a3b8"
               />
 
@@ -839,7 +1068,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                 style={[styles.modalInput, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1' }]}
                 value={targetDept}
                 onChangeText={setTargetDept}
-                placeholder="Engineering"
+                placeholder="Enter department name"
                 placeholderTextColor="#94a3b8"
               />
 
@@ -851,7 +1080,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                     style={[styles.modalInput, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1' }]}
                     value={effectiveDate}
                     onChangeText={setEffectiveDate}
-                    placeholder="31-07-2026"
+                    placeholder="YYYY-MM-DD"
                     placeholderTextColor="#94a3b8"
                   />
                 </View>
@@ -862,7 +1091,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                     value={revisedSalary}
                     onChangeText={setRevisedSalary}
                     keyboardType="numeric"
-                    placeholder="13500"
+                    placeholder="Enter revised basic"
                     placeholderTextColor="#94a3b8"
                   />
                 </View>
@@ -911,7 +1140,12 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                       updateEmployeeMutation.mutate(
                         {
                           id: selectedEmployee.id,
-                          data: { designation: newRole },
+                          data: {
+                            designation: newRole,
+                            role: newRole,
+                            department: targetDept,
+                            basic: parsedBasic,
+                          },
                         },
                         {
                           onSuccess: () => {
@@ -1500,6 +1734,18 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '700',
     fontSize: 13,
+  },
+  myDetailsButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  myDetailsButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
 

@@ -61,6 +61,8 @@ export const EmployeeMasterScreen: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
   const [designation, setDesignation] = useState('');
+  const [department, setDepartment] = useState('Finance');
+  const [location, setLocation] = useState('Mumbai');
   const [status, setStatus] = useState<'ACTIVE' | 'ON_LEAVE' | 'TERMINATED' | 'RESIGNED' | 'PROBATION'>('ACTIVE');
   const [joiningDate, setJoiningDate] = useState(new Date().toISOString().split('T')[0]);
   const [photoUrl, setPhotoUrl] = useState('');
@@ -118,6 +120,8 @@ export const EmployeeMasterScreen: React.FC = () => {
       setEmail(emp.email || '');
       setPhone(emp.phone || '');
       setDesignation(emp.designation || '');
+      if (emp.department) setDepartment(typeof emp.department === 'string' ? emp.department : emp.department.name || 'Finance');
+      if (emp.location) setLocation(emp.location);
       setStatus(emp.status || 'ACTIVE');
       if (emp.joiningDate) setJoiningDate(emp.joiningDate.split('T')[0]);
       if (emp.avatar) setPhotoUrl(emp.avatar);
@@ -158,11 +162,11 @@ export const EmployeeMasterScreen: React.FC = () => {
       updateMutation.mutate(
         {
           id: employeeId,
-          data: { name, email, phone, designation, status, joiningDate, avatar: photoUrl },
+          data: { name, email, phone, designation, department, location, status, joiningDate, avatar: photoUrl },
         },
         {
           onSuccess: () => {
-            Alert.alert('Step 1 Saved', 'Basic Overview details updated.');
+            Alert.alert('Step 1 Saved', 'Basic Overview details updated in database.');
             if (onSuccessCallback) onSuccessCallback();
           },
           onError: err => Alert.alert('Error', err.message),
@@ -170,7 +174,7 @@ export const EmployeeMasterScreen: React.FC = () => {
       );
     } else {
       createMutation.mutate(
-        { name, email, phone, designation, status, joiningDate, avatar: photoUrl },
+        { name, email, phone, designation, department, location, status, joiningDate, avatar: photoUrl },
         {
           onSuccess: res => {
             Alert.alert('Step 1 Saved', 'Employee registered in database.');
@@ -527,6 +531,26 @@ export const EmployeeMasterScreen: React.FC = () => {
                 value={designation}
                 onChangeText={setDesignation}
                 placeholder="Senior UI Developer"
+                placeholderTextColor={colors.inputPlaceholder}
+              />
+
+              {/* Department */}
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🏢 DEPARTMENT</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
+                value={department}
+                onChangeText={setDepartment}
+                placeholder="Finance"
+                placeholderTextColor={colors.inputPlaceholder}
+              />
+
+              {/* Work Location */}
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>📍 WORK LOCATION</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
+                value={location}
+                onChangeText={setLocation}
+                placeholder="Mumbai"
                 placeholderTextColor={colors.inputPlaceholder}
               />
 

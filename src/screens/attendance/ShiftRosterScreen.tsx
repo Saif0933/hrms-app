@@ -19,10 +19,9 @@ import {
   useDeleteShiftTiming,
   useRosters,
   useSaveRosters,
-  useShiftTimings,
-  ShiftTiming,
+  useShiftTimings
 } from '../../api/hook/useAttendance';
-import { useEmployees, Employee } from '../../api/hook/useEmployee';
+import { Employee, useEmployees } from '../../api/hook/useEmployee';
 
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';

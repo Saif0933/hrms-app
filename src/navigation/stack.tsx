@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createNativeStackNavigator, NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { MenuScreen } from '../screens/MenuScreen';
@@ -11,72 +11,72 @@ import { LoginScreen } from '../screens/login/LoginScreen';
 import { RegisterScreen } from '../screens/login/RegisterScreen';
 
 // Employee Screens
+import { BulkImportsScreen } from '../screens/employee/BulkImportsScreen';
+import { DepartmentsScreen } from '../screens/employee/DepartmentsScreen';
 import { EmployeeDirectoryScreen } from '../screens/employee/EmployeeDirectoryScreen';
 import { EmployeeMasterScreen } from '../screens/employee/EmployeeMasterScreen';
+import { ExitSettlementScreen } from '../screens/employee/ExitSettlementScreen';
 import { IdCardGeneratorScreen } from '../screens/employee/IdCardGeneratorScreen';
 import { OrgChartScreen } from '../screens/employee/OrgChartScreen';
-import { ExitSettlementScreen } from '../screens/employee/ExitSettlementScreen';
 import { ResignationArchiveScreen } from '../screens/employee/ResignationArchiveScreen';
-import { BulkImportsScreen } from '../screens/employee/BulkImportsScreen';
 import { RolePermissionsScreen } from '../screens/employee/RolePermissionsScreen';
-import { DepartmentsScreen } from '../screens/employee/DepartmentsScreen';
 
 // Attendance Screens
-import { GpsSelfiePunchScreen } from '../screens/attendance/GpsSelfiePunchScreen';
-import { ShiftRosterScreen } from '../screens/attendance/ShiftRosterScreen';
+import { AttendanceHistoryScreen } from '../screens/attendance/AttendanceHistory';
 import { AttendanceRegularizationScreen } from '../screens/attendance/AttendanceRegularizationScreen';
-import { MusterRollScreen } from '../screens/attendance/MusterRollScreen';
 import { AttendanceReportsScreen } from '../screens/attendance/AttendanceReportsScreen';
 import { GeofencingConfigScreen } from '../screens/attendance/GeofencingConfigScreen';
-import { AttendanceHistoryScreen } from '../screens/attendance/AttendanceHistory';
+import { GpsSelfiePunchScreen } from '../screens/attendance/GpsSelfiePunchScreen';
+import { MusterRollScreen } from '../screens/attendance/MusterRollScreen';
+import { ShiftRosterScreen } from '../screens/attendance/ShiftRosterScreen';
 
 // Leave Screens
 import { ApplyLeaveScreen } from '../screens/leave/ApplyLeaveScreen';
 import { LeaveApprovalsScreen } from '../screens/leave/LeaveApprovalsScreen';
 import { LeaveCalendarScreen } from '../screens/leave/LeaveCalendarScreen';
-import { LeavePoliciesScreen } from '../screens/leave/LeavePoliciesScreen';
 import { LeaveConfigurationsScreen } from '../screens/leave/LeaveConfigurationsScreen';
+import { LeavePoliciesScreen } from '../screens/leave/LeavePoliciesScreen';
 
 // Payroll Screens
+import { InvestmentDeclarationsScreen } from '../screens/payroll/InvestmentDeclarationsScreen';
+import { LoansAdvancesScreen } from '../screens/payroll/LoansAdvancesScreen';
+import { PayrollReportsScreen } from '../screens/payroll/PayrollReportsScreen';
+import { PayslipTemplatesScreen } from '../screens/payroll/PayslipTemplatesScreen';
 import { SalaryProcessingScreen } from '../screens/payroll/SalaryProcessingScreen';
 import { SalaryRevisionsScreen } from '../screens/payroll/SalaryRevisionsScreen';
-import { LoansAdvancesScreen } from '../screens/payroll/LoansAdvancesScreen';
-import { InvestmentDeclarationsScreen } from '../screens/payroll/InvestmentDeclarationsScreen';
-import { PayslipTemplatesScreen } from '../screens/payroll/PayslipTemplatesScreen';
-import { PayrollReportsScreen } from '../screens/payroll/PayrollReportsScreen';
 
 // Performance Screens
-import { KraGoalSettingScreen } from '../screens/performance/KraGoalSettingScreen';
-import { Feedback360Screen } from '../screens/performance/Feedback360Screen';
 import { BellCurveAnalyticsScreen } from '../screens/performance/BellCurveAnalyticsScreen';
+import { Feedback360Screen } from '../screens/performance/Feedback360Screen';
+import { KraGoalSettingScreen } from '../screens/performance/KraGoalSettingScreen';
 
 // Engagement Screens
-import { SocialFeedScreen } from '../screens/engagement/SocialFeedScreen';
 import { MoodAnalysisScreen } from '../screens/engagement/MoodAnalysisScreen';
+import { SocialFeedScreen } from '../screens/engagement/SocialFeedScreen';
 import { SurveysFeedbackScreen } from '../screens/engagement/SurveysFeedbackScreen';
 
 // Travel & Claims Screens
-import { NewTravelRequestScreen } from '../screens/traveclims/NewTravelRequestScreen';
-import { ExpenseReimbursementsScreen } from '../screens/traveclims/ExpenseReimbursementsScreen';
 import { ClaimApprovalsScreen } from '../screens/traveclims/ClaimApprovalsScreen';
+import { ExpenseReimbursementsScreen } from '../screens/traveclims/ExpenseReimbursementsScreen';
+import { NewTravelRequestScreen } from '../screens/traveclims/NewTravelRequestScreen';
 
 // Timesheet Screens
-import { TimesheetEntryScreen } from '../screens/Timesheet/TimesheetEntryScreen';
 import { ClientsProjectsScreen } from '../screens/Timesheet/ClientsProjectsScreen';
+import { TimesheetEntryScreen } from '../screens/Timesheet/TimesheetEntryScreen';
 
 // Recruitment Screens
-import { JobRequisitionsScreen } from '../screens/recruitment/JobRequisitionsScreen';
 import { CandidatePipelineScreen } from '../screens/recruitment/CandidatePipelineScreen';
+import { JobRequisitionsScreen } from '../screens/recruitment/JobRequisitionsScreen';
 import { PreOnboardingChecklistScreen } from '../screens/recruitment/PreOnboardingChecklistScreen';
 
 // Document Vault Screens
+import { DocumentComplianceScreen } from '../screens/document/DocumentComplianceScreen';
 import { DocumentVaultScreen } from '../screens/document/DocumentVaultScreen';
 import { UploadDocumentScreen } from '../screens/document/UploadDocumentScreen';
-import { DocumentComplianceScreen } from '../screens/document/DocumentComplianceScreen';
 
 // Asset Management Screens
-import { AssetInventoryScreen } from '../screens/assetManagement/AssetInventoryScreen';
 import { AssetAllocationScreen } from '../screens/assetManagement/AssetAllocationScreen';
+import { AssetInventoryScreen } from '../screens/assetManagement/AssetInventoryScreen';
 import { RegisterAssetScreen } from '../screens/assetManagement/RegisterAssetScreen';
 
 // Letter Generator Screens
@@ -85,21 +85,21 @@ import { IssuedLettersArchiveScreen } from '../screens/Letter/IssuedLettersArchi
 import { LetterTemplatesScreen } from '../screens/Letter/LetterTemplatesScreen';
 
 // HR Help Desk Screens
-import { SupportTicketsScreen } from '../screens/helpdesk/SupportTicketsScreen';
-import { RaiseTicketScreen } from '../screens/helpdesk/RaiseTicketScreen';
 import { HelpdeskSlaAnalyticsScreen } from '../screens/helpdesk/HelpdeskSlaAnalyticsScreen';
+import { RaiseTicketScreen } from '../screens/helpdesk/RaiseTicketScreen';
+import { SupportTicketsScreen } from '../screens/helpdesk/SupportTicketsScreen';
 
 // Subscription & Plans Screens
-import { PlansPricingScreen } from '../screens/subscription/PlansPricingScreen';
-import { PlanComparisonScreen } from '../screens/subscription/PlanComparisonScreen';
 import { ManageSubscriptionScreen } from '../screens/subscription/ManageSubscriptionScreen';
+import { PlanComparisonScreen } from '../screens/subscription/PlanComparisonScreen';
+import { PlansPricingScreen } from '../screens/subscription/PlansPricingScreen';
 
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   Dashboard: undefined;
   Menu: undefined;
-  EmployeeDirectory: undefined;
+  EmployeeDirectory: { employeeId?: string; openMyProfile?: boolean } | undefined;
   EmployeeMaster: { employeeId?: string };
   IdCardGenerator: { employeeId?: string };
   OrgChart: undefined;

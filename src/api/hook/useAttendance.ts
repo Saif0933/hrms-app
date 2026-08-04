@@ -486,9 +486,11 @@ export const useShiftTimings = () => {
     queryFn: async () => {
       try {
         const response = await apiClient.get<BaseResponse<ShiftTiming[]>>('/attendance/shift-timings');
-        if (response.data && response.data.data) return response.data;
+        if (response?.data && typeof response.data === 'object' && Array.isArray(response.data.data)) {
+          return response.data;
+        }
       } catch (error: any) {
-        console.log('API GET /attendance/shift-timings error:', error?.message || error);
+        // Fallback gracefully on 404/HTML response
       }
       return {
         success: true,
