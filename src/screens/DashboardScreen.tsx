@@ -342,12 +342,20 @@ export const DashboardScreen: React.FC = () => {
               <Text style={[styles.cardHeading, { color: isDark ? '#ffffff' : '#0f172a' }]}>Workforce Insights</Text>
 
               {/* Pill Tabs */}
-              <View style={styles.pillTabsContainer}>
+              <View style={[styles.pillTabsContainer, { backgroundColor: isDark ? '#0f172a' : '#f1f5f9' }]}>
                 <TouchableOpacity
                   style={[styles.pillTab, activeInsightTab === 'attendance' && styles.pillTabActive]}
                   onPress={() => setActiveInsightTab('attendance')}
+                  activeOpacity={0.8}
                 >
-                  <Text style={[styles.pillTabText, activeInsightTab === 'attendance' && styles.pillTabTextActive]}>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.pillTabText,
+                      { color: isDark ? '#cbd5e1' : '#64748b' },
+                      activeInsightTab === 'attendance' && styles.pillTabTextActive,
+                    ]}
+                  >
                     Attendance Trend
                   </Text>
                 </TouchableOpacity>
@@ -355,8 +363,16 @@ export const DashboardScreen: React.FC = () => {
                 <TouchableOpacity
                   style={[styles.pillTab, activeInsightTab === 'departments' && styles.pillTabActive]}
                   onPress={() => setActiveInsightTab('departments')}
+                  activeOpacity={0.8}
                 >
-                  <Text style={[styles.pillTabText, activeInsightTab === 'departments' && styles.pillTabTextActive]}>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.pillTabText,
+                      { color: isDark ? '#cbd5e1' : '#64748b' },
+                      activeInsightTab === 'departments' && styles.pillTabTextActive,
+                    ]}
+                  >
                     Departments
                   </Text>
                 </TouchableOpacity>
@@ -364,8 +380,16 @@ export const DashboardScreen: React.FC = () => {
                 <TouchableOpacity
                   style={[styles.pillTab, activeInsightTab === 'diversity' && styles.pillTabActive]}
                   onPress={() => setActiveInsightTab('diversity')}
+                  activeOpacity={0.8}
                 >
-                  <Text style={[styles.pillTabText, activeInsightTab === 'diversity' && styles.pillTabTextActive]}>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.pillTabText,
+                      { color: isDark ? '#cbd5e1' : '#64748b' },
+                      activeInsightTab === 'diversity' && styles.pillTabTextActive,
+                    ]}
+                  >
                     Diversity
                   </Text>
                 </TouchableOpacity>
@@ -376,28 +400,32 @@ export const DashboardScreen: React.FC = () => {
                   <View style={styles.chartLegendRow}>
                     <View style={styles.legendItem}>
                       <View style={[styles.legendDot, { backgroundColor: '#22c55e' }]} />
-                      <Text style={styles.legendLabel}>Present</Text>
+                      <Text style={[styles.legendLabel, { color: isDark ? '#cbd5e1' : '#64748b' }]}>Present</Text>
                     </View>
                     <View style={styles.legendItem}>
                       <View style={[styles.legendDot, { backgroundColor: '#f59e0b' }]} />
-                      <Text style={styles.legendLabel}>Late</Text>
+                      <Text style={[styles.legendLabel, { color: isDark ? '#cbd5e1' : '#64748b' }]}>Late</Text>
                     </View>
                     <View style={styles.legendItem}>
                       <View style={[styles.legendDot, { backgroundColor: '#ef4444' }]} />
-                      <Text style={styles.legendLabel}>Absent</Text>
+                      <Text style={[styles.legendLabel, { color: isDark ? '#cbd5e1' : '#64748b' }]}>Absent</Text>
                     </View>
                   </View>
 
                   <View style={styles.verticalBarColumnsContainer}>
                     {attendanceTrend.map((item, idx) => (
                       <View key={idx} style={styles.barColumnWrapper}>
-                        <Text style={styles.barTopPercentText}>{item.percentage}</Text>
+                        <Text style={[styles.barTopPercentText, { color: isDark ? '#ffffff' : '#0f172a' }]}>
+                          {item.percentage}
+                        </Text>
                         <View style={styles.stackedBarTrack}>
                           <View style={{ flex: item.Present, backgroundColor: '#22c55e', width: '100%' }} />
                           <View style={{ flex: item.Late, backgroundColor: '#f59e0b', width: '100%' }} />
                           <View style={{ flex: item.Absent || 0.5, backgroundColor: '#ef4444', width: '100%' }} />
                         </View>
-                        <Text style={styles.barBottomDayLabel}>{item.name}</Text>
+                        <Text style={[styles.barBottomDayLabel, { color: isDark ? '#cbd5e1' : '#64748b' }]}>
+                          {item.name}
+                        </Text>
                       </View>
                     ))}
                   </View>
@@ -885,23 +913,28 @@ const styles = StyleSheet.create({
   pillTabsContainer: {
     flexDirection: 'row',
     backgroundColor: '#f1f5f9',
-    borderRadius: 14,
-    padding: 4,
+    borderRadius: 12,
+    padding: 3,
     marginBottom: 14,
+    height: 42,
+    alignItems: 'center',
   },
   pillTab: {
     flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
+    height: '100%',
+    borderRadius: 9,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
   },
   pillTabActive: {
     backgroundColor: '#2563eb',
   },
   pillTabText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#64748b',
+    textAlign: 'center',
   },
   pillTabTextActive: {
     color: '#ffffff',

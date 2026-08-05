@@ -1,3 +1,4 @@
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
@@ -6,6 +7,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -16,6 +18,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+// @ts-ignore
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAssets } from '../../api/hook/useAssets';
 import { usePunches } from '../../api/hook/useAttendance';
 import { useProfile } from '../../api/hook/useAuth';
@@ -58,6 +62,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
   const [newRole, setNewRole] = useState('Employee');
   const [targetDept, setTargetDept] = useState('General');
   const [effectiveDate, setEffectiveDate] = useState('2026-08-04');
+  const [showEffectiveDatePicker, setShowEffectiveDatePicker] = useState(false);
   const [revisedSalary, setRevisedSalary] = useState('0');
   const [remarks, setRemarks] = useState('');
 
@@ -81,8 +86,6 @@ export const EmployeeDirectoryScreen: React.FC = () => {
   const punchLogs = punchesResponse?.data || [];
   const leaveAllocations = leavesResponse?.data || [];
   const assignedAssets = (assetsResponse?.data || []).filter(a => a.employeeId === empId);
-
-
 
   const profileTabs = [
     'Overview',
@@ -174,17 +177,74 @@ export const EmployeeDirectoryScreen: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'ACTIVE':
-        return '#22c55e';
+        return '#10b981';
       case 'PROBATION':
-        return '#eab308';
+        return '#f59e0b';
       case 'ON_LEAVE':
-        return '#3b82f6';
+        return '#0284c7';
       case 'RESIGNED':
         return '#f97316';
       case 'TERMINATED':
         return '#ef4444';
       default:
         return '#64748b';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'ACTIVE':
+        return 'Active';
+      case 'PROBATION':
+        return 'Probation';
+      case 'ON_LEAVE':
+        return 'On Leave';
+      case 'RESIGNED':
+        return 'Resigned';
+      case 'TERMINATED':
+        return 'Terminated';
+      default:
+        return status || 'N/A';
+    }
+  };
+
+  const getTabIcon = (tabName: string) => {
+    switch (tabName) {
+      case 'Overview':
+        return 'account-details-outline';
+      case 'Documents':
+        return 'file-document-multiple-outline';
+      case 'Attendance':
+        return 'clock-check-outline';
+      case 'Payroll':
+        return 'cash-multiple';
+      case 'Leave':
+        return 'palm-tree';
+      case 'Performance':
+        return 'chart-line';
+      case 'Assets':
+        return 'laptop';
+      case 'Family & Dependents':
+        return 'account-heart-outline';
+      case 'Revision History':
+        return 'history';
+      case 'Timeline':
+        return 'timeline-clock-outline';
+      case 'Notes':
+        return 'notebook-outline';
+      default:
+        return 'information-outline';
+    }
+  };
+
+  const handleEffectiveDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowEffectiveDatePicker(false);
+    }
+    if (event.type === 'set' && selectedDate) {
+      setEffectiveDate(selectedDate.toISOString().split('T')[0]);
+    } else if (event.type === 'dismissed') {
+      setShowEffectiveDatePicker(false);
     }
   };
 
@@ -210,35 +270,60 @@ export const EmployeeDirectoryScreen: React.FC = () => {
           },
         ]}
         onPress={() => setSelectedEmployee(item)}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
       >
         <View style={styles.cardHeader}>
-          <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
-            <Text style={styles.avatarText}>{initials}</Text>
+          <View style={[styles.avatar, { backgroundColor: isDark ? '#1e3a8a' : '#eff6ff', borderColor: colors.accent }]}>
+            <Text style={[styles.avatarText, { color: colors.accent }]}>{initials}</Text>
           </View>
           <View style={styles.cardHeaderInfo}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <Text style={[styles.employeeName, { color: colors.textPrimary }]}>{item.name}</Text>
-              <Text style={{ fontSize: 11, color: colors.accent, fontWeight: '700' }}>({item.id})</Text>
+              <View style={[styles.idBadge, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}>
+                <Text style={[styles.idBadgeText, { color: colors.accent }]}>{item.id}</Text>
+              </View>
             </View>
+
             <Text style={[styles.employeeDesignation, { color: colors.textSecondary }]}>
               {item.designation || 'N/A'}
             </Text>
-            <Text style={[styles.employeeDepartment, { color: colors.textMuted }]}>
-              {deptStr !== 'N/A' ? deptStr : ''}{item.location ? ` • ${item.location}` : ''}
-            </Text>
+
+            <View style={styles.deptLocationRow}>
+              {deptStr !== 'N/A' && (
+                <View style={styles.metaIconText}>
+                  <MaterialCommunityIcons name="domain" size={13} color={colors.textMuted} />
+                  <Text style={[styles.employeeDepartment, { color: colors.textMuted }]}>{deptStr}</Text>
+                </View>
+              )}
+              {item.location ? (
+                <View style={styles.metaIconText}>
+                  <MaterialCommunityIcons name="map-marker-outline" size={13} color={colors.textMuted} />
+                  <Text style={[styles.employeeDepartment, { color: colors.textMuted }]}>{item.location}</Text>
+                </View>
+              ) : null}
+            </View>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
-            <Text style={[styles.statusText, { color: statusColor }]}>{item.status}</Text>
+
+          <View style={[styles.statusBadge, { backgroundColor: `${statusColor}18`, borderColor: `${statusColor}40` }]}>
+            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+            <Text style={[styles.statusText, { color: statusColor }]}>{getStatusLabel(item.status)}</Text>
           </View>
         </View>
 
         <View style={[styles.cardDivider, { backgroundColor: colors.divider }]} />
 
         <View style={styles.cardFooter}>
-          <Text style={[styles.contactText, { color: colors.textSecondary }]}>✉️ {item.email}</Text>
+          <View style={styles.contactItem}>
+            <MaterialCommunityIcons name="email-outline" size={14} color={colors.textSecondary} />
+            <Text style={[styles.contactText, { color: colors.textSecondary }]} numberOfLines={1}>
+              {item.email}
+            </Text>
+          </View>
           {item.phone && (
-            <Text style={[styles.contactText, { color: colors.textSecondary }]}>📞 {item.phone}</Text>
+            <View style={styles.contactItem}>
+              <MaterialCommunityIcons name="phone-outline" size={14} color={colors.textSecondary} />
+              <Text style={[styles.contactText, { color: colors.textSecondary }]}>{item.phone}</Text>
+            </View>
           )}
         </View>
       </TouchableOpacity>
@@ -257,21 +342,23 @@ export const EmployeeDirectoryScreen: React.FC = () => {
         ]}
       >
         <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: colors.cardBackground }]}
+          style={[styles.backButton, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-          <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
+          <MaterialCommunityIcons name="arrow-left" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
+
         <View style={styles.headerTitleContainer}>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Employee Directory</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-            {employees.length} Members Listed
+            {employees.length} {employees.length === 1 ? 'Member' : 'Members'} Listed
           </Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <TouchableOpacity
-            style={[styles.myDetailsButton, { backgroundColor: '#2563eb' }]}
+            style={[styles.myDetailsButton, { backgroundColor: isDark ? '#1e3a8a' : '#eff6ff' }]}
             onPress={() => {
               if (myEmployeeRecord) {
                 setSelectedEmployee(myEmployeeRecord);
@@ -283,7 +370,8 @@ export const EmployeeDirectoryScreen: React.FC = () => {
             }}
             activeOpacity={0.8}
           >
-            <Text style={styles.myDetailsButtonText}>👤 My Details</Text>
+            <MaterialCommunityIcons name="account-circle-outline" size={16} color={colors.accent} />
+            <Text style={[styles.myDetailsButtonText, { color: colors.accent }]}>My Profile</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -291,35 +379,55 @@ export const EmployeeDirectoryScreen: React.FC = () => {
             onPress={() => navigation.navigate('EmployeeMaster', {})}
             activeOpacity={0.8}
           >
-            <Text style={styles.addButtonText}>+ Add</Text>
+            <MaterialCommunityIcons name="plus" size={18} color="#ffffff" />
+            <Text style={styles.addButtonText}>Add</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Search & Filter Bar */}
       <View style={styles.searchSection}>
-        <TextInput
+        <View
           style={[
-            styles.searchInput,
+            styles.searchInputContainer,
             {
               backgroundColor: colors.inputBackground,
               borderColor: colors.inputBorder,
-              color: colors.inputText,
             },
           ]}
-          placeholder="Search by name, email or designation..."
-          placeholderTextColor={colors.inputPlaceholder}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
+        >
+          <MaterialCommunityIcons name="magnify" size={20} color={colors.inputPlaceholder} style={{ marginRight: 8 }} />
+          <TextInput
+            style={[
+              styles.searchInput,
+              {
+                color: colors.inputText,
+              },
+            ]}
+            placeholder="Search by name, email or designation..."
+            placeholderTextColor={colors.inputPlaceholder}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <MaterialCommunityIcons name="close-circle" size={18} color={colors.inputPlaceholder} />
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Filter Pills */}
-        <View style={styles.filterRow}>
-          {['ALL', 'ACTIVE', 'PROBATION', 'ON_LEAVE'].map(status => {
-            const isSelected = selectedStatus === status;
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          {[
+            { id: 'ALL', label: 'All', icon: 'account-group-outline' },
+            { id: 'ACTIVE', label: 'Active', icon: 'check-circle-outline' },
+            { id: 'PROBATION', label: 'Probation', icon: 'clock-outline' },
+            { id: 'ON_LEAVE', label: 'On Leave', icon: 'calendar-remove-outline' },
+          ].map(filter => {
+            const isSelected = selectedStatus === filter.id;
             return (
               <TouchableOpacity
-                key={status}
+                key={filter.id}
                 style={[
                   styles.filterPill,
                   {
@@ -327,21 +435,27 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                     borderColor: isSelected ? colors.accent : colors.cardBorder,
                   },
                 ]}
-                onPress={() => setSelectedStatus(status)}
+                onPress={() => setSelectedStatus(filter.id)}
                 activeOpacity={0.7}
               >
+                <MaterialCommunityIcons
+                  name={filter.icon}
+                  size={14}
+                  color={isSelected ? '#ffffff' : colors.textSecondary}
+                  style={{ marginRight: 5 }}
+                />
                 <Text
                   style={[
                     styles.filterPillText,
                     { color: isSelected ? '#ffffff' : colors.textSecondary },
                   ]}
                 >
-                  {status}
+                  {filter.label}
                 </Text>
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
       </View>
 
       {/* Employee List */}
@@ -367,7 +481,9 @@ export const EmployeeDirectoryScreen: React.FC = () => {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>👥</Text>
+              <View style={[styles.emptyIconCircle, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}>
+                <MaterialCommunityIcons name="account-search-outline" size={44} color={colors.textMuted} />
+              </View>
               <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
                 No Employees Found
               </Text>
@@ -388,35 +504,40 @@ export const EmployeeDirectoryScreen: React.FC = () => {
           onRequestClose={() => setSelectedEmployee(null)}
         >
           <SafeAreaView style={[styles.safeArea, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
-            {/* Modal Top Header Bar */}
-            <View style={[styles.modalTopNavHeader, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
+            {/* Modal Top Nav Header Bar */}
+            <View style={[styles.modalTopNavHeader, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderBottomColor: isDark ? '#334155' : '#e2e8f0' }]}>
               <TouchableOpacity
-                style={styles.modalHeaderBackButton}
+                style={[styles.modalHeaderBackButton, { backgroundColor: isDark ? '#334155' : '#f1f5f9' }]}
                 onPress={() => setSelectedEmployee(null)}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.backIcon, { color: isDark ? '#ffffff' : '#0f172a' }]}>←</Text>
+                <MaterialCommunityIcons name="arrow-left" size={20} color={isDark ? '#ffffff' : '#0f172a'} />
               </TouchableOpacity>
 
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.modalHeaderTitleText, { color: isDark ? '#ffffff' : '#0f172a' }]}>
+                <Text style={[styles.modalHeaderTitleText, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>
                   {selectedEmployee.name || 'N/A'}
                 </Text>
-                <Text style={{ fontSize: 12, color: '#64748b' }}>
+                <Text style={{ fontSize: 12, color: '#64748b' }} numberOfLines={1}>
                   {selectedEmployee.id || 'N/A'} • {selectedEmployee.designation || 'N/A'}
                 </Text>
               </View>
 
-              <TouchableOpacity onPress={() => setSelectedEmployee(null)}>
-                <Text style={{ fontSize: 20, color: '#64748b', fontWeight: 'bold', padding: 4 }}>✕</Text>
+              <TouchableOpacity
+                style={[styles.closeIconButton, { backgroundColor: isDark ? '#334155' : '#f1f5f9' }]}
+                onPress={() => setSelectedEmployee(null)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="close" size={20} color="#64748b" />
               </TouchableOpacity>
             </View>
 
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
               {/* Profile Card Summary Header */}
-              <View style={[styles.profileHeaderCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
+              <View style={[styles.profileHeaderCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
                 <View style={styles.profileHeaderTopRow}>
                   <View style={styles.avatarContainerLarge}>
-                    <View style={styles.avatarLargeCircle}>
+                    <View style={[styles.avatarLargeCircle, { backgroundColor: isDark ? '#2563eb' : '#3b82f6' }]}>
                       <Text style={styles.avatarLargeText}>
                         {selectedEmployee.name
                           ? selectedEmployee.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
@@ -441,28 +562,38 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                       {selectedEmployee.designation || 'N/A'}{getDepartmentName(selectedEmployee.department) !== 'N/A' ? ` • ${getDepartmentName(selectedEmployee.department)}` : (selectedEmployee.location ? ` • ${selectedEmployee.location}` : '')}
                     </Text>
 
-                    <Text style={[styles.profileMetaText, { color: isDark ? '#94a3b8' : '#64748b' }]}>
-                      Manager: {selectedEmployee.manager?.name || 'N/A'}
-                    </Text>
-                    <Text style={[styles.profileMetaText, { color: isDark ? '#94a3b8' : '#64748b' }]}>
-                      Joined: {selectedEmployee.joiningDate ? selectedEmployee.joiningDate.split('T')[0] : 'N/A'}
-                    </Text>
+                    <View style={{ marginTop: 4, gap: 2 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <MaterialCommunityIcons name="account-supervisor-outline" size={14} color={isDark ? '#94a3b8' : '#64748b'} />
+                        <Text style={[styles.profileMetaText, { color: isDark ? '#94a3b8' : '#64748b' }]}>
+                          Manager: {selectedEmployee.manager?.name || 'N/A'}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <MaterialCommunityIcons name="calendar-month-outline" size={14} color={isDark ? '#94a3b8' : '#64748b'} />
+                        <Text style={[styles.profileMetaText, { color: isDark ? '#94a3b8' : '#64748b' }]}>
+                          Joined: {selectedEmployee.joiningDate ? selectedEmployee.joiningDate.split('T')[0] : 'N/A'}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
 
                   {/* Status Dropdown Button */}
                   <TouchableOpacity
-                    style={styles.statusProbationBadge}
+                    style={[styles.statusProbationBadge, { backgroundColor: `${getStatusColor(selectedEmployee.status)}15`, borderColor: `${getStatusColor(selectedEmployee.status)}40` }]}
                     onPress={() => setStatusPickerOpen(true)}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.statusProbationText}>
-                      Status: {selectedEmployee.status ? (selectedEmployee.status === 'PROBATION' ? 'Probation' : selectedEmployee.status === 'ACTIVE' ? 'Active' : selectedEmployee.status === 'ON_LEAVE' ? 'On Leave' : selectedEmployee.status === 'RESIGNED' ? 'Resigned' : 'Terminated') : 'N/A'} ▼
+                    <View style={[styles.statusDot, { backgroundColor: getStatusColor(selectedEmployee.status) }]} />
+                    <Text style={[styles.statusProbationText, { color: getStatusColor(selectedEmployee.status) }]}>
+                      Status: {getStatusLabel(selectedEmployee.status)}
                     </Text>
+                    <MaterialCommunityIcons name="chevron-down" size={16} color={getStatusColor(selectedEmployee.status)} />
                   </TouchableOpacity>
                 </View>
 
                 {/* Profile Actions Row */}
-                <View style={styles.profileActionsRow}>
+                <View style={[styles.profileActionsRow, { borderTopColor: isDark ? '#334155' : '#f1f5f9' }]}>
                   <TouchableOpacity
                     style={styles.btnActionDelete}
                     onPress={() => {
@@ -488,7 +619,9 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                         },
                       ]);
                     }}
+                    activeOpacity={0.7}
                   >
+                    <MaterialCommunityIcons name="trash-can-outline" size={14} color="#ef4444" />
                     <Text style={styles.btnActionDeleteText}>Delete Profile</Text>
                   </TouchableOpacity>
 
@@ -498,7 +631,9 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                       setSelectedEmployee(null);
                       navigation.navigate('GenerateLetter');
                     }}
+                    activeOpacity={0.7}
                   >
+                    <MaterialCommunityIcons name="file-document-outline" size={14} color="#2563eb" />
                     <Text style={styles.btnActionIssueText}>Issue Letter</Text>
                   </TouchableOpacity>
 
@@ -514,7 +649,9 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                         setPromoteModalOpen(true);
                       }
                     }}
+                    activeOpacity={0.7}
                   >
+                    <MaterialCommunityIcons name="account-arrow-up-outline" size={15} color="#9333ea" />
                     <Text style={styles.btnActionPromoteText}>Promote / Transfer</Text>
                   </TouchableOpacity>
                 </View>
@@ -524,13 +661,24 @@ export const EmployeeDirectoryScreen: React.FC = () => {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.profileTabsScroll}>
                 {profileTabs.map(tab => {
                   const isActive = activeProfileTab === tab;
+                  const iconName = getTabIcon(tab);
                   return (
                     <TouchableOpacity
                       key={tab}
-                      style={[styles.profileTabItem, isActive && styles.profileTabItemActive]}
+                      style={[
+                        styles.profileTabItem,
+                        { backgroundColor: isActive ? colors.accent : (isDark ? '#1e293b' : '#f1f5f9') },
+                      ]}
                       onPress={() => setActiveProfileTab(tab)}
+                      activeOpacity={0.7}
                     >
-                      <Text style={[styles.profileTabText, isActive && styles.profileTabTextActive]}>
+                      <MaterialCommunityIcons
+                        name={iconName}
+                        size={15}
+                        color={isActive ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b')}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text style={[styles.profileTabText, { color: isActive ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b') }]}>
                         {tab}
                       </Text>
                     </TouchableOpacity>
@@ -542,8 +690,11 @@ export const EmployeeDirectoryScreen: React.FC = () => {
               {activeProfileTab === 'Overview' && (
                 <View style={{ gap: 16 }}>
                   {/* Work Details Card */}
-                  <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
-                    <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Work Details</Text>
+                  <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                    <View style={styles.cardHeaderRow}>
+                      <MaterialCommunityIcons name="briefcase-outline" size={20} color={colors.accent} />
+                      <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Work Details</Text>
+                    </View>
                     <View style={styles.infoGrid2Col}>
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Employee ID</Text>
@@ -590,9 +741,12 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                   </View>
 
                   {/* Personal Details Card */}
-                  <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
+                  <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
                     <View style={styles.sectionHeaderBetween}>
-                      <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Personal Details</Text>
+                      <View style={styles.cardHeaderRow}>
+                        <MaterialCommunityIcons name="account-outline" size={20} color={colors.accent} />
+                        <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Personal Details</Text>
+                      </View>
                       <TouchableOpacity
                         style={styles.btnEditDetails}
                         onPress={() => {
@@ -600,7 +754,9 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                           setSelectedEmployee(null);
                           navigation.navigate('EmployeeMaster', { employeeId: empIdToEdit });
                         }}
+                        activeOpacity={0.7}
                       >
+                        <MaterialCommunityIcons name="pencil-outline" size={13} color="#0284c7" />
                         <Text style={styles.btnEditDetailsText}>Edit Details</Text>
                       </TouchableOpacity>
                     </View>
@@ -693,8 +849,11 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                   </View>
 
                   {/* Academic & Career Background Card */}
-                  <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
-                    <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Academic & Career Background</Text>
+                  <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                    <View style={styles.cardHeaderRow}>
+                      <MaterialCommunityIcons name="school-outline" size={20} color={colors.accent} />
+                      <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Academic & Career Background</Text>
+                    </View>
                     <View style={styles.infoGrid2Col}>
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Highest Degree</Text>
@@ -723,195 +882,355 @@ export const EmployeeDirectoryScreen: React.FC = () => {
 
               {/* Dynamic Tabs Content Renderers */}
               {activeProfileTab === 'Documents' && (
-                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
-                  <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Document Vault</Text>
+                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                  <View style={styles.cardHeaderRow}>
+                    <MaterialCommunityIcons name="file-document-multiple-outline" size={20} color={colors.accent} />
+                    <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Document Vault</Text>
+                  </View>
                   {vaultDocs.length > 0 ? (
                     <View style={{ gap: 10, marginTop: 10 }}>
                       {vaultDocs.map(doc => (
-                        <View key={doc.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
-                          <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13 }}>📄 {doc.name} ({doc.category})</Text>
-                          <Text style={{ color: doc.status === 'Active' ? '#22c55e' : '#eab308', fontSize: 11, fontWeight: '700' }}>{doc.status}</Text>
+                        <View key={doc.id} style={[styles.docItemRow, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                            <MaterialCommunityIcons name="file-pdf-box" size={24} color="#ef4444" />
+                            <View>
+                              <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 13, fontWeight: '700' }}>{doc.name}</Text>
+                              <Text style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}>Category: {doc.category}</Text>
+                            </View>
+                          </View>
+                          <View style={[styles.docStatusBadge, { backgroundColor: doc.status === 'Active' ? '#dcfce7' : '#fef3c7' }]}>
+                            <Text style={{ color: doc.status === 'Active' ? '#16a34a' : '#d97706', fontSize: 11, fontWeight: '700' }}>{doc.status}</Text>
+                          </View>
                         </View>
                       ))}
                     </View>
                   ) : (
-                    <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 10 }}>
-                      No documents uploaded for this employee yet.
-                    </Text>
+                    <View style={styles.tabEmptyBox}>
+                      <MaterialCommunityIcons name="folder-open-outline" size={36} color={isDark ? '#64748b' : '#94a3b8'} />
+                      <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 8, fontSize: 13 }}>
+                        No documents uploaded for this employee yet.
+                      </Text>
+                    </View>
                   )}
                 </View>
               )}
 
               {activeProfileTab === 'Attendance' && (
-                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
-                  <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Attendance Overview</Text>
+                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                  <View style={styles.cardHeaderRow}>
+                    <MaterialCommunityIcons name="clock-check-outline" size={20} color={colors.accent} />
+                    <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Attendance Overview</Text>
+                  </View>
                   {punchLogs.length > 0 ? (
-                    <View style={{ gap: 8, marginTop: 10 }}>
-                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontWeight: '600' }}>🟢 Total Punch Logs: {punchLogs.length} Recorded Entries</Text>
+                    <View style={{ gap: 10, marginTop: 10 }}>
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontWeight: '700', fontSize: 13 }}>
+                        Total Punch Logs: {punchLogs.length} Recorded Entries
+                      </Text>
                       {punchLogs.slice(0, 5).map(punch => (
-                        <Text key={punch.id} style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: 12 }}>
-                          • {punch.type === 'In' ? '🟢 Check In' : '🔴 Check Out'}: {new Date(punch.time).toLocaleString()} ({punch.method})
-                        </Text>
+                        <View key={punch.id} style={[styles.punchRow, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
+                          <MaterialCommunityIcons
+                            name={punch.type === 'In' ? 'login' : 'logout'}
+                            size={18}
+                            color={punch.type === 'In' ? '#10b981' : '#ef4444'}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: '600', fontSize: 13 }}>
+                              {punch.type === 'In' ? 'Check In' : 'Check Out'} ({punch.method})
+                            </Text>
+                            <Text style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}>
+                              {new Date(punch.time).toLocaleString()}
+                            </Text>
+                          </View>
+                        </View>
                       ))}
                     </View>
                   ) : (
-                    <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 10 }}>
-                      No attendance punches recorded for this employee.
-                    </Text>
+                    <View style={styles.tabEmptyBox}>
+                      <MaterialCommunityIcons name="calendar-clock-outline" size={36} color={isDark ? '#64748b' : '#94a3b8'} />
+                      <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 8, fontSize: 13 }}>
+                        No attendance punches recorded for this employee.
+                      </Text>
+                    </View>
                   )}
                 </View>
               )}
 
               {activeProfileTab === 'Payroll' && (
-                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
-                  <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Payroll & Compensation</Text>
-                  <View style={{ gap: 8, marginTop: 10 }}>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                      💵 Basic Salary: {salaryData?.basic != null ? `₹${Number(salaryData.basic).toLocaleString()}` : (selectedEmployee.basic != null && selectedEmployee.basic > 0 ? `₹${Number(selectedEmployee.basic).toLocaleString()}` : 'N/A')}
-                    </Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                      🏠 HRA: {salaryData?.hra != null ? `₹${Number(salaryData.hra).toLocaleString()}` : (selectedEmployee.hra != null && selectedEmployee.hra > 0 ? `₹${Number(selectedEmployee.hra).toLocaleString()}` : 'N/A')}
-                    </Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                      🎁 Special Allowance: {salaryData?.allowance != null ? `₹${Number(salaryData.allowance).toLocaleString()}` : (selectedEmployee.allowance != null && selectedEmployee.allowance > 0 ? `₹${Number(selectedEmployee.allowance).toLocaleString()}` : 'N/A')}
-                    </Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                      📉 Deductions: {salaryData?.deductions != null ? `₹${Number(salaryData.deductions).toLocaleString()}` : (selectedEmployee.deductions != null && selectedEmployee.deductions > 0 ? `₹${Number(selectedEmployee.deductions).toLocaleString()}` : 'N/A')}
-                    </Text>
-                    <Text style={{ color: '#22c55e', fontWeight: '700', fontSize: 15, marginTop: 4 }}>
-                      💰 Net Payable: {salaryData?.netSalary != null ? `₹${Number(salaryData.netSalary).toLocaleString()}` : (selectedEmployee.netSalary != null && selectedEmployee.netSalary > 0 ? `₹${Number(selectedEmployee.netSalary).toLocaleString()}` : 'N/A')}
-                    </Text>
-                    <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: isDark ? '#334155' : '#e2e8f0' }}>
-                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 12 }}>
-                        🏦 Bank: {salaryData?.bankName || selectedEmployee.bankName || 'N/A'} | A/C: {salaryData?.bankAccount || selectedEmployee.bankAccount || 'N/A'}
+                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                  <View style={styles.cardHeaderRow}>
+                    <MaterialCommunityIcons name="cash-multiple" size={20} color={colors.accent} />
+                    <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Payroll & Compensation</Text>
+                  </View>
+                  <View style={{ gap: 10, marginTop: 10 }}>
+                    <View style={styles.payrollRow}>
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13 }}>Basic Salary</Text>
+                      <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: '700', fontSize: 14 }}>
+                        {salaryData?.basic != null ? `₹${Number(salaryData.basic).toLocaleString()}` : (selectedEmployee.basic != null && selectedEmployee.basic > 0 ? `₹${Number(selectedEmployee.basic).toLocaleString()}` : 'N/A')}
                       </Text>
-                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 12, marginTop: 2 }}>
-                        💳 PAN: {salaryData?.pan || selectedEmployee.pan || 'N/A'} | IFSC: {salaryData?.ifsc || selectedEmployee.ifsc || 'N/A'}
+                    </View>
+                    <View style={styles.payrollRow}>
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13 }}>HRA</Text>
+                      <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: '700', fontSize: 14 }}>
+                        {salaryData?.hra != null ? `₹${Number(salaryData.hra).toLocaleString()}` : (selectedEmployee.hra != null && selectedEmployee.hra > 0 ? `₹${Number(selectedEmployee.hra).toLocaleString()}` : 'N/A')}
                       </Text>
+                    </View>
+                    <View style={styles.payrollRow}>
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13 }}>Special Allowance</Text>
+                      <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: '700', fontSize: 14 }}>
+                        {salaryData?.allowance != null ? `₹${Number(salaryData.allowance).toLocaleString()}` : (selectedEmployee.allowance != null && selectedEmployee.allowance > 0 ? `₹${Number(selectedEmployee.allowance).toLocaleString()}` : 'N/A')}
+                      </Text>
+                    </View>
+                    <View style={styles.payrollRow}>
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13 }}>Deductions</Text>
+                      <Text style={{ color: '#ef4444', fontWeight: '700', fontSize: 14 }}>
+                        {salaryData?.deductions != null ? `₹${Number(salaryData.deductions).toLocaleString()}` : (selectedEmployee.deductions != null && selectedEmployee.deductions > 0 ? `₹${Number(selectedEmployee.deductions).toLocaleString()}` : 'N/A')}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.netSalaryBanner, { backgroundColor: isDark ? '#064e3b' : '#ecfdf5', borderColor: '#10b98140' }]}>
+                      <Text style={{ color: '#10b981', fontWeight: '700', fontSize: 13 }}>Net Payable</Text>
+                      <Text style={{ color: '#10b981', fontWeight: '800', fontSize: 17 }}>
+                        {salaryData?.netSalary != null ? `₹${Number(salaryData.netSalary).toLocaleString()}` : (selectedEmployee.netSalary != null && selectedEmployee.netSalary > 0 ? `₹${Number(selectedEmployee.netSalary).toLocaleString()}` : 'N/A')}
+                      </Text>
+                    </View>
+
+                    <View style={{ marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: isDark ? '#334155' : '#e2e8f0', gap: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <MaterialCommunityIcons name="bank-outline" size={15} color={colors.accent} />
+                        <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 12 }}>
+                          Bank: {salaryData?.bankName || selectedEmployee.bankName || 'N/A'} | A/C: {salaryData?.bankAccount || selectedEmployee.bankAccount || 'N/A'}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <MaterialCommunityIcons name="card-account-details-outline" size={15} color={colors.accent} />
+                        <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 12 }}>
+                          PAN: {salaryData?.pan || selectedEmployee.pan || 'N/A'} | IFSC: {salaryData?.ifsc || selectedEmployee.ifsc || 'N/A'}
+                        </Text>
+                      </View>
                     </View>
                   </View>
                 </View>
               )}
 
               {activeProfileTab === 'Leave' && (
-                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
-                  <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Leave Balances</Text>
+                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                  <View style={styles.cardHeaderRow}>
+                    <MaterialCommunityIcons name="palm-tree" size={20} color={colors.accent} />
+                    <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Leave Balances</Text>
+                  </View>
                   {leaveAllocations.length > 0 ? (
-                    <View style={{ gap: 8, marginTop: 10 }}>
+                    <View style={{ gap: 10, marginTop: 10 }}>
                       {leaveAllocations.map(alloc => (
-                        <Text key={alloc.id} style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                          🌴 {alloc.leaveType?.name || 'Leave'}: {alloc.allocated - alloc.used} / {alloc.allocated} Days Remaining
-                        </Text>
+                        <View key={alloc.id} style={[styles.leaveItemCard, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: '700', fontSize: 13 }}>
+                              {alloc.leaveType?.name || 'Leave'}
+                            </Text>
+                            <Text style={{ color: colors.accent, fontWeight: '800', fontSize: 13 }}>
+                              {alloc.allocated - alloc.used} / {alloc.allocated} Days
+                            </Text>
+                          </View>
+                          <View style={[styles.progressBarBg, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0' }]}>
+                            <View
+                              style={[
+                                styles.progressBarFill,
+                                {
+                                  backgroundColor: colors.accent,
+                                  width: `${Math.min(100, Math.max(0, ((alloc.allocated - alloc.used) / (alloc.allocated || 1)) * 100))}%`,
+                                },
+                              ]}
+                            />
+                          </View>
+                        </View>
                       ))}
                     </View>
                   ) : (
-                    <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 10 }}>
-                      No custom leave allocations found. Standard company policy applies.
-                    </Text>
+                    <View style={styles.tabEmptyBox}>
+                      <MaterialCommunityIcons name="calendar-blank-outline" size={36} color={isDark ? '#64748b' : '#94a3b8'} />
+                      <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 8, fontSize: 13 }}>
+                        No custom leave allocations found. Standard company policy applies.
+                      </Text>
+                    </View>
                   )}
                 </View>
               )}
 
               {activeProfileTab === 'Performance' && (
-                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
-                  <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Performance & Rating</Text>
-                  <View style={{ gap: 8, marginTop: 10 }}>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                      📌 Confirmation Status: {selectedEmployee.confirmationStatus || 'CONFIRMED'}
-                    </Text>
-                    {selectedEmployee.probationEnd && (
-                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                        ⏳ Probation Ends: {selectedEmployee.probationEnd.split('T')[0]}
+                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                  <View style={styles.cardHeaderRow}>
+                    <MaterialCommunityIcons name="chart-line" size={20} color={colors.accent} />
+                    <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Performance & Rating</Text>
+                  </View>
+                  <View style={{ gap: 10, marginTop: 10 }}>
+                    <View style={[styles.infoRowSimple, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
+                      <MaterialCommunityIcons name="shield-check-outline" size={18} color="#10b981" />
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13, flex: 1 }}>
+                        Confirmation Status: <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: '700' }}>{selectedEmployee.confirmationStatus || 'CONFIRMED'}</Text>
                       </Text>
+                    </View>
+                    {selectedEmployee.probationEnd && (
+                      <View style={[styles.infoRowSimple, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
+                        <MaterialCommunityIcons name="clock-outline" size={18} color="#f59e0b" />
+                        <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13, flex: 1 }}>
+                          Probation Ends: <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: '700' }}>{selectedEmployee.probationEnd.split('T')[0]}</Text>
+                        </Text>
+                      </View>
                     )}
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                      🎯 Active Role: {selectedEmployee.designation || 'N/A'}
-                    </Text>
+                    <View style={[styles.infoRowSimple, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
+                      <MaterialCommunityIcons name="target" size={18} color={colors.accent} />
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13, flex: 1 }}>
+                        Active Role: <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: '700' }}>{selectedEmployee.designation || 'N/A'}</Text>
+                      </Text>
+                    </View>
                   </View>
                 </View>
               )}
 
               {activeProfileTab === 'Assets' && (
-                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
-                  <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Assigned Company Assets</Text>
+                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                  <View style={styles.cardHeaderRow}>
+                    <MaterialCommunityIcons name="laptop" size={20} color={colors.accent} />
+                    <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Assigned Company Assets</Text>
+                  </View>
                   {assignedAssets.length > 0 ? (
-                    <View style={{ gap: 8, marginTop: 10 }}>
+                    <View style={{ gap: 10, marginTop: 10 }}>
                       {assignedAssets.map(asset => (
-                        <Text key={asset.id} style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                          💻 {asset.name} ({asset.category}) - SN: {asset.serial} [{asset.status}]
-                        </Text>
+                        <View key={asset.id} style={[styles.assetRow, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
+                          <MaterialCommunityIcons name="laptop" size={22} color={colors.accent} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: '700', fontSize: 13 }}>
+                              {asset.name} ({asset.category})
+                            </Text>
+                            <Text style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}>
+                              SN: {asset.serial} • Status: {asset.status}
+                            </Text>
+                          </View>
+                        </View>
                       ))}
                     </View>
                   ) : (
-                    <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 10 }}>
-                      No company assets assigned to this employee.
-                    </Text>
+                    <View style={styles.tabEmptyBox}>
+                      <MaterialCommunityIcons name="devices" size={36} color={isDark ? '#64748b' : '#94a3b8'} />
+                      <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 8, fontSize: 13 }}>
+                        No company assets assigned to this employee.
+                      </Text>
+                    </View>
                   )}
                 </View>
               )}
 
               {activeProfileTab === 'Family & Dependents' && (
-                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
-                  <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Family & Dependents</Text>
+                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                  <View style={styles.cardHeaderRow}>
+                    <MaterialCommunityIcons name="account-heart-outline" size={20} color={colors.accent} />
+                    <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Family & Dependents</Text>
+                  </View>
                   {familyMembers.length > 0 ? (
                     <View style={{ gap: 10, marginTop: 10 }}>
                       {familyMembers.map(fam => (
-                        <View key={fam.id} style={{ padding: 10, borderRadius: 8, backgroundColor: isDark ? '#334155' : '#f1f5f9' }}>
-                          <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: '700' }}>
-                            👤 {fam.name} ({fam.relation})
-                          </Text>
-                          {fam.contact && <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 12, marginTop: 2 }}>📞 {fam.contact}</Text>}
-                          {fam.bloodGroup && <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 12 }}>🩸 Blood Group: {fam.bloodGroup}</Text>}
-                          <Text style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: 11, marginTop: 4 }}>
-                            {fam.isNominee ? '✅ Nominee ' : ''}{fam.isInsuranceCovered ? '🛡️ Insurance Covered' : ''}
-                          </Text>
+                        <View key={fam.id} style={[styles.familyCardItem, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <MaterialCommunityIcons name="account-child-outline" size={20} color={colors.accent} />
+                            <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontWeight: '700', fontSize: 14 }}>
+                              {fam.name} ({fam.relation})
+                            </Text>
+                          </View>
+                          {fam.contact && (
+                            <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 12, marginTop: 4 }}>
+                              📞 Contact: {fam.contact}
+                            </Text>
+                          )}
+                          {fam.bloodGroup && (
+                            <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 12 }}>
+                              🩸 Blood Group: {fam.bloodGroup}
+                            </Text>
+                          )}
+                          <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                            {fam.isNominee && (
+                              <View style={[styles.chipBadge, { backgroundColor: '#dcfce7' }]}>
+                                <Text style={{ color: '#16a34a', fontSize: 10, fontWeight: '700' }}>✓ Nominee</Text>
+                              </View>
+                            )}
+                            {fam.isInsuranceCovered && (
+                              <View style={[styles.chipBadge, { backgroundColor: '#e0f2fe' }]}>
+                                <Text style={{ color: '#0284c7', fontSize: 10, fontWeight: '700' }}>🛡️ Insurance Covered</Text>
+                              </View>
+                            )}
+                          </View>
                         </View>
                       ))}
                     </View>
                   ) : (
-                    <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 10 }}>
-                      No family members or dependents registered.
-                    </Text>
+                    <View style={styles.tabEmptyBox}>
+                      <MaterialCommunityIcons name="account-group-outline" size={36} color={isDark ? '#64748b' : '#94a3b8'} />
+                      <Text style={{ color: isDark ? '#94a3b8' : '#64748b', marginTop: 8, fontSize: 13 }}>
+                        No family members or dependents registered.
+                      </Text>
+                    </View>
                   )}
                 </View>
               )}
 
               {activeProfileTab === 'Revision History' && (
-                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
-                  <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Revision & Promotion Logs</Text>
-                  <View style={{ gap: 8, marginTop: 10 }}>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                      📅 {selectedEmployee.joiningDate ? selectedEmployee.joiningDate.split('T')[0] : 'N/A'}: Joined as {selectedEmployee.designation || 'Employee'} in {selectedEmployee.department?.name || 'General'}.
-                    </Text>
-                    {selectedEmployee.updatedAt && (
-                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                        🔄 {selectedEmployee.updatedAt.split('T')[0]}: Profile record updated.
+                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                  <View style={styles.cardHeaderRow}>
+                    <MaterialCommunityIcons name="history" size={20} color={colors.accent} />
+                    <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Revision & Promotion Logs</Text>
+                  </View>
+                  <View style={{ gap: 10, marginTop: 10 }}>
+                    <View style={[styles.timelineItem, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
+                      <MaterialCommunityIcons name="calendar-check" size={18} color={colors.accent} />
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13, flex: 1 }}>
+                        {selectedEmployee.joiningDate ? selectedEmployee.joiningDate.split('T')[0] : 'N/A'}: Joined as {selectedEmployee.designation || 'Employee'} in {selectedEmployee.department?.name || 'General'}.
                       </Text>
+                    </View>
+                    {selectedEmployee.updatedAt && (
+                      <View style={[styles.timelineItem, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
+                        <MaterialCommunityIcons name="update" size={18} color="#10b981" />
+                        <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13, flex: 1 }}>
+                          {selectedEmployee.updatedAt.split('T')[0]}: Profile record updated.
+                        </Text>
+                      </View>
                     )}
                   </View>
                 </View>
               )}
 
               {activeProfileTab === 'Timeline' && (
-                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
-                  <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Employment Timeline</Text>
-                  <View style={{ gap: 8, marginTop: 10 }}>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                      🚀 {selectedEmployee.createdAt ? selectedEmployee.createdAt.split('T')[0] : 'N/A'}: Account onboarded to HRMS system.
-                    </Text>
-                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                      📌 Current Status: {selectedEmployee.status || 'ACTIVE'}
-                    </Text>
+                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                  <View style={styles.cardHeaderRow}>
+                    <MaterialCommunityIcons name="timeline-clock-outline" size={20} color={colors.accent} />
+                    <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>Employment Timeline</Text>
+                  </View>
+                  <View style={{ gap: 10, marginTop: 10 }}>
+                    <View style={[styles.timelineItem, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
+                      <MaterialCommunityIcons name="rocket-launch-outline" size={18} color={colors.accent} />
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13, flex: 1 }}>
+                        {selectedEmployee.createdAt ? selectedEmployee.createdAt.split('T')[0] : 'N/A'}: Account onboarded to HRMS system.
+                      </Text>
+                    </View>
+                    <View style={[styles.timelineItem, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
+                      <MaterialCommunityIcons name="flag-outline" size={18} color="#10b981" />
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13, flex: 1 }}>
+                        Current Status: <Text style={{ fontWeight: '700', color: getStatusColor(selectedEmployee.status) }}>{getStatusLabel(selectedEmployee.status)}</Text>
+                      </Text>
+                    </View>
                   </View>
                 </View>
               )}
 
               {activeProfileTab === 'Notes' && (
-                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
-                  <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>HR Confidential Notes</Text>
-                  <Text style={{ color: isDark ? '#cbd5e1' : '#475569', marginTop: 10 }}>
-                    📝 {selectedEmployee.name} ({selectedEmployee.id}) - Designation: {selectedEmployee.designation || 'N/A'}, Department: {selectedEmployee.department?.name || 'N/A'}, Work Location: {selectedEmployee.location || 'N/A'}.
-                  </Text>
+                <View style={[styles.detailSectionCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                  <View style={styles.cardHeaderRow}>
+                    <MaterialCommunityIcons name="notebook-outline" size={20} color={colors.accent} />
+                    <Text style={[styles.cardTitleHeader, { color: isDark ? '#ffffff' : '#0f172a' }]}>HR Confidential Notes</Text>
+                  </View>
+                  <View style={[styles.noteBox, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
+                    <MaterialCommunityIcons name="note-text-outline" size={20} color={colors.accent} style={{ marginTop: 2 }} />
+                    <Text style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: 13, flex: 1, lineHeight: 20 }}>
+                      {selectedEmployee.name} ({selectedEmployee.id}) - Designation: {selectedEmployee.designation || 'N/A'}, Department: {selectedEmployee.department?.name || 'N/A'}, Work Location: {selectedEmployee.location || 'N/A'}.
+                    </Text>
+                  </View>
                 </View>
               )}
             </ScrollView>
@@ -937,11 +1256,11 @@ export const EmployeeDirectoryScreen: React.FC = () => {
             </Text>
 
             {[
-              { label: 'Active', value: 'ACTIVE', color: '#16a34a', bg: '#dcfce7' },
-              { label: 'On Leave', value: 'ON_LEAVE', color: '#2563eb', bg: '#e0f2fe' },
-              { label: 'Resigned', value: 'RESIGNED', color: '#ea580c', bg: '#ffedd5' },
-              { label: 'Terminated', value: 'TERMINATED', color: '#ef4444', bg: '#fee2e2' },
-              { label: 'Probation', value: 'PROBATION', color: '#d97706', bg: '#fef3c7' },
+              { label: 'Active', value: 'ACTIVE', color: '#10b981', bg: isDark ? '#064e3b30' : '#dcfce7' },
+              { label: 'On Leave', value: 'ON_LEAVE', color: '#0284c7', bg: isDark ? '#0c4a6e30' : '#e0f2fe' },
+              { label: 'Resigned', value: 'RESIGNED', color: '#ea580c', bg: isDark ? '#7c2d1230' : '#ffedd5' },
+              { label: 'Terminated', value: 'TERMINATED', color: '#ef4444', bg: isDark ? '#7f1d1d30' : '#fee2e2' },
+              { label: 'Probation', value: 'PROBATION', color: '#f59e0b', bg: isDark ? '#78350f30' : '#fef3c7' },
             ].map(option => (
               <TouchableOpacity
                 key={option.value}
@@ -971,22 +1290,24 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                   setStatusPickerOpen(false);
                   Alert.alert('Status Updated', `Employee status updated to ${option.label}.`);
                 }}
+                activeOpacity={0.7}
               >
                 <View style={[styles.statusDotIcon, { backgroundColor: option.color }]} />
                 <Text style={[styles.statusOptionLabel, { color: isDark ? '#ffffff' : '#0f172a' }]}>
                   {option.label}
                 </Text>
                 {selectedEmployee?.status === option.value && (
-                  <Text style={{ color: option.color, fontWeight: '800' }}>✓</Text>
+                  <MaterialCommunityIcons name="check" size={20} color={option.color} />
                 )}
               </TouchableOpacity>
             ))}
 
             <TouchableOpacity
-              style={styles.dropdownCancelBtn}
+              style={[styles.dropdownCancelBtn, { backgroundColor: isDark ? '#334155' : '#f1f5f9' }]}
               onPress={() => setStatusPickerOpen(false)}
+              activeOpacity={0.7}
             >
-              <Text style={styles.dropdownCancelText}>Cancel</Text>
+              <Text style={[styles.dropdownCancelText, { color: isDark ? '#cbd5e1' : '#64748b' }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -1001,24 +1322,24 @@ export const EmployeeDirectoryScreen: React.FC = () => {
       >
         <View style={styles.modalOverlayDark}>
           <ScrollView contentContainerStyle={styles.promoteModalScrollContainer}>
-            <View style={[styles.promoteModalCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
+            <View style={[styles.promoteModalCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
               {/* Header */}
               <View style={styles.promoteModalHeaderRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.promoteTitleText, { color: isDark ? '#ffffff' : '#0f172a' }]}>
                     Role Upgrade & Employee Transfer
                   </Text>
-                  <Text style={styles.promoteSubtitleText}>
+                  <Text style={[styles.promoteSubtitleText, { color: isDark ? '#94a3b8' : '#64748b' }]}>
                     Promote or transfer employee {selectedEmployee?.name || 'N/A'} ({selectedEmployee?.id || 'N/A'})
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => setPromoteModalOpen(false)}>
-                  <Text style={styles.promoteCloseIcon}>✕</Text>
+                <TouchableOpacity onPress={() => setPromoteModalOpen(false)} style={{ padding: 4 }}>
+                  <MaterialCommunityIcons name="close" size={22} color={isDark ? '#cbd5e1' : '#64748b'} />
                 </TouchableOpacity>
               </View>
 
               {/* Current Details */}
-              <View style={styles.currentDetailsRow}>
+              <View style={[styles.currentDetailsRow, { backgroundColor: isDark ? '#334155' : '#f8fafc' }]}>
                 <View style={styles.currentBox}>
                   <Text style={styles.fieldLabelText}>Current Role</Text>
                   <Text style={[styles.fieldValueBold, { color: isDark ? '#ffffff' : '#0f172a' }]}>
@@ -1041,10 +1362,14 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                   return (
                     <TouchableOpacity
                       key={type}
-                      style={[styles.typePill, isSelected && styles.typePillActive]}
+                      style={[
+                        styles.typePill,
+                        { backgroundColor: isSelected ? colors.accent : (isDark ? '#334155' : '#f1f5f9') },
+                      ]}
                       onPress={() => setActionType(type as any)}
+                      activeOpacity={0.7}
                     >
-                      <Text style={[styles.typePillText, isSelected && styles.typePillTextActive]}>
+                      <Text style={[styles.typePillText, { color: isSelected ? '#ffffff' : (isDark ? '#cbd5e1' : '#64748b') }]}>
                         {type}
                       </Text>
                     </TouchableOpacity>
@@ -1055,7 +1380,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
               {/* New Job Designation Role */}
               <Text style={styles.fieldLabelText}>New Job Designation Role</Text>
               <TextInput
-                style={[styles.modalInput, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1' }]}
+                style={[styles.modalInput, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1', backgroundColor: isDark ? '#0f172a' : '#ffffff' }]}
                 value={newRole}
                 onChangeText={setNewRole}
                 placeholder="Enter designation / role"
@@ -1065,7 +1390,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
               {/* Target Department */}
               <Text style={styles.fieldLabelText}>Target Department</Text>
               <TextInput
-                style={[styles.modalInput, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1' }]}
+                style={[styles.modalInput, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1', backgroundColor: isDark ? '#0f172a' : '#ffffff' }]}
                 value={targetDept}
                 onChangeText={setTargetDept}
                 placeholder="Enter department name"
@@ -1076,18 +1401,30 @@ export const EmployeeDirectoryScreen: React.FC = () => {
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fieldLabelText}>Effective Date</Text>
-                  <TextInput
-                    style={[styles.modalInput, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1' }]}
-                    value={effectiveDate}
-                    onChangeText={setEffectiveDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#94a3b8"
-                  />
+                  <TouchableOpacity
+                    style={[styles.dateInputRowModal, { borderColor: isDark ? '#334155' : '#cbd5e1', backgroundColor: isDark ? '#0f172a' : '#ffffff' }]}
+                    onPress={() => setShowEffectiveDatePicker(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ color: effectiveDate ? (isDark ? '#ffffff' : '#0f172a') : '#94a3b8', fontSize: 13, flex: 1 }}>
+                      {effectiveDate || 'YYYY-MM-DD'}
+                    </Text>
+                    <MaterialCommunityIcons name="calendar" size={18} color={colors.accent} />
+                  </TouchableOpacity>
+
+                  {showEffectiveDatePicker && (
+                    <DateTimePicker
+                      value={effectiveDate ? new Date(effectiveDate) : new Date()}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                      onChange={handleEffectiveDateChange}
+                    />
+                  )}
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fieldLabelText}>Revised Basic Salary (₹)</Text>
                   <TextInput
-                    style={[styles.modalInput, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1' }]}
+                    style={[styles.modalInput, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1', backgroundColor: isDark ? '#0f172a' : '#ffffff' }]}
                     value={revisedSalary}
                     onChangeText={setRevisedSalary}
                     keyboardType="numeric"
@@ -1100,7 +1437,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
               {/* Promotion Approval Reason / Remarks */}
               <Text style={styles.fieldLabelText}>Promotion Approval Reason / Remarks</Text>
               <TextInput
-                style={[styles.modalTextArea, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1' }]}
+                style={[styles.modalTextArea, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1', backgroundColor: isDark ? '#0f172a' : '#ffffff' }]}
                 value={remarks}
                 onChangeText={setRemarks}
                 multiline
@@ -1112,14 +1449,15 @@ export const EmployeeDirectoryScreen: React.FC = () => {
               {/* Footer Action Buttons */}
               <View style={styles.modalFooterRow}>
                 <TouchableOpacity
-                  style={styles.btnCancelModal}
+                  style={[styles.btnCancelModal, { backgroundColor: isDark ? '#334155' : '#f1f5f9' }]}
                   onPress={() => setPromoteModalOpen(false)}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.btnCancelModalText}>Cancel</Text>
+                  <Text style={[styles.btnCancelModalText, { color: isDark ? '#cbd5e1' : '#64748b' }]}>Cancel</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.btnConfirmPromote}
+                  style={[styles.btnConfirmPromote, { backgroundColor: colors.accent }]}
                   onPress={() => {
                     if (selectedEmployee) {
                       const updatedDept = {
@@ -1162,6 +1500,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                       `Successfully updated ${selectedEmployee?.name}'s role to "${newRole}" in "${targetDept}" department.`
                     );
                   }}
+                  activeOpacity={0.8}
                 >
                   <Text style={styles.btnConfirmPromoteText}>Confirm Role Upgrade</Text>
                 </TouchableOpacity>
@@ -1188,30 +1527,47 @@ const styles = StyleSheet.create({
   backButton: {
     width: 38,
     height: 38,
-    borderRadius: 10,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-  },
-  backIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   headerTitleContainer: {
     flex: 1,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: -0.2,
   },
   headerSubtitle: {
     fontSize: 12,
     marginTop: 1,
   },
+  myDetailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  myDetailsButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
   },
   addButtonText: {
     color: '#ffffff',
@@ -1220,30 +1576,38 @@ const styles = StyleSheet.create({
   },
   searchSection: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 14,
     paddingBottom: 6,
   },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
   searchInput: {
-    borderRadius: 10,
-    paddingHorizontal: 14,
+    flex: 1,
     paddingVertical: 10,
     fontSize: 14,
-    borderWidth: 1,
-    marginBottom: 10,
   },
   filterRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 6,
+    paddingBottom: 6,
   },
   filterPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
   },
   filterPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
   loadingContainer: {
@@ -1261,51 +1625,86 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   card: {
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 14,
     borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
   },
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    borderWidth: 1.5,
   },
   avatarText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 16,
+    fontWeight: '800',
+    fontSize: 17,
   },
   cardHeaderInfo: {
     flex: 1,
   },
   employeeName: {
     fontSize: 16,
+    fontWeight: '800',
+  },
+  idBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  idBadgeText: {
+    fontSize: 11,
     fontWeight: '700',
   },
   employeeDesignation: {
     fontSize: 13,
-    marginTop: 2,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+  deptLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  metaIconText: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
   },
   employeeDepartment: {
-    fontSize: 11,
-    marginTop: 2,
+    fontSize: 12,
   },
   statusBadge: {
-    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   statusText: {
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
   },
   cardDivider: {
     height: 1,
@@ -1315,7 +1714,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 12,
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    maxWidth: '48%',
   },
   contactText: {
     fontSize: 12,
@@ -1325,13 +1730,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 60,
   },
-  emptyIcon: {
-    fontSize: 44,
-    marginBottom: 12,
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   emptySubtitle: {
     fontSize: 13,
@@ -1345,10 +1754,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
   },
   modalHeaderBackButton: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeIconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalHeaderTitleText: {
     fontSize: 18,
@@ -1358,11 +1777,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
     marginBottom: 16,
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 10,
-    elevation: 2,
+    elevation: 3,
   },
   profileHeaderTopRow: {
     flexDirection: 'row',
@@ -1374,16 +1794,16 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   avatarLargeCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#2563eb',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 2,
   },
   avatarLargeText: {
     color: '#ffffff',
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
   },
   profileHeaderInfoFlex: {
@@ -1409,7 +1829,7 @@ const styles = StyleSheet.create({
   empCodeBadgeText: {
     color: '#0284c7',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   profileRoleText: {
     fontSize: 13,
@@ -1418,37 +1838,38 @@ const styles = StyleSheet.create({
   },
   profileMetaText: {
     fontSize: 12,
-    marginTop: 2,
   },
   statusProbationBadge: {
-    backgroundColor: '#fef3c7',
-    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#f59e0b50',
     alignSelf: 'flex-start',
   },
   statusProbationText: {
-    color: '#d97706',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
   },
   profileActionsRow: {
     flexDirection: 'row',
     gap: 8,
     marginTop: 16,
-    paddingTop: 12,
+    paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
     flexWrap: 'wrap',
   },
   btnActionDelete: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     borderWidth: 1.5,
     borderColor: '#ef4444',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   btnActionDeleteText: {
     color: '#ef4444',
@@ -1456,11 +1877,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   btnActionIssue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     borderWidth: 1.5,
     borderColor: '#2563eb',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   btnActionIssueText: {
     color: '#2563eb',
@@ -1468,11 +1892,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   btnActionPromote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     borderWidth: 1.5,
     borderColor: '#9333ea',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   btnActionPromoteText: {
     color: '#9333ea',
@@ -1484,37 +1911,36 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   profileTabItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 9,
     borderRadius: 20,
-    backgroundColor: '#f1f5f9',
     marginRight: 8,
-  },
-  profileTabItemActive: {
-    backgroundColor: '#2563eb',
   },
   profileTabText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#64748b',
-  },
-  profileTabTextActive: {
-    color: '#ffffff',
     fontWeight: '700',
   },
   detailSectionCard: {
     borderRadius: 18,
-    padding: 16,
+    padding: 18,
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 6,
-    elevation: 1,
+    elevation: 2,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 14,
   },
   cardTitleHeader: {
     fontSize: 16,
     fontWeight: '800',
-    marginBottom: 14,
   },
   sectionHeaderBetween: {
     flexDirection: 'row',
@@ -1523,9 +1949,12 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   btnEditDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: '#e0f2fe',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 8,
   },
   btnEditDetailsText: {
@@ -1536,7 +1965,7 @@ const styles = StyleSheet.create({
   infoGrid2Col: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: 12,
+    rowGap: 14,
     justifyContent: 'space-between',
   },
   infoBox: {
@@ -1548,32 +1977,126 @@ const styles = StyleSheet.create({
   infoBoxLabel: {
     fontSize: 11,
     color: '#64748b',
-    fontWeight: '600',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   infoBoxValue: {
     fontSize: 13,
     fontWeight: '700',
-    marginTop: 2,
+    marginTop: 3,
+  },
+  docItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+  },
+  docStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  punchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+  },
+  payrollRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  netSalaryBanner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  leaveItemCard: {
+    padding: 12,
+    borderRadius: 12,
+  },
+  progressBarBg: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginTop: 6,
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  infoRowSimple: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+  },
+  assetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+  },
+  familyCardItem: {
+    padding: 14,
+    borderRadius: 14,
+  },
+  chipBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  timelineItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+  },
+  noteBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 14,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  tabEmptyBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
   },
   modalOverlayDark: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
   },
   statusDropdownCard: {
     width: '90%',
-    borderRadius: 20,
+    maxWidth: 380,
+    borderRadius: 22,
     padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
   },
   dropdownTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
     marginBottom: 16,
     textAlign: 'center',
@@ -1598,16 +2121,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dropdownCancelBtn: {
-    marginTop: 12,
+    marginTop: 10,
     paddingVertical: 12,
     alignItems: 'center',
     borderRadius: 12,
-    backgroundColor: '#f1f5f9',
   },
   dropdownCancelText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#64748b',
   },
   promoteModalScrollContainer: {
     flexGrow: 1,
@@ -1616,14 +2137,15 @@ const styles = StyleSheet.create({
   },
   promoteModalCard: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: 440,
     borderRadius: 22,
-    padding: 20,
+    padding: 22,
+    borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 14,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    elevation: 8,
   },
   promoteModalHeaderRow: {
     flexDirection: 'row',
@@ -1637,22 +2159,14 @@ const styles = StyleSheet.create({
   },
   promoteSubtitleText: {
     fontSize: 12,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  promoteCloseIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#64748b',
-    padding: 4,
+    marginTop: 3,
   },
   currentDetailsRow: {
     flexDirection: 'row',
     gap: 12,
-    backgroundColor: '#f8fafc',
-    padding: 12,
+    padding: 14,
     borderRadius: 14,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   currentBox: {
     flex: 1,
@@ -1667,6 +2181,7 @@ const styles = StyleSheet.create({
   fieldValueBold: {
     fontSize: 13,
     fontWeight: '800',
+    marginTop: 2,
   },
   actionTypePillsRow: {
     flexDirection: 'row',
@@ -1675,78 +2190,62 @@ const styles = StyleSheet.create({
   },
   typePill: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderRadius: 10,
-    backgroundColor: '#f1f5f9',
     alignItems: 'center',
-  },
-  typePillActive: {
-    backgroundColor: '#2563eb',
   },
   typePillText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#64748b',
-  },
-  typePillTextActive: {
-    color: '#ffffff',
   },
   modalInput: {
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    borderRadius: 12,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
   },
+  dateInputRowModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
   modalTextArea: {
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    borderRadius: 12,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
-    minHeight: 70,
+    minHeight: 74,
     textAlignVertical: 'top',
   },
   modalFooterRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 12,
+    gap: 10,
     marginTop: 20,
   },
   btnCancelModal: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
   },
   btnCancelModalText: {
-    color: '#64748b',
     fontWeight: '700',
     fontSize: 13,
   },
   btnConfirmPromote: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: '#2563eb',
+    borderRadius: 12,
+    elevation: 2,
   },
   btnConfirmPromoteText: {
     color: '#ffffff',
     fontWeight: '700',
     fontSize: 13,
   },
-  myDetailsButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  myDetailsButtonText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
 });
-
-

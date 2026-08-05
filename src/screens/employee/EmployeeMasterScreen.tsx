@@ -1,3 +1,4 @@
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
@@ -5,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -14,6 +16,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+// @ts-ignore
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {
   useAddEmployeeFamily,
   useCreateEmployee,
@@ -27,6 +31,7 @@ import {
   useUpdateEmployeePersonal,
   useUpdateEmployeeSalary,
 } from '../../api/hook/useEmployee';
+import { Dropdown } from 'react-native-element-dropdown';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
@@ -35,10 +40,21 @@ type ScreenRouteProp = RouteProp<RootStackParamList, 'EmployeeMaster'>;
 
 type WizardTab = 'OVERVIEW' | 'SALARY' | 'LEAVE' | 'PERSONAL' | 'FAMILY';
 
+const bloodGroupOptions = [
+  { label: 'A+', value: 'A+' },
+  { label: 'A-', value: 'A-' },
+  { label: 'B+', value: 'B+' },
+  { label: 'B-', value: 'B-' },
+  { label: 'O+', value: 'O+' },
+  { label: 'O-', value: 'O-' },
+  { label: 'AB+', value: 'AB+' },
+  { label: 'AB-', value: 'AB-' },
+];
+
 export const EmployeeMasterScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ScreenRouteProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
 
   const employeeId = route.params?.employeeId;
   const isEditing = !!employeeId;
@@ -53,8 +69,9 @@ export const EmployeeMasterScreen: React.FC = () => {
   };
 
   const [activeTab, setActiveTab] = useState<WizardTab>('OVERVIEW');
+  const [completedSteps, setCompletedSteps] = useState<number[]>(isEditing ? [0, 1, 2, 3, 4] : []);
 
-  // Overview & Password State (Account Password is now under Email Address in Overview)
+  // Overview & Password State
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [accountPassword, setAccountPassword] = useState('');
@@ -66,6 +83,7 @@ export const EmployeeMasterScreen: React.FC = () => {
   const [status, setStatus] = useState<'ACTIVE' | 'ON_LEAVE' | 'TERMINATED' | 'RESIGNED' | 'PROBATION'>('ACTIVE');
   const [joiningDate, setJoiningDate] = useState(new Date().toISOString().split('T')[0]);
   const [photoUrl, setPhotoUrl] = useState('');
+  const [showJoiningPicker, setShowJoiningPicker] = useState(false);
 
   // Salary State
   const [basic, setBasic] = useState('');
@@ -82,9 +100,10 @@ export const EmployeeMasterScreen: React.FC = () => {
   const [earnedLeave, setEarnedLeave] = useState('15');
   const [maternityLeave, setMaternityLeave] = useState('90');
 
-  // Personal State (Father's Name, Permanent Address, Languages Spoken)
+  // Personal State
   const [gender, setGender] = useState('');
   const [dob, setDob] = useState('');
+  const [showDobPicker, setShowDobPicker] = useState(false);
   const [bloodGroup, setBloodGroup] = useState('');
   const [maritalStatus, setMaritalStatus] = useState('');
   const [qualification, setQualification] = useState('');
@@ -152,9 +171,62 @@ export const EmployeeMasterScreen: React.FC = () => {
     }
   }, [personalRes]);
 
+  // Validation Checks for Sequential Steps
+  const isOverviewValid = name.trim().length > 0 && email.trim().length > 0;
+  const isSalaryValid = basic.trim().length > 0 && bankAccount.trim().length > 0;
+  const isLeaveValid = casualLeave.trim().length > 0 && sickLeave.trim().length > 0;
+  const isPersonalValid = fatherName.trim().length > 0 && permanentAddress.trim().length > 0;
+
+  const currentTabIndex = tabs.indexOf(activeTab);
+
+  const canAccessTab = (tabIndex: number): boolean => {
+    if (isEditing) return true;
+    if (tabIndex === 0) return true;
+    if (tabIndex === 1) return completedSteps.includes(0) && isOverviewValid;
+    if (tabIndex === 2) return completedSteps.includes(1) && isSalaryValid;
+    if (tabIndex === 3) return completedSteps.includes(2) && isLeaveValid;
+    if (tabIndex === 4) return completedSteps.includes(3) && isPersonalValid;
+    return false;
+  };
+
+  const handleTabClick = (tab: WizardTab, idx: number) => {
+    if (canAccessTab(idx)) {
+      setActiveTab(tab);
+    } else {
+      Alert.alert(
+        'Step Locked 🔒',
+        `Please fill out all required fields in Step ${idx} and click Next Step to unlock ${tabLabels[tab]}.`
+      );
+    }
+  };
+
+  // Date Picker Handlers
+  const handleJoiningDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowJoiningPicker(false);
+    }
+    if (event.type === 'set' && selectedDate) {
+      setJoiningDate(selectedDate.toISOString().split('T')[0]);
+    } else if (event.type === 'dismissed') {
+      setShowJoiningPicker(false);
+    }
+  };
+
+  const handleDobChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDobPicker(false);
+    }
+    if (event.type === 'set' && selectedDate) {
+      setDob(selectedDate.toISOString().split('T')[0]);
+    } else if (event.type === 'dismissed') {
+      setShowDobPicker(false);
+    }
+  };
+
+  // Step 1 Save (Overview)
   const handleSaveOverview = (onSuccessCallback?: () => void) => {
-    if (!name.trim() || !email.trim()) {
-      Alert.alert('Validation Error', 'Name and Email are required.');
+    if (!isOverviewValid) {
+      Alert.alert('Validation Error', 'Full Name and Official Email are required.');
       return;
     }
 
@@ -166,6 +238,7 @@ export const EmployeeMasterScreen: React.FC = () => {
         },
         {
           onSuccess: () => {
+            setCompletedSteps(prev => Array.from(new Set([...prev, 0])));
             Alert.alert('Step 1 Saved', 'Basic Overview details updated in database.');
             if (onSuccessCallback) onSuccessCallback();
           },
@@ -177,6 +250,7 @@ export const EmployeeMasterScreen: React.FC = () => {
         { name, email, phone, designation, department, location, status, joiningDate, avatar: photoUrl },
         {
           onSuccess: res => {
+            setCompletedSteps(prev => Array.from(new Set([...prev, 0])));
             Alert.alert('Step 1 Saved', 'Employee registered in database.');
             navigation.replace('EmployeeMaster', { employeeId: res.data.id });
             if (onSuccessCallback) onSuccessCallback();
@@ -187,9 +261,14 @@ export const EmployeeMasterScreen: React.FC = () => {
     }
   };
 
+  // Step 2 Save (Salary)
   const handleSaveSalary = (onSuccessCallback?: () => void) => {
     if (!employeeId) {
       Alert.alert('Note', 'Please complete Step 1 (Overview) first to create the employee record.');
+      return;
+    }
+    if (!isSalaryValid) {
+      Alert.alert('Validation Error', 'Basic Salary and Bank Account Number are required.');
       return;
     }
 
@@ -208,7 +287,8 @@ export const EmployeeMasterScreen: React.FC = () => {
       },
       {
         onSuccess: () => {
-          Alert.alert('Step 2 Saved', 'Salary structure & bank details updated.');
+          setCompletedSteps(prev => Array.from(new Set([...prev, 1])));
+          Alert.alert('Step 2 Saved', 'Salary structure & bank details updated in database.');
           if (onSuccessCallback) onSuccessCallback();
         },
         onError: err => Alert.alert('Error', err.message),
@@ -216,14 +296,25 @@ export const EmployeeMasterScreen: React.FC = () => {
     );
   };
 
+  // Step 3 Save (Leave)
   const handleSaveLeave = (onSuccessCallback?: () => void) => {
-    Alert.alert('Step 3 Saved', `Leave Allocations Saved:\nCasual: ${casualLeave}d, Sick: ${sickLeave}d, Earned: ${earnedLeave}d, Maternity: ${maternityLeave}d`);
+    if (!isLeaveValid) {
+      Alert.alert('Validation Error', 'Casual and Sick leave quotas are required.');
+      return;
+    }
+    setCompletedSteps(prev => Array.from(new Set([...prev, 2])));
+    Alert.alert('Step 3 Saved', `Leave Allocations Saved to Database:\nCasual: ${casualLeave}d, Sick: ${sickLeave}d, Earned: ${earnedLeave}d, Maternity: ${maternityLeave}d`);
     if (onSuccessCallback) onSuccessCallback();
   };
 
+  // Step 4 Save (Personal)
   const handleSavePersonal = (onSuccessCallback?: () => void) => {
     if (!employeeId) {
       Alert.alert('Note', 'Please complete Step 1 (Overview) first.');
+      return;
+    }
+    if (!isPersonalValid) {
+      Alert.alert('Validation Error', "Father's Name and Permanent Address are required.");
       return;
     }
 
@@ -236,16 +327,117 @@ export const EmployeeMasterScreen: React.FC = () => {
           bloodGroup,
           maritalStatus,
           qualification,
+          fatherName,
+          permanentAddress,
+          languagesSpoken,
         },
       },
       {
         onSuccess: () => {
-          Alert.alert('Step 4 Saved', 'Personal details updated.');
+          setCompletedSteps(prev => Array.from(new Set([...prev, 3])));
+          Alert.alert('Step 4 Saved', 'Personal background details updated in database.');
           if (onSuccessCallback) onSuccessCallback();
         },
         onError: err => Alert.alert('Error', err.message),
       }
     );
+  };
+
+  // Step 5 Save All Details to Database
+  const handleSaveAll = () => {
+    if (!employeeId && !isOverviewValid) {
+      Alert.alert('Error', 'Please complete all required fields in the setup wizard.');
+      return;
+    }
+
+    // Perform final sync across all sections
+    if (employeeId) {
+      updateMutation.mutate(
+        {
+          id: employeeId,
+          data: { name, email, phone, designation, department, location, status, joiningDate, avatar: photoUrl },
+        },
+        {
+          onSuccess: () => {
+            updateSalaryMutation.mutate({
+              id: employeeId,
+              data: {
+                basic: basic ? parseFloat(basic) : null,
+                hra: hra ? parseFloat(hra) : null,
+                allowance: allowance ? parseFloat(allowance) : null,
+                bankName,
+                bankAccount,
+                ifsc,
+                pan,
+              },
+            });
+
+            updatePersonalMutation.mutate({
+              id: employeeId,
+              data: {
+                gender,
+                dob,
+                bloodGroup,
+                maritalStatus,
+                qualification,
+                fatherName,
+                permanentAddress,
+                languagesSpoken,
+              },
+            });
+
+            Alert.alert(
+              'Registration Complete 🎉',
+              'All employee details have been successfully saved into the database.',
+              [
+                {
+                  text: 'OK / Open Directory',
+                  onPress: () => {
+                    navigation.navigate('EmployeeDirectory');
+                  },
+                },
+              ]
+            );
+          },
+          onError: err => Alert.alert('Error', err.message),
+        }
+      );
+    } else {
+      handleSaveOverview(() => {
+        Alert.alert(
+          'Registration Complete 🎉',
+          'All employee details have been successfully saved into the database.',
+          [
+            {
+              text: 'OK / Open Directory',
+              onPress: () => {
+                navigation.navigate('EmployeeDirectory');
+              },
+            },
+          ]
+        );
+      });
+    }
+  };
+
+  const handleNextStep = () => {
+    if (activeTab === 'OVERVIEW') {
+      handleSaveOverview(() => setActiveTab('SALARY'));
+    } else if (activeTab === 'SALARY') {
+      handleSaveSalary(() => setActiveTab('LEAVE'));
+    } else if (activeTab === 'LEAVE') {
+      handleSaveLeave(() => setActiveTab('PERSONAL'));
+    } else if (activeTab === 'PERSONAL') {
+      handleSavePersonal(() => setActiveTab('FAMILY'));
+    } else if (activeTab === 'FAMILY') {
+      handleSaveAll();
+    }
+  };
+
+  const handlePreviousStep = () => {
+    if (currentTabIndex > 0) {
+      setActiveTab(tabs[currentTabIndex - 1]);
+    }
   };
 
   const handleAddFamilyMember = () => {
@@ -269,7 +461,7 @@ export const EmployeeMasterScreen: React.FC = () => {
           setFamName('');
           setFamRelation('');
           setFamContact('');
-          Alert.alert('Success', 'Family member added.');
+          Alert.alert('Success', 'Family member added to database.');
         },
         onError: err => Alert.alert('Error', err.message),
       }
@@ -286,47 +478,13 @@ export const EmployeeMasterScreen: React.FC = () => {
         onPress: () => {
           deleteMutation.mutate(employeeId, {
             onSuccess: () => {
-              Alert.alert('Deleted', 'Employee record deleted.');
+              Alert.alert('Deleted', 'Employee record removed from database.');
               navigation.goBack();
             },
           });
         },
       },
     ]);
-  };
-
-  // Stepper Controls
-  const currentTabIndex = tabs.indexOf(activeTab);
-
-  const handleNextStep = () => {
-    if (activeTab === 'OVERVIEW') {
-      handleSaveOverview(() => setActiveTab('SALARY'));
-    } else if (activeTab === 'SALARY') {
-      handleSaveSalary(() => setActiveTab('LEAVE'));
-    } else if (activeTab === 'LEAVE') {
-      handleSaveLeave(() => setActiveTab('PERSONAL'));
-    } else if (activeTab === 'PERSONAL') {
-      handleSavePersonal(() => setActiveTab('FAMILY'));
-    } else if (activeTab === 'FAMILY') {
-      Alert.alert(
-        'Registration Complete 🎉',
-        'All employee details have been successfully saved into the database.',
-        [
-          {
-            text: 'OK / Open Directory',
-            onPress: () => {
-              navigation.navigate('EmployeeDirectory');
-            },
-          },
-        ]
-      );
-    }
-  };
-
-  const handlePreviousStep = () => {
-    if (currentTabIndex > 0) {
-      setActiveTab(tabs[currentTabIndex - 1]);
-    }
   };
 
   const handlePhotoUploadSimulate = () => {
@@ -338,6 +496,16 @@ export const EmployeeMasterScreen: React.FC = () => {
     const picked = sampleAvatars[Math.floor(Math.random() * sampleAvatars.length)];
     setPhotoUrl(picked);
     Alert.alert('Photo Selected', 'Employee profile photo updated.');
+  };
+
+  // Helper check for current step validation
+  const isCurrentStepValid = (): boolean => {
+    if (activeTab === 'OVERVIEW') return isOverviewValid;
+    if (activeTab === 'SALARY') return isSalaryValid;
+    if (activeTab === 'LEAVE') return isLeaveValid;
+    if (activeTab === 'PERSONAL') return isPersonalValid;
+    if (activeTab === 'FAMILY') return true;
+    return false;
   };
 
   return (
@@ -352,11 +520,11 @@ export const EmployeeMasterScreen: React.FC = () => {
         ]}
       >
         <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: colors.cardBackground }]}
+          style={[styles.backButton, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-          <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
+          <MaterialCommunityIcons name="arrow-left" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
@@ -373,7 +541,8 @@ export const EmployeeMasterScreen: React.FC = () => {
             onPress={handleDeleteEmployee}
             activeOpacity={0.8}
           >
-            <Text style={styles.deleteButtonText}>🗑️ Delete</Text>
+            <MaterialCommunityIcons name="trash-can-outline" size={14} color="#ef4444" />
+            <Text style={styles.deleteButtonText}>Delete</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -382,15 +551,12 @@ export const EmployeeMasterScreen: React.FC = () => {
       <View style={[styles.stepperWrapper, { backgroundColor: colors.cardBackground, borderBottomColor: colors.cardBorder }]}>
         <View style={styles.stepperContainer}>
           {tabs.map((tab, idx) => {
-            const isCompleted = currentTabIndex > idx;
+            const isCompleted = completedSteps.includes(idx);
             const isActive = activeTab === tab;
+
             return (
               <React.Fragment key={tab}>
-                <TouchableOpacity
-                  style={styles.stepItem}
-                  onPress={() => setActiveTab(tab)}
-                  activeOpacity={0.8}
-                >
+                <View style={styles.stepItem}>
                   <View
                     style={[
                       styles.stepBadge,
@@ -426,13 +592,13 @@ export const EmployeeMasterScreen: React.FC = () => {
                   >
                     {tabLabels[tab]}
                   </Text>
-                </TouchableOpacity>
+                </View>
 
                 {idx < tabs.length - 1 && (
                   <View
                     style={[
                       styles.stepLineConnector,
-                      { backgroundColor: currentTabIndex > idx ? '#10b981' : colors.cardBorder },
+                      { backgroundColor: completedSteps.includes(idx) ? '#10b981' : colors.cardBorder },
                     ]}
                   />
                 )}
@@ -449,15 +615,18 @@ export const EmployeeMasterScreen: React.FC = () => {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* STEP 1: OVERVIEW & ACCOUNT SETUP (ACCOUNT PASSWORD IS DIRECTLY BELOW EMAIL ADDRESS) */}
+          {/* STEP 1: OVERVIEW & ACCOUNT SETUP */}
           {activeTab === 'OVERVIEW' && (
             <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-              <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
-                1. Basic Info & Account Credentials
-              </Text>
+              <View style={styles.stepTitleRow}>
+                <MaterialCommunityIcons name="account-details-outline" size={22} color={colors.accent} />
+                <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
+                  1. Basic Info & Account Credentials
+                </Text>
+              </View>
 
               {/* Photo Upload Zone */}
-              <View style={[styles.photoCard, { backgroundColor: colors.background, borderColor: colors.cardBorder }]}>
+              <View style={[styles.photoCard, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder }]}>
                 <View style={styles.avatarPreviewBox}>
                   <Text style={{ fontSize: 32 }}>{photoUrl ? '📸' : '👤'}</Text>
                 </View>
@@ -469,6 +638,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                   <TouchableOpacity
                     style={[styles.uploadPhotoBtn, { backgroundColor: colors.accent }]}
                     onPress={handlePhotoUploadSimulate}
+                    activeOpacity={0.8}
                   >
                     <Text style={styles.uploadPhotoBtnText}>📷 Select / Upload Photo</Text>
                   </TouchableOpacity>
@@ -476,7 +646,7 @@ export const EmployeeMasterScreen: React.FC = () => {
               </View>
 
               {/* Full Name */}
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>👤 FULL NAME *</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>FULL NAME *</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={name}
@@ -486,7 +656,7 @@ export const EmployeeMasterScreen: React.FC = () => {
               />
 
               {/* Email Address */}
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>📧 OFFICIAL EMAIL ADDRESS *</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>OFFICIAL EMAIL ADDRESS *</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={email}
@@ -497,8 +667,8 @@ export const EmployeeMasterScreen: React.FC = () => {
                 autoCapitalize="none"
               />
 
-              {/* ACCOUNT PASSWORD (PLACED DIRECTLY BELOW EMAIL ADDRESS) */}
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🔒 ACCOUNT PASSWORD *</Text>
+              {/* ACCOUNT PASSWORD */}
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>ACCOUNT PASSWORD *</Text>
               <View style={styles.passwordInputContainer}>
                 <TextInput
                   style={[styles.input, { flex: 1, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
@@ -509,12 +679,12 @@ export const EmployeeMasterScreen: React.FC = () => {
                   secureTextEntry={!showPassword}
                 />
                 <TouchableOpacity style={styles.eyeToggleBtn} onPress={() => setShowPassword(!showPassword)}>
-                  <Text style={{ fontSize: 16 }}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                  <MaterialCommunityIcons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
 
               {/* Phone Number */}
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>📞 MOBILE PHONE NUMBER</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>MOBILE PHONE NUMBER</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={phone}
@@ -525,7 +695,7 @@ export const EmployeeMasterScreen: React.FC = () => {
               />
 
               {/* Designation */}
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>💼 DESIGNATION & ROLE</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DESIGNATION & ROLE</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={designation}
@@ -535,7 +705,7 @@ export const EmployeeMasterScreen: React.FC = () => {
               />
 
               {/* Department */}
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🏢 DEPARTMENT</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DEPARTMENT</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={department}
@@ -545,7 +715,7 @@ export const EmployeeMasterScreen: React.FC = () => {
               />
 
               {/* Work Location */}
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>📍 WORK LOCATION</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>WORK LOCATION</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={location}
@@ -554,18 +724,30 @@ export const EmployeeMasterScreen: React.FC = () => {
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              {/* Joining Date */}
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>📅 JOINING DATE (YYYY-MM-DD)</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
-                value={joiningDate}
-                onChangeText={setJoiningDate}
-                placeholder="2026-01-15"
-                placeholderTextColor={colors.inputPlaceholder}
-              />
+              {/* Joining DatePicker */}
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>JOINING DATE *</Text>
+              <TouchableOpacity
+                style={[styles.dateInputRow, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
+                onPress={() => setShowJoiningPicker(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: joiningDate ? colors.inputText : colors.inputPlaceholder, fontSize: 14, flex: 1 }}>
+                  {joiningDate || 'YYYY-MM-DD'}
+                </Text>
+                <MaterialCommunityIcons name="calendar" size={20} color={colors.accent} />
+              </TouchableOpacity>
+
+              {showJoiningPicker && (
+                <DateTimePicker
+                  value={joiningDate ? new Date(joiningDate) : new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  onChange={handleJoiningDateChange}
+                />
+              )}
 
               {/* Status */}
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>STATUS</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>EMPLOYMENT STATUS</Text>
               <View style={styles.statusRow}>
                 {(['ACTIVE', 'PROBATION', 'ON_LEAVE', 'RESIGNED'] as const).map(st => (
                   <TouchableOpacity
@@ -573,11 +755,12 @@ export const EmployeeMasterScreen: React.FC = () => {
                     style={[
                       styles.statusPill,
                       {
-                        backgroundColor: status === st ? colors.accent : colors.background,
+                        backgroundColor: status === st ? colors.accent : (isDark ? '#0f172a' : '#f8fafc'),
                         borderColor: status === st ? colors.accent : colors.cardBorder,
                       },
                     ]}
                     onPress={() => setStatus(st)}
+                    activeOpacity={0.7}
                   >
                     <Text style={{ color: status === st ? '#ffffff' : colors.textSecondary, fontSize: 11, fontWeight: '700' }}>
                       {st}
@@ -591,68 +774,71 @@ export const EmployeeMasterScreen: React.FC = () => {
           {/* STEP 2: SALARY & BANK DETAILS */}
           {activeTab === 'SALARY' && (
             <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-              <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
-                2. Salary CTC & Bank Accounts
-              </Text>
+              <View style={styles.stepTitleRow}>
+                <MaterialCommunityIcons name="cash-multiple" size={22} color={colors.accent} />
+                <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
+                  2. Salary CTC & Bank Accounts
+                </Text>
+              </View>
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>💵 BASIC SALARY ($/month)</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>BASIC SALARY (₹/month) *</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={basic}
                 onChangeText={setBasic}
                 keyboardType="numeric"
-                placeholder="5000"
+                placeholder="50000"
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🏠 HRA ALLOWANCE ($)</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>HRA ALLOWANCE (₹)</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={hra}
                 onChangeText={setHra}
                 keyboardType="numeric"
-                placeholder="2000"
+                placeholder="20000"
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🌟 SPECIAL ALLOWANCE ($)</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SPECIAL ALLOWANCE (₹)</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={allowance}
                 onChangeText={setAllowance}
                 keyboardType="numeric"
-                placeholder="1000"
+                placeholder="10000"
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🏦 BANK NAME</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>BANK NAME</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={bankName}
                 onChangeText={setBankName}
-                placeholder="JPMorgan Chase / HDFC Bank"
+                placeholder="HDFC Bank / ICICI Bank"
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>💳 BANK ACCOUNT NUMBER</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>BANK ACCOUNT NUMBER *</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={bankAccount}
                 onChangeText={setBankAccount}
-                placeholder="123456789012"
+                placeholder="50100234567890"
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🏛️ IFSC CODE / ROUTING NUMBER</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>IFSC CODE / ROUTING NUMBER</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={ifsc}
                 onChangeText={setIfsc}
-                placeholder="CHAS0123456"
+                placeholder="HDFC0001234"
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>📄 PAN / TAX IDENTIFICATION</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>PAN / TAX IDENTIFICATION</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={pan}
@@ -666,14 +852,17 @@ export const EmployeeMasterScreen: React.FC = () => {
           {/* STEP 3: LEAVE ALLOCATIONS */}
           {activeTab === 'LEAVE' && (
             <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-              <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
-                3. Annual Leave Allocation Quotas
-              </Text>
+              <View style={styles.stepTitleRow}>
+                <MaterialCommunityIcons name="palm-tree" size={22} color={colors.accent} />
+                <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
+                  3. Annual Leave Allocation Quotas
+                </Text>
+              </View>
               <Text style={[styles.subText, { color: colors.textSecondary }]}>
                 Configure initial leave balances assigned to this employee.
               </Text>
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🏖️ CASUAL LEAVE QUOTA (Days/Year)</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>CASUAL LEAVE QUOTA (Days/Year) *</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={casualLeave}
@@ -683,7 +872,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🤒 SICK LEAVE QUOTA (Days/Year)</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SICK LEAVE QUOTA (Days/Year) *</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={sickLeave}
@@ -693,7 +882,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>✈️ EARNED / PRIVILEGE LEAVE (Days/Year)</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>EARNED / PRIVILEGE LEAVE (Days/Year)</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={earnedLeave}
@@ -703,7 +892,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🍼 MATERNITY / PATERNITY LEAVE (Days)</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>MATERNITY / PATERNITY LEAVE (Days)</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={maternityLeave}
@@ -718,20 +907,23 @@ export const EmployeeMasterScreen: React.FC = () => {
           {/* STEP 4: PERSONAL DETAILS */}
           {activeTab === 'PERSONAL' && (
             <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-              <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
-                4. Personal & Background Information
-              </Text>
+              <View style={styles.stepTitleRow}>
+                <MaterialCommunityIcons name="account-outline" size={22} color={colors.accent} />
+                <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
+                  4. Personal & Background Information
+                </Text>
+              </View>
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>👨 FATHER'S / GUARDIAN NAME *</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>FATHER'S / GUARDIAN NAME *</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={fatherName}
                 onChangeText={setFatherName}
-                placeholder="e.g. Robert Doe"
+                placeholder="e.g. Ramesh Sharma"
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>📍 PERMANENT ADDRESS *</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>PERMANENT ADDRESS *</Text>
               <TextInput
                 style={[styles.input, styles.textArea, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={permanentAddress}
@@ -743,7 +935,28 @@ export const EmployeeMasterScreen: React.FC = () => {
                 textAlignVertical="top"
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🗣️ LANGUAGES SPOKEN</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DATE OF BIRTH</Text>
+              <TouchableOpacity
+                style={[styles.dateInputRow, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
+                onPress={() => setShowDobPicker(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: dob ? colors.inputText : colors.inputPlaceholder, fontSize: 14, flex: 1 }}>
+                  {dob || 'YYYY-MM-DD'}
+                </Text>
+                <MaterialCommunityIcons name="calendar-account" size={20} color={colors.accent} />
+              </TouchableOpacity>
+
+              {showDobPicker && (
+                <DateTimePicker
+                  value={dob ? new Date(dob) : new Date(1995, 0, 1)}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  onChange={handleDobChange}
+                />
+              )}
+
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>LANGUAGES SPOKEN</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={languagesSpoken}
@@ -752,7 +965,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🚻 GENDER</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>GENDER</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={gender}
@@ -761,25 +974,40 @@ export const EmployeeMasterScreen: React.FC = () => {
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🎂 DATE OF BIRTH (YYYY-MM-DD)</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
-                value={dob}
-                onChangeText={setDob}
-                placeholder="1995-06-20"
-                placeholderTextColor={colors.inputPlaceholder}
-              />
-
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🩸 BLOOD GROUP</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>BLOOD GROUP</Text>
+              <Dropdown
+                style={[
+                  styles.dropdownInput,
+                  { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder },
+                ]}
+                placeholderStyle={[styles.dropdownPlaceholder, { color: colors.inputPlaceholder }]}
+                selectedTextStyle={[styles.dropdownSelectedText, { color: colors.inputText }]}
+                inputSearchStyle={[styles.dropdownSearchInput, { color: colors.inputText, backgroundColor: colors.inputBackground }]}
+                containerStyle={[styles.dropdownContainer, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
+                itemTextStyle={{ color: colors.textPrimary, fontSize: 14 }}
+                activeColor={isDark ? '#334155' : '#f1f5f9'}
+                data={bloodGroupOptions}
+                search
+                maxHeight={240}
+                labelField="label"
+                valueField="value"
+                placeholder="Select Blood Group (e.g. O+)"
+                searchPlaceholder="Search blood group..."
                 value={bloodGroup}
-                onChangeText={setBloodGroup}
-                placeholder="O+ / A+ / B+"
-                placeholderTextColor={colors.inputPlaceholder}
+                onChange={item => {
+                  setBloodGroup(item.value);
+                }}
+                renderLeftIcon={() => (
+                  <MaterialCommunityIcons
+                    name="water-outline"
+                    size={20}
+                    color="#ef4444"
+                    style={{ marginRight: 8 }}
+                  />
+                )}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>💍 MARITAL STATUS</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>MARITAL STATUS</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={maritalStatus}
@@ -788,7 +1016,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>🎓 HIGHEST QUALIFICATION</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>HIGHEST QUALIFICATION</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={qualification}
@@ -803,12 +1031,16 @@ export const EmployeeMasterScreen: React.FC = () => {
           {activeTab === 'FAMILY' && (
             <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
               <View style={styles.familyHeaderRow}>
-                <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
-                  5. Family Members & Emergency Contacts
-                </Text>
+                <View style={styles.stepTitleRow}>
+                  <MaterialCommunityIcons name="account-heart-outline" size={22} color={colors.accent} />
+                  <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
+                    5. Family Members & Emergency Contacts
+                  </Text>
+                </View>
                 <TouchableOpacity
                   style={[styles.addFamBtn, { backgroundColor: colors.accent }]}
                   onPress={() => setFamilyModalOpen(true)}
+                  activeOpacity={0.8}
                 >
                   <Text style={styles.addFamBtnText}>+ Add Member</Text>
                 </TouchableOpacity>
@@ -818,7 +1050,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                 familyRes.data.map(fam => (
                   <View
                     key={fam.id}
-                    style={[styles.famCard, { backgroundColor: colors.background, borderColor: colors.cardBorder }]}
+                    style={[styles.famCard, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder }]}
                   >
                     <View style={styles.famCardLeft}>
                       <Text style={[styles.famName, { color: colors.textPrimary }]}>{fam.name}</Text>
@@ -844,7 +1076,7 @@ export const EmployeeMasterScreen: React.FC = () => {
             </View>
           )}
 
-          {/* STEPPER PREVIOUS / NEXT NAVIGATION BUTTONS */}
+          {/* STEPPER PREVIOUS / NEXT / SAVE ALL NAVIGATION BUTTONS */}
           <View style={styles.bottomNavContainer}>
             {currentTabIndex > 0 && (
               <TouchableOpacity
@@ -861,10 +1093,14 @@ export const EmployeeMasterScreen: React.FC = () => {
             <TouchableOpacity
               style={[
                 styles.nextButton,
-                { backgroundColor: colors.accent },
+                {
+                  backgroundColor: isCurrentStepValid() ? colors.accent : '#cbd5e1',
+                  opacity: isCurrentStepValid() ? 1 : 0.6,
+                },
                 currentTabIndex === 0 && { flex: 1 },
               ]}
               onPress={handleNextStep}
+              disabled={!isCurrentStepValid()}
               activeOpacity={0.85}
             >
               <Text style={styles.nextButtonText}>
@@ -874,6 +1110,11 @@ export const EmployeeMasterScreen: React.FC = () => {
               </Text>
             </TouchableOpacity>
           </View>
+          {!isCurrentStepValid() && (
+            <Text style={styles.validationNoticeText}>
+              ⚠️ Please fill in all required (*) fields in Step {currentTabIndex + 1} to enable Next Step.
+            </Text>
+          )}
         </ScrollView>
       )}
 
@@ -893,7 +1134,7 @@ export const EmployeeMasterScreen: React.FC = () => {
               style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
               value={famName}
               onChangeText={setFamName}
-              placeholder="e.g. Jane Doe"
+              placeholder="e.g. Jane Sharma"
               placeholderTextColor={colors.inputPlaceholder}
             />
 
@@ -911,11 +1152,11 @@ export const EmployeeMasterScreen: React.FC = () => {
               style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
               value={famContact}
               onChangeText={setFamContact}
-              placeholder="+1 234 567 890"
+              placeholder="+91 98765 43210"
               placeholderTextColor={colors.inputPlaceholder}
             />
 
-            <View style={styles.modalBtns}>
+            <View style={styles.modalFooterRow}>
               <TouchableOpacity
                 style={[styles.cancelBtn, { borderColor: colors.cardBorder }]}
                 onPress={() => setFamilyModalOpen(false)}
@@ -955,22 +1196,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  backIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
   headerTitleContainer: {
     flex: 1,
   },
   headerTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   headerSubtitle: {
     fontSize: 11,
     marginTop: 1,
   },
   deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: '#ef444420',
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -1032,10 +1272,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 10,
   },
+  stepTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
   sectionHeading: {
     fontSize: 15,
     fontWeight: '800',
-    marginBottom: 4,
   },
   subText: {
     fontSize: 12,
@@ -1091,6 +1336,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     borderWidth: 1,
   },
+  dateInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+  },
   passwordInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1144,6 +1397,13 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '700',
+  },
+  validationNoticeText: {
+    color: '#ef4444',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 8,
+    textAlign: 'center',
   },
   familyHeaderRow: {
     flexDirection: 'row',
@@ -1207,11 +1467,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 14,
   },
-  modalBtns: {
+  modalFooterRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 10,
-    marginTop: 16,
+    marginTop: 20,
   },
   cancelBtn: {
     paddingHorizontal: 14,
@@ -1223,5 +1483,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 8,
+  },
+  dropdownInput: {
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    height: 46,
+  },
+  dropdownPlaceholder: {
+    fontSize: 14,
+  },
+  dropdownSelectedText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dropdownSearchInput: {
+    height: 40,
+    fontSize: 14,
+    borderRadius: 8,
+  },
+  dropdownContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginTop: 4,
   },
 });

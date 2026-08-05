@@ -136,7 +136,7 @@ export const MenuScreen: React.FC = () => {
       subItems: [
         { id: 'directory', label: 'Employee Directory' },
         { id: 'master', label: 'Employee Master' },
-        { id: 'idcard', label: 'ID Card Generator' },
+        // { id: 'idcard', label: 'ID Card Generator' },
         { id: 'orgchart', label: 'Organization Chart' },
         { id: 'exit', label: 'Exit & Settlement' },
         { id: 'resignation', label: 'Resignation Archive' },
@@ -302,9 +302,9 @@ export const MenuScreen: React.FC = () => {
         case 'master':
           navigation.navigate('EmployeeMaster', {});
           break;
-        case 'idcard':
-          navigation.navigate('IdCardGenerator', {});
-          break;
+        // case 'idcard':
+        //   navigation.navigate('IdCardGenerator', {});
+        //   break;
         case 'orgchart':
           navigation.navigate('OrgChart');
           break;
