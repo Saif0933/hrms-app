@@ -616,23 +616,31 @@ export const MenuScreen: React.FC = () => {
       >
         <SafeAreaView style={styles.safeArea}>
           {/* Drawer Profile Header */}
-          <View style={[styles.sidebarHeader, { backgroundColor: isDark ? '#1e293b' : '#e0f2fe', borderBottomColor: colors.cardBorder }]}>
+          <View
+            style={[
+              styles.sidebarHeader,
+              {
+                backgroundColor: isDark ? '#1e293b' : '#f0f7ff',
+                borderBottomColor: colors.cardBorder,
+              },
+            ]}
+          >
             {/* Sheet Drag Handle Indicator */}
             <View style={styles.sheetHandleContainer}>
               <View style={[styles.sheetHandleBar, { backgroundColor: isDark ? '#475569' : '#cbd5e1' }]} />
             </View>
 
             <View style={styles.profileRow}>
-              <View style={styles.avatarCircle}>
+              <View style={[styles.avatarCircle, { backgroundColor: colors.accent || '#2563eb' }]}>
                 <Text style={styles.avatarText}>{userInitials}</Text>
-                <View style={styles.onlineBadge} />
+                <View style={[styles.onlineBadge, { borderColor: isDark ? '#1e293b' : '#f0f7ff' }]} />
               </View>
 
               <View style={styles.profileInfo}>
                 <Text style={[styles.profileName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>
                   {userName}
                 </Text>
-                <Text style={[styles.profileRole, { color: isDark ? '#94a3b8' : '#475569' }]} numberOfLines={1}>
+                <Text style={[styles.profileRole, { color: isDark ? '#94a3b8' : '#64748b' }]} numberOfLines={1}>
                   {userRole}
                 </Text>
                 <View style={styles.statusPill}>
@@ -644,15 +652,15 @@ export const MenuScreen: React.FC = () => {
               {/* Action Buttons: Theme Switcher & Close Drawer */}
               <View style={styles.headerActionBtns}>
                 <TouchableOpacity
-                  style={[styles.iconBtn, { backgroundColor: isDark ? '#334155' : '#ffffff' }]}
+                  style={[styles.iconBtn, { backgroundColor: isDark ? '#334155' : '#ffffff', borderColor: colors.cardBorder }]}
                   onPress={toggleTheme}
                   activeOpacity={0.8}
                 >
-                  <Text style={{ fontSize: 14 }}>{isDark ? '☀️' : '🌙'}</Text>
+                  <Text style={{ fontSize: 13 }}>{isDark ? '☀️' : '🌙'}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.iconBtn, { backgroundColor: isDark ? '#334155' : '#ffffff' }]}
+                  style={[styles.iconBtn, { backgroundColor: isDark ? '#334155' : '#ffffff', borderColor: colors.cardBorder }]}
                   onPress={() => handleClose()}
                   activeOpacity={0.8}
                 >
@@ -664,7 +672,7 @@ export const MenuScreen: React.FC = () => {
 
           {/* Module Search Section */}
           <View style={[styles.searchSection, { backgroundColor: colors.background, borderBottomColor: colors.divider }]}>
-            <View style={[styles.searchBox, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}>
+            <View style={[styles.searchBox, { backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderColor: colors.cardBorder }]}>
               <Text style={styles.searchIcon}>🔍</Text>
               <TextInput
                 style={[styles.searchInput, { color: colors.inputText }]}
@@ -694,8 +702,12 @@ export const MenuScreen: React.FC = () => {
                   style={[
                     styles.menuCard,
                     {
-                      backgroundColor: colors.cardBackground,
-                      borderColor: colors.cardBorder,
+                      backgroundColor: isOpen
+                        ? (isDark ? '#1e293b' : '#f0fdf4')
+                        : colors.cardBackground,
+                      borderColor: isOpen
+                        ? (isDark ? '#3b82f640' : '#bbf7d0')
+                        : colors.cardBorder,
                     },
                   ]}
                 >
@@ -711,7 +723,7 @@ export const MenuScreen: React.FC = () => {
                     activeOpacity={0.7}
                   >
                     <View style={styles.menuHeaderLeft}>
-                      <View style={[styles.menuIconBox, { backgroundColor: isDark ? '#334155' : '#f1f5f9' }]}>
+                      <View style={[styles.menuIconBox, { backgroundColor: isDark ? '#334155' : '#e0f2fe' }]}>
                         <Text style={styles.menuIcon}>{item.icon}</Text>
                       </View>
                       <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>{item.label}</Text>
@@ -731,7 +743,7 @@ export const MenuScreen: React.FC = () => {
 
                   {/* Sub-menu accordion */}
                   {hasSubItems && isOpen && (
-                    <View style={[styles.subMenuContainer, { backgroundColor: colors.subItemBg, borderTopColor: colors.subItemBorder }]}>
+                    <View style={[styles.subMenuContainer, { backgroundColor: isDark ? '#0f172a80' : '#f8fafc', borderTopColor: colors.divider }]}>
                       {item.subItems?.map(sub => (
                         <TouchableOpacity
                           key={sub.id}
@@ -739,8 +751,8 @@ export const MenuScreen: React.FC = () => {
                           onPress={() => handleSelectMenuItem(item.id, sub.id)}
                           activeOpacity={0.7}
                         >
-                          <View style={[styles.subMenuDot, { backgroundColor: colors.accent }]} />
-                          <Text style={[styles.subMenuLabel, { color: colors.subItemText }]}>{sub.label}</Text>
+                          <View style={[styles.subMenuDot, { backgroundColor: colors.accent || '#2563eb' }]} />
+                          <Text style={[styles.subMenuLabel, { color: colors.textPrimary }]}>{sub.label}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -751,7 +763,13 @@ export const MenuScreen: React.FC = () => {
 
             {/* Logout Button */}
             <TouchableOpacity
-              style={styles.logoutButton}
+              style={[
+                styles.logoutButton,
+                {
+                  backgroundColor: isDark ? '#450a0a40' : '#fef2f2',
+                  borderColor: isDark ? '#991b1b80' : '#fecaca',
+                },
+              ]}
               onPress={handleLogout}
               activeOpacity={0.8}
             >
@@ -761,7 +779,7 @@ export const MenuScreen: React.FC = () => {
 
             {/* Footer info */}
             <View style={[styles.footerContainer, { borderTopColor: colors.divider }]}>
-              <Text style={[styles.footerBrand, { color: colors.footerText }]}>Symbosys HRMS v4.2</Text>
+              <Text style={[styles.footerBrand, { color: colors.textSecondary }]}>Symbosys HRMS v4.2</Text>
               <Text style={[styles.footerServer, { color: colors.textMuted }]}>Server: Cloud Secure Enterprise</Text>
               <View style={styles.syncStatus}>
                 <View style={styles.syncDot} />
@@ -789,32 +807,32 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    borderTopRightRadius: 28,
-    borderBottomRightRadius: 28,
+    borderTopRightRadius: 24,
+    borderBottomRightRadius: 24,
     overflow: 'hidden',
     elevation: 25,
     shadowColor: '#000000',
     shadowOffset: { width: 10, height: 0 },
     shadowOpacity: 0.35,
     shadowRadius: 24,
-    borderRightWidth: 1.5,
+    borderRightWidth: 1,
   },
   safeArea: {
     flex: 1,
   },
   sidebarHeader: {
-    paddingHorizontal: 14,
-    paddingTop: 6,
-    paddingBottom: 14,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
     borderBottomWidth: 1,
   },
   sheetHandleContainer: {
     alignItems: 'center',
     paddingVertical: 6,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   sheetHandleBar: {
-    width: 36,
+    width: 38,
     height: 4,
     borderRadius: 2,
   },
@@ -823,30 +841,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#2563eb',
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    marginRight: 10,
+    marginRight: 12,
+    elevation: 2,
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   avatarText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
+    letterSpacing: 0.5,
   },
   onlineBadge: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 11,
-    height: 11,
+    width: 12,
+    height: 12,
     borderRadius: 6,
     backgroundColor: '#22c55e',
-    borderWidth: 2,
-    borderColor: '#ffffff',
+    borderWidth: 2.5,
   },
   profileInfo: {
     flex: 1,
@@ -854,23 +876,25 @@ const styles = StyleSheet.create({
   },
   profileName: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   profileRole: {
     fontSize: 11,
-    marginTop: 1,
+    marginTop: 2,
+    fontWeight: '500',
   },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 3,
+    marginTop: 4,
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: '#22c55e',
-    marginRight: 4,
+    marginRight: 5,
   },
   statusPillText: {
     fontSize: 10,
@@ -883,45 +907,46 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
   },
   closeIconText: {
     fontSize: 14,
     fontWeight: '700',
   },
   searchSection: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderWidth: 1,
   },
   searchIcon: {
     fontSize: 14,
-    marginRight: 6,
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 13,
-    paddingVertical: 2,
+    paddingVertical: 0,
   },
   scrollContent: {
-    padding: 12,
-    paddingBottom: 30,
+    padding: 14,
+    paddingBottom: 36,
   },
   menuCard: {
-    borderRadius: 10,
-    marginBottom: 8,
+    borderRadius: 14,
+    marginBottom: 10,
     overflow: 'hidden',
     borderWidth: 1,
   },
@@ -929,7 +954,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
   },
   menuHeaderLeft: {
     flexDirection: 'row',
@@ -937,69 +963,68 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuIconBox: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 12,
   },
   menuIcon: {
-    fontSize: 15,
+    fontSize: 16,
   },
   menuLabel: {
     fontSize: 14,
     fontWeight: '600',
+    letterSpacing: 0.1,
   },
   menuHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   badgePill: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
   },
   badgeText: {
     fontSize: 11,
     fontWeight: '700',
   },
   dropdownArrow: {
-    fontSize: 9,
+    fontSize: 10,
     marginLeft: 2,
   },
   subMenuContainer: {
-    paddingVertical: 4,
-    paddingHorizontal: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
     borderTopWidth: 1,
   },
   subMenuItemButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 9,
   },
   subMenuDot: {
-    width: 5,
-    height: 5,
+    width: 6,
+    height: 6,
     borderRadius: 3,
-    marginRight: 10,
+    marginRight: 12,
   },
   subMenuLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ef444415',
     borderWidth: 1,
-    borderColor: '#ef444440',
-    borderRadius: 10,
-    paddingVertical: 12,
-    marginTop: 8,
-    marginBottom: 8,
+    borderRadius: 14,
+    paddingVertical: 13,
+    marginTop: 10,
+    marginBottom: 10,
   },
   logoutIcon: {
     fontSize: 16,
@@ -1011,14 +1036,15 @@ const styles = StyleSheet.create({
     color: '#ef4444',
   },
   footerContainer: {
-    marginTop: 12,
+    marginTop: 14,
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderTopWidth: 1,
   },
   footerBrand: {
     fontSize: 11,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
   footerServer: {
     fontSize: 10,
@@ -1027,19 +1053,20 @@ const styles = StyleSheet.create({
   syncStatus: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 6,
   },
   syncDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: '#22c55e',
-    marginRight: 5,
+    marginRight: 6,
   },
   syncText: {
     fontSize: 9,
     fontWeight: '700',
     color: '#22c55e',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 });

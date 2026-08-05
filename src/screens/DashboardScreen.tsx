@@ -327,7 +327,7 @@ export const DashboardScreen: React.FC = () => {
               {/* Action 4: My Profile */}
               <TouchableOpacity
                 style={[styles.quickActionItem, { backgroundColor: isDark ? '#83184320' : '#ffe4e6' }]}
-                onPress={() => navigation.navigate('EmployeeMaster', {})}
+                onPress={() => navigation.navigate('EmployeeDirectory')}
                 activeOpacity={0.8}
               >
                 <View style={[styles.actionIconBox, { backgroundColor: '#f43f5e20' }]}>
