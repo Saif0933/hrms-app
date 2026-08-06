@@ -11,6 +11,7 @@ import { LoginScreen } from '../screens/login/LoginScreen';
 import { RegisterScreen } from '../screens/login/RegisterScreen';
 
 // Employee Screens
+import { AssignRoleScreen } from '../screens/employee/AssignRoleScreen';
 import { BulkImportsScreen } from '../screens/employee/BulkImportsScreen';
 import { DepartmentsScreen } from '../screens/employee/DepartmentsScreen';
 import { EmployeeDirectoryScreen } from '../screens/employee/EmployeeDirectoryScreen';
@@ -107,6 +108,7 @@ export type RootStackParamList = {
   ResignationArchive: undefined;
   BulkImports: undefined;
   RolePermissions: undefined;
+  AssignRole: { employeeId?: string } | undefined;
   Departments: undefined;
 
   // Attendance Routes
@@ -290,6 +292,11 @@ export const AppStackNavigator = () => {
         name="RolePermissions"
         component={RolePermissionsScreen}
         options={{ title: 'Role & Permissions' }}
+      />
+      <Stack.Screen
+        name="AssignRole"
+        component={AssignRoleScreen}
+        options={{ title: 'Assign Role to Employee' }}
       />
       <Stack.Screen
         name="Departments"

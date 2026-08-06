@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,11 +15,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useEmployees } from '../../api/hook/useEmployee';
+import {
+  Role,
+  useCreateRole,
+  usePermissions,
+  useRoles,
+  useUpdateRole,
+} from '../../api/hook/useRole';
 import { useTheme } from '../../context/ThemeContext';
-import { RootStackParamList } from '../../navigation/stack.tsx';
+import { RootStackParamList } from '../../navigation/stack';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'RolePermissions'>;
 
@@ -31,32 +37,53 @@ export const RolePermissionsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
 
-  // Roles State
-  const [roles, setRoles] = useState<string[]>([
-    'Super Admin',
-    'HR Manager',
-    'Payroll Officer',
-    'Manager',
-    'Employee',
-  ]);
-  const [selectedRole, setSelectedRole] = useState<string>('HR Manager');
+  // API Hooks
+  const { data: rolesResponse, isLoading: isLoadingRoles } = useRoles();
+  const { data: permissionsResponse, isLoading: isLoadingPermissions } = usePermissions();
+
+  const createRoleMutation = useCreateRole();
+  const updateRoleMutation = useUpdateRole();
+
+  const apiRoles = rolesResponse?.data || [];
+  const apiPermissions = permissionsResponse?.data || [];
+
+  // Selected Role ID State
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+
+  const displayRoles: Role[] = apiRoles;
+  const activeRole = displayRoles.find(r => r.id === selectedRoleId) || displayRoles[0];
+
+  useEffect(() => {
+    if (apiRoles.length > 0 && !selectedRoleId) {
+      setSelectedRoleId(apiRoles[0].id);
+    }
+  }, [apiRoles, selectedRoleId]);
 
   // Create Role Modal State
   const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleDesc, setNewRoleDesc] = useState('');
 
-  // Assign Role State
-  const [selectedEmpId, setSelectedEmpId] = useState<string>('');
-  const [assignRoleName, setAssignRoleName] = useState<string>('HR Manager');
-  const [userRolesMap, setUserRolesMap] = useState<Record<string, string>>({});
-
   // Active Category Filter for Permissions
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
 
-  // TanStack Query for employees
-  const { data: response, isLoading: isLoadingEmployees } = useEmployees();
-  const employees = response?.data || [];
+  // Local state for enabled permissions for active role
+  const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (activeRole) {
+      const currentPerms = activeRole.permissions || [];
+      const resolvedIdentifiers: string[] = [];
+      currentPerms.forEach((p: any) => {
+        const permObj = p.permission || p;
+        if (permObj?.id) resolvedIdentifiers.push(permObj.id);
+        if (permObj?.name) resolvedIdentifiers.push(permObj.name);
+      });
+      setSelectedPermissionIds(resolvedIdentifiers);
+    } else {
+      setSelectedPermissionIds([]);
+    }
+  }, [activeRole]);
 
   // Full System Permissions List
   const permissions: PermissionItem[] = [
@@ -109,46 +136,68 @@ export const RolePermissionsScreen: React.FC = () => {
     { id: 'MANAGE_SYSTEM_SETTINGS', name: 'Manage System & Tenant Configurations', category: 'Admin' },
   ];
 
-  // Enabled permissions state map
-  const [enabledPerms, setEnabledPerms] = useState<Record<string, Record<string, boolean>>>({
-    'HR Manager': {
-      VIEW_EMPLOYEE_DIRECTORY: true,
-      VIEW_EMPLOYEE_MASTER: true,
-      CREATE_EMPLOYEE: true,
-      UPDATE_EMPLOYEE: true,
-      MANAGE_BULK_IMPORTS: true,
-      UPDATE_LEAVE_APPROVAL: true,
-      VIEW_ATTENDANCE_REPORTS: true,
-      VIEW_ORGANIZATION_CHART: true,
-      VIEW_EXIT_SETTLEMENT: true,
-    },
-    'Payroll Officer': {
-      VIEW_EMPLOYEE_DIRECTORY: true,
-      UPDATE_SALARY_PROCESSING: true,
-      UPDATE_SALARY_STRUCTURE: true,
-      VIEW_LOANS_ADVANCES: true,
-      VIEW_INVESTMENT_DECLARATIONS: true,
-      VIEW_PAYSLIP_TEMPLATES: true,
-    },
-    Employee: {
-      VIEW_EMPLOYEE_DIRECTORY: true,
-      VIEW_GPS_SELFIE_PUNCH: true,
-      CREATE_LEAVE_APPLICATION: true,
-      CREATE_TRAVEL_REQUEST: true,
-    },
-  });
-
   const togglePermission = (permId: string) => {
-    setEnabledPerms(prev => {
-      const currentRolePerms = prev[selectedRole] || {};
-      return {
-        ...prev,
-        [selectedRole]: {
-          ...currentRolePerms,
-          [permId]: !currentRolePerms[permId],
-        },
-      };
+    const targetPerm = apiPermissions.find(p => p.id === permId || p.name === permId);
+    const idToToggle = targetPerm?.id || permId;
+    const nameToToggle = targetPerm?.name || permId;
+
+    setSelectedPermissionIds(prev => {
+      const isAlreadySelected = prev.includes(idToToggle) || prev.includes(nameToToggle);
+      if (isAlreadySelected) {
+        return prev.filter(x => x !== idToToggle && x !== nameToToggle);
+      } else {
+        return [...prev, idToToggle, nameToToggle];
+      }
     });
+  };
+
+  const getResolvedPermissionIds = (permissionKeys: string[]) => {
+    if (apiPermissions.length === 0) return permissionKeys;
+    const resolvedSet = new Set<string>();
+    permissionKeys.forEach(key => {
+      const found = apiPermissions.find(p => p.id === key || p.name === key);
+      if (found) {
+        resolvedSet.add(found.id);
+      } else {
+        resolvedSet.add(key);
+      }
+    });
+    return Array.from(resolvedSet);
+  };
+
+  const handleSavePermissions = () => {
+    if (!activeRole) {
+      Alert.alert('Validation Error', 'No active role selected.');
+      return;
+    }
+
+    const payloadIds = getResolvedPermissionIds(selectedPermissionIds);
+
+    if (activeRole.id && !activeRole.id.startsWith('role-')) {
+      updateRoleMutation.mutate(
+        {
+          id: activeRole.id,
+          data: { permissionIds: payloadIds },
+        },
+        {
+          onSuccess: () => {
+            Alert.alert(
+              'Permissions Saved! 💾',
+              `Successfully saved updated permissions matrix for role "${activeRole.name}".`
+            );
+          },
+          onError: (err: any) => {
+            const msg = err.response?.data?.message || err.message || 'Failed to update permissions';
+            Alert.alert('Error', msg);
+          },
+        }
+      );
+    } else {
+      Alert.alert(
+        'Permissions Saved! 💾',
+        `Saved permission matrix settings for "${activeRole.name}".`
+      );
+    }
   };
 
   const handleCreateRole = () => {
@@ -157,37 +206,35 @@ export const RolePermissionsScreen: React.FC = () => {
       return;
     }
 
-    if (roles.includes(newRoleName.trim())) {
+    const trimmedName = newRoleName.trim();
+
+    if (displayRoles.some(r => r.name.toLowerCase() === trimmedName.toLowerCase())) {
       Alert.alert('Duplicate Role', 'Role with this name already exists.');
       return;
     }
 
-    const createdRole = newRoleName.trim();
-    setRoles(prev => [...prev, createdRole]);
-    setSelectedRole(createdRole);
-    setNewRoleName('');
-    setNewRoleDesc('');
-    setIsCreateRoleModalOpen(false);
-    Alert.alert('Role Created', `Successfully created custom system role: "${createdRole}"`);
-  };
-
-  const handleAssignRole = () => {
-    if (!selectedEmpId) {
-      Alert.alert('Validation Error', 'Please select an employee to assign role profile.');
-      return;
-    }
-
-    const matchedEmp = employees.find(e => e.id === selectedEmpId);
-    const empName = matchedEmp?.name || selectedEmpId;
-
-    setUserRolesMap(prev => ({
-      ...prev,
-      [selectedEmpId]: assignRoleName,
-    }));
-
-    Alert.alert(
-      'Role Assigned Successfully! 👤',
-      `Assigned Role Profile "${assignRoleName}" to employee ${empName}.`
+    createRoleMutation.mutate(
+      {
+        name: trimmedName.toUpperCase(),
+        description: newRoleDesc.trim(),
+        permissionIds: [],
+      },
+      {
+        onSuccess: (res) => {
+          const createdRole = res?.data;
+          setNewRoleName('');
+          setNewRoleDesc('');
+          setIsCreateRoleModalOpen(false);
+          if (createdRole?.id) {
+            setSelectedRoleId(createdRole.id);
+          }
+          Alert.alert('Role Created', `Successfully created custom system role: "${createdRole?.name || trimmedName.toUpperCase()}"`);
+        },
+        onError: (err: any) => {
+          const msg = err.response?.data?.message || err.message || 'Failed to create role';
+          Alert.alert('Error', msg);
+        },
+      }
     );
   };
 
@@ -218,110 +265,52 @@ export const RolePermissionsScreen: React.FC = () => {
         <View style={styles.headerTitleContainer}>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Role & Permissions</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-            Access Control, Role Creation & User Profile Assignment
+            Role Creation & System Permission Matrix
           </Text>
         </View>
+        <TouchableOpacity
+          style={[styles.headerSaveBtn, { backgroundColor: colors.accent, opacity: updateRoleMutation.isPending ? 0.6 : 1 }]}
+          onPress={handleSavePermissions}
+          disabled={updateRoleMutation.isPending}
+          activeOpacity={0.8}
+        >
+          {updateRoleMutation.isPending ? (
+            <ActivityIndicator size="small" color="#ffffff" />
+          ) : (
+            <Text style={styles.headerSaveBtnText}>Save 💾</Text>
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* 1. ASSIGN ROLE PROFILES TO USERS SECTION */}
-        <View
+        {/* Quick Shortcut Banner to Assign Roles to Employees */}
+        <TouchableOpacity
           style={[
             styles.card,
             { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
           ]}
+          onPress={() => navigation.navigate('AssignRole')}
+          activeOpacity={0.8}
         >
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-            👤 Assign Role Profiles to Users
-          </Text>
-          <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-            Select an employee and assign them a system role profile (Super Admin, HR Manager, etc.).
-          </Text>
-
-          {isLoadingEmployees ? (
-            <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 10 }} />
-          ) : (
-            <>
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                SELECT EMPLOYEE *
+          <View style={styles.shortcutRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+                👤 Assign Roles to Employees
               </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                <View style={styles.chipRow}>
-                  {employees.map(emp => {
-                    const isSelected = selectedEmpId === emp.id;
-                    const assignedRole = userRolesMap[emp.id] || 'Employee';
-                    return (
-                      <TouchableOpacity
-                        key={emp.id}
-                        style={[
-                          styles.chip,
-                          {
-                            backgroundColor: isSelected ? colors.accent : colors.background,
-                            borderColor: isSelected ? colors.accent : colors.cardBorder,
-                          },
-                        ]}
-                        onPress={() => setSelectedEmpId(emp.id)}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            { color: isSelected ? '#ffffff' : colors.textPrimary },
-                          ]}
-                        >
-                          {emp.name} ({assignedRole})
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                ASSIGN ROLE PROFILE *
+              <Text style={[styles.cardSubtitle, { color: colors.textSecondary, marginBottom: 0 }]}>
+                Map system roles & access profiles directly to employees.
               </Text>
-              <View style={styles.chipRow}>
-                {roles.map(r => {
-                  const isSelected = assignRoleName === r;
-                  return (
-                    <TouchableOpacity
-                      key={r}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: isSelected ? colors.accent : colors.background,
-                          borderColor: isSelected ? colors.accent : colors.cardBorder,
-                        },
-                      ]}
-                      onPress={() => setAssignRoleName(r)}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          { color: isSelected ? '#ffffff' : colors.textPrimary },
-                        ]}
-                      >
-                        {r}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+            </View>
+            <View style={[styles.shortcutBtn, { backgroundColor: colors.accent }]}>
+              <Text style={styles.shortcutBtnText}>Assign Role →</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.primaryActionBtn, { backgroundColor: colors.accent }]}
-                onPress={handleAssignRole}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.primaryActionBtnText}>Assign Role Profile to User</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-
-        {/* 2. ROLE SELECTOR & CREATE ROLE BUTTON */}
+        {/* 1. ROLE SELECTOR & CREATE ROLE BUTTON */}
         <View style={styles.roleSectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-            Configure Privileges for System Roles
+            System Roles List
           </Text>
           <TouchableOpacity
             style={[styles.createRoleBtn, { backgroundColor: colors.accent }]}
@@ -331,36 +320,57 @@ export const RolePermissionsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.roleGrid}>
-          {roles.map(role => {
-            const isSelected = selectedRole === role;
-            return (
-              <TouchableOpacity
-                key={role}
-                style={[
-                  styles.roleCard,
-                  {
-                    backgroundColor: isSelected ? colors.accent : colors.cardBackground,
-                    borderColor: isSelected ? colors.accent : colors.cardBorder,
-                  },
-                ]}
-                onPress={() => setSelectedRole(role)}
-              >
-                <Text style={[styles.roleTitle, { color: isSelected ? '#ffffff' : colors.textPrimary }]}>
-                  {role}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        {isLoadingRoles ? (
+          <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 12 }} />
+        ) : (
+          <View style={styles.roleGrid}>
+            {displayRoles.map(role => {
+              const isSelected = activeRole?.id === role.id;
+              return (
+                <TouchableOpacity
+                  key={role.id}
+                  style={[
+                    styles.roleCard,
+                    {
+                      backgroundColor: isSelected ? colors.accent : colors.cardBackground,
+                      borderColor: isSelected ? colors.accent : colors.cardBorder,
+                    },
+                  ]}
+                  onPress={() => setSelectedRoleId(role.id)}
+                >
+                  <Text style={[styles.roleTitle, { color: isSelected ? '#ffffff' : colors.textPrimary }]}>
+                    {role.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {/* 2. CATEGORY FILTERS & PERMISSIONS MATRIX */}
+        <View style={styles.permHeaderRow}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary, flex: 1 }]}>
+            Permissions for ({activeRole?.name || 'Role'})
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.savePermsBtn,
+              { backgroundColor: colors.accent, opacity: updateRoleMutation.isPending ? 0.6 : 1 },
+            ]}
+            onPress={handleSavePermissions}
+            disabled={updateRoleMutation.isPending}
+            activeOpacity={0.8}
+          >
+            {updateRoleMutation.isPending ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Text style={styles.savePermsBtnText}>💾 Save Permissions</Text>
+            )}
+          </TouchableOpacity>
         </View>
 
-        {/* 3. CATEGORY FILTERS & ALL PERMISSIONS LIST */}
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginTop: 20 }]}>
-          Permission Privileges Matrix for ({selectedRole})
-        </Text>
-
         {/* Category Pills */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12, marginTop: 8 }}>
           <View style={styles.categoryPillsRow}>
             {categories.map(cat => {
               const isActive = activeCategory === cat;
@@ -392,8 +402,13 @@ export const RolePermissionsScreen: React.FC = () => {
 
         {/* Permissions Rows */}
         {filteredPermissions.map(perm => {
-          const roleMap = enabledPerms[selectedRole] || {};
-          const isGranted = selectedRole === 'Super Admin' || !!roleMap[perm.id];
+          const roleName = activeRole?.name || 'DefaultRole';
+          const targetDbPerm = apiPermissions.find(p => p.name === perm.id || p.id === perm.id);
+          const isGranted =
+            roleName === 'SUPER_ADMIN' ||
+            roleName === 'Super Admin' ||
+            selectedPermissionIds.includes(perm.id) ||
+            (targetDbPerm ? selectedPermissionIds.includes(targetDbPerm.id) || selectedPermissionIds.includes(targetDbPerm.name) : false);
 
           return (
             <View
@@ -412,13 +427,30 @@ export const RolePermissionsScreen: React.FC = () => {
 
               <Switch
                 value={isGranted}
-                disabled={selectedRole === 'Super Admin'}
+                disabled={roleName === 'SUPER_ADMIN' || roleName === 'Super Admin'}
                 onValueChange={() => togglePermission(perm.id)}
                 thumbColor={isGranted ? colors.accent : '#94a3b8'}
               />
             </View>
           );
         })}
+
+        {/* Save Permissions Bottom Action Button */}
+        <TouchableOpacity
+          style={[
+            styles.bottomSaveBtn,
+            { backgroundColor: colors.accent, opacity: updateRoleMutation.isPending ? 0.6 : 1 },
+          ]}
+          onPress={handleSavePermissions}
+          disabled={updateRoleMutation.isPending}
+          activeOpacity={0.85}
+        >
+          {updateRoleMutation.isPending ? (
+            <ActivityIndicator size="small" color="#ffffff" />
+          ) : (
+            <Text style={styles.bottomSaveBtnText}>💾 Save Role Permissions</Text>
+          )}
+        </TouchableOpacity>
       </ScrollView>
 
       {/* CREATE NEW ROLE MODAL */}
@@ -480,10 +512,15 @@ export const RolePermissionsScreen: React.FC = () => {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.modalSubmitBtn, { backgroundColor: colors.accent }]}
+                style={[styles.modalSubmitBtn, { backgroundColor: colors.accent, opacity: createRoleMutation.isPending ? 0.6 : 1 }]}
                 onPress={handleCreateRole}
+                disabled={createRoleMutation.isPending}
               >
-                <Text style={styles.modalSubmitBtnText}>Create Role</Text>
+                {createRoleMutation.isPending ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.modalSubmitBtnText}>Create Role</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -527,6 +564,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 1,
   },
+  headerSaveBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  headerSaveBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
@@ -537,6 +585,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 20,
   },
+  shortcutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   cardTitle: {
     fontSize: 15,
     fontWeight: '700',
@@ -544,40 +597,23 @@ const styles = StyleSheet.create({
   cardSubtitle: {
     fontSize: 12,
     marginTop: 4,
-    marginBottom: 12,
+  },
+  shortcutBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  shortcutBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   inputLabel: {
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
     marginBottom: 6,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  primaryActionBtn: {
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  primaryActionBtnText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
   },
   roleSectionHeader: {
     flexDirection: 'row',
@@ -616,6 +652,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+  permHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  savePermsBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  savePermsBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   categoryPillsRow: {
     flexDirection: 'row',
     gap: 8,
@@ -650,6 +702,17 @@ const styles = StyleSheet.create({
   permCat: {
     fontSize: 11,
     marginTop: 2,
+  },
+  bottomSaveBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  bottomSaveBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,

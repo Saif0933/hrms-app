@@ -172,9 +172,11 @@ export const useAssignRole = () => {
       return response.data;
     },
     onSuccess: () => {
-      // Invalidate relevant queries like roles or users lists to ensure cache integrity
+      // Invalidate relevant queries like roles, users, employees, and profile to ensure cache integrity
       queryClient.invalidateQueries({ queryKey: ['roles'] });
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
     },
   });
 };

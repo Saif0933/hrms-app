@@ -1,3 +1,5 @@
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -13,12 +15,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLogout, useProfile } from '../api/hook/useAuth';
 import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../navigation/stack.tsx';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Menu'>;
 
@@ -142,6 +142,7 @@ export const MenuScreen: React.FC = () => {
         { id: 'resignation', label: 'Resignation Archive' },
         { id: 'bulk', label: 'Bulk Imports & Exports' },
         { id: 'roles', label: 'Role & Permissions' },
+        { id: 'assignrole', label: 'Assign Role to Employee' },
         { id: 'departments', label: 'Departments' },
       ],
     },
@@ -319,6 +320,9 @@ export const MenuScreen: React.FC = () => {
           break;
         case 'roles':
           navigation.navigate('RolePermissions');
+          break;
+        case 'assignrole':
+          navigation.navigate('AssignRole');
           break;
         case 'departments':
           navigation.navigate('Departments');

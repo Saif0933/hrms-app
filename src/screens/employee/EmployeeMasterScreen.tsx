@@ -32,6 +32,7 @@ import {
   useUpdateEmployeeSalary,
 } from '../../api/hook/useEmployee';
 import { Dropdown } from 'react-native-element-dropdown';
+import { useDepartments } from '../../api/hook/useDepartment';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
@@ -122,6 +123,31 @@ export const EmployeeMasterScreen: React.FC = () => {
   const { data: salaryRes } = useEmployeeSalary(employeeId);
   const { data: personalRes } = useEmployeePersonal(employeeId);
   const { data: familyRes } = useEmployeeFamily(employeeId);
+  const { data: deptRes } = useDepartments();
+
+  const fetchedDepartments = deptRes?.data || [];
+
+  const defaultDeptList = [
+    'Design',
+    'Product',
+    'Executive',
+    'Human Resources',
+    'Finance',
+    'IT',
+    'Sales',
+  ];
+
+  const dynamicDeptNames = Array.from(
+    new Set([
+      ...defaultDeptList,
+      ...fetchedDepartments.map(d => d.name).filter(Boolean),
+    ])
+  );
+
+  const departmentDropdownOptions = dynamicDeptNames.map(deptName => ({
+    label: deptName,
+    value: deptName,
+  }));
 
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
@@ -230,11 +256,24 @@ export const EmployeeMasterScreen: React.FC = () => {
       return;
     }
 
+    const payloadPassword = accountPassword.trim() ? accountPassword.trim() : undefined;
+
     if (isEditing && employeeId) {
       updateMutation.mutate(
         {
           id: employeeId,
-          data: { name, email, phone, designation, department, location, status, joiningDate, avatar: photoUrl },
+          data: {
+            name,
+            email,
+            phone,
+            password: payloadPassword,
+            designation,
+            department,
+            location,
+            status,
+            joiningDate,
+            avatar: photoUrl,
+          },
         },
         {
           onSuccess: () => {
@@ -247,7 +286,18 @@ export const EmployeeMasterScreen: React.FC = () => {
       );
     } else {
       createMutation.mutate(
-        { name, email, phone, designation, department, location, status, joiningDate, avatar: photoUrl },
+        {
+          name,
+          email,
+          phone,
+          password: payloadPassword,
+          designation,
+          department,
+          location,
+          status,
+          joiningDate,
+          avatar: photoUrl,
+        },
         {
           onSuccess: res => {
             setCompletedSteps(prev => Array.from(new Set([...prev, 0])));
@@ -704,14 +754,34 @@ export const EmployeeMasterScreen: React.FC = () => {
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              {/* Department */}
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DEPARTMENT</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
+              {/* Department Dropdown */}
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DEPARTMENT *</Text>
+              <Dropdown
+                style={[
+                  styles.dropdownInput,
+                  {
+                    backgroundColor: colors.inputBackground,
+                    borderColor: colors.inputBorder,
+                    marginBottom: 16,
+                  },
+                ]}
+                placeholderStyle={[styles.dropdownPlaceholder, { color: colors.inputPlaceholder }]}
+                selectedTextStyle={[styles.dropdownSelectedText, { color: colors.inputText }]}
+                inputSearchStyle={[styles.dropdownSearchInput, { color: colors.inputText, backgroundColor: colors.inputBackground }]}
+                containerStyle={[styles.dropdownContainer, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}
+                itemTextStyle={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 14 }}
+                activeColor={isDark ? '#334155' : '#f1f5f9'}
+                data={departmentDropdownOptions}
+                search
+                maxHeight={280}
+                labelField="label"
+                valueField="value"
+                placeholder="Select Department"
+                searchPlaceholder="Search department..."
                 value={department}
-                onChangeText={setDepartment}
-                placeholder="Finance"
-                placeholderTextColor={colors.inputPlaceholder}
+                onChange={item => {
+                  setDepartment(item.value);
+                }}
               />
 
               {/* Work Location */}

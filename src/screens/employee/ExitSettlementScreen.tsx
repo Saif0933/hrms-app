@@ -1,7 +1,11 @@
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -12,8 +16,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+// @ts-ignore
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useEmployeeExit, useEmployees, useSaveEmployeeExit } from '../../api/hook/useEmployee';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';
@@ -37,7 +41,9 @@ export const ExitSettlementScreen: React.FC = () => {
   const saveExitMutation = useSaveEmployeeExit();
 
   const [resignationDate, setResignationDate] = useState('2026-07-01');
+  const [showResignationDatePicker, setShowResignationDatePicker] = useState(false);
   const [lastWorkingDay, setLastWorkingDay] = useState('2026-08-01');
+  const [showLastWorkingDatePicker, setShowLastWorkingDatePicker] = useState(false);
   const [reason, setReason] = useState('Career advancement opportunity');
   const [noticeDays, setNoticeDays] = useState('30');
   const [leaveEncashDays, setLeaveEncashDays] = useState('10');
@@ -64,6 +70,28 @@ export const ExitSettlementScreen: React.FC = () => {
       setHrClearance(!!ex.hrClearance);
     }
   }, [exitRes]);
+
+  const handleResignationDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowResignationDatePicker(false);
+    }
+    if (event.type === 'set' && selectedDate) {
+      setResignationDate(selectedDate.toISOString().split('T')[0]);
+    } else if (event.type === 'dismissed') {
+      setShowResignationDatePicker(false);
+    }
+  };
+
+  const handleLastWorkingDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowLastWorkingDatePicker(false);
+    }
+    if (event.type === 'set' && selectedDate) {
+      setLastWorkingDay(selectedDate.toISOString().split('T')[0]);
+    } else if (event.type === 'dismissed') {
+      setShowLastWorkingDatePicker(false);
+    }
+  };
 
   const handleSaveExit = () => {
     if (!selectedEmpId) {
@@ -157,23 +185,49 @@ export const ExitSettlementScreen: React.FC = () => {
               Resignation & Notice Details ({selectedEmployee?.name || 'Selected Employee'})
             </Text>
 
+            {/* Resignation Date Picker */}
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Resignation Date</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
-              value={resignationDate}
-              onChangeText={setResignationDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.inputPlaceholder}
-            />
+            <TouchableOpacity
+              style={[styles.dateInputRow, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
+              onPress={() => setShowResignationDatePicker(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: resignationDate ? colors.inputText : colors.inputPlaceholder, fontSize: 14, flex: 1 }}>
+                {resignationDate || 'YYYY-MM-DD'}
+              </Text>
+              <MaterialCommunityIcons name="calendar" size={20} color={colors.accent} />
+            </TouchableOpacity>
 
+            {showResignationDatePicker && (
+              <DateTimePicker
+                value={resignationDate ? new Date(resignationDate) : new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                onChange={handleResignationDateChange}
+              />
+            )}
+
+            {/* Last Working Day Picker */}
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Last Working Day</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
-              value={lastWorkingDay}
-              onChangeText={setLastWorkingDay}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.inputPlaceholder}
-            />
+            <TouchableOpacity
+              style={[styles.dateInputRow, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
+              onPress={() => setShowLastWorkingDatePicker(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: lastWorkingDay ? colors.inputText : colors.inputPlaceholder, fontSize: 14, flex: 1 }}>
+                {lastWorkingDay || 'YYYY-MM-DD'}
+              </Text>
+              <MaterialCommunityIcons name="calendar-clock" size={20} color={colors.accent} />
+            </TouchableOpacity>
+
+            {showLastWorkingDatePicker && (
+              <DateTimePicker
+                value={lastWorkingDay ? new Date(lastWorkingDay) : new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                onChange={handleLastWorkingDateChange}
+              />
+            )}
 
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Reason for Separation</Text>
             <TextInput
@@ -306,6 +360,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
+    borderWidth: 1,
+  },
+  dateInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderWidth: 1,
   },
   switchRow: {

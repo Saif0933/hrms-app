@@ -165,11 +165,29 @@ export const useEmployees = (filters?: EmployeeFilters) => {
     refetchInterval: 3000,
     queryFn: async () => {
       try {
-        const response = await apiClient.get<BaseResponse<Employee[]>>('/employees', {
+        const response = await apiClient.get<any>('/employees', {
           params: filters,
         });
-        if (response.data && Array.isArray(response.data.data)) {
-          return response.data;
+
+        const raw = response.data;
+        let list: Employee[] = [];
+        if (Array.isArray(raw)) {
+          list = raw;
+        } else if (Array.isArray(raw?.data)) {
+          list = raw.data;
+        } else if (Array.isArray(raw?.data?.employees)) {
+          list = raw.data.employees;
+        } else if (Array.isArray(raw?.employees)) {
+          list = raw.employees;
+        }
+
+        if (list.length > 0) {
+          localEmployees = list;
+          return {
+            success: true,
+            message: 'Employees retrieved successfully',
+            data: list,
+          };
         }
       } catch (error) {
         console.log('API /employees request error, returning local store');
@@ -180,8 +198,8 @@ export const useEmployees = (filters?: EmployeeFilters) => {
         const q = filters.search.toLowerCase();
         filtered = filtered.filter(
           e =>
-            e.name.toLowerCase().includes(q) ||
-            e.email.toLowerCase().includes(q) ||
+            (e.name && e.name.toLowerCase().includes(q)) ||
+            (e.email && e.email.toLowerCase().includes(q)) ||
             (e.designation && e.designation.toLowerCase().includes(q)) ||
             (e.id && e.id.toLowerCase().includes(q))
         );
