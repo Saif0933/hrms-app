@@ -111,6 +111,19 @@ export const ShiftRosterScreen: React.FC = () => {
   const [newEndTime, setNewEndTime] = useState('06:30 PM');
   const [newShiftColor, setNewShiftColor] = useState('#10b981');
 
+  // Shift Assignment States (Creation Modal & Standalone Modal)
+  const [createAssignMode, setCreateAssignMode] = useState<'none' | 'single' | 'bulk'>('none');
+  const [createAssignSingleEmpId, setCreateAssignSingleEmpId] = useState('');
+  const [createAssignBulkEmpIds, setCreateAssignBulkEmpIds] = useState<string[]>([]);
+  const [createAssignDays, setCreateAssignDays] = useState<Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'>>(['mon', 'tue', 'wed', 'thu', 'fri']);
+
+  const [assignShiftModalOpen, setAssignShiftModalOpen] = useState(false);
+  const [assignShiftTargetCode, setAssignShiftTargetCode] = useState<ShiftCode>('MORNING');
+  const [assignType, setAssignType] = useState<'single' | 'bulk'>('single');
+  const [assignSingleEmpId, setAssignSingleEmpId] = useState('');
+  const [assignBulkEmpIds, setAssignBulkEmpIds] = useState<string[]>([]);
+  const [assignSelectedDays, setAssignSelectedDays] = useState<Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'>>(['mon', 'tue', 'wed', 'thu', 'fri']);
+
   // Dynamic Roster Mapping State
   const [customRosterMap, setCustomRosterMap] = useState<Record<string, Record<string, ShiftCode>>>({});
 
@@ -309,17 +322,90 @@ export const ShiftRosterScreen: React.FC = () => {
       },
       {
         onSuccess: () => {
+          let assignedCount = 0;
+          if (createAssignMode === 'single' && createAssignSingleEmpId) {
+            setCustomRosterMap(prev => {
+              const updated = { ...prev };
+              const currentDays = updated[createAssignSingleEmpId] || { mon: 'MORNING', tue: 'MORNING', wed: 'MORNING', thu: 'MORNING', fri: 'MORNING', sat: 'OFF', sun: 'OFF' };
+              const newDays = { ...currentDays };
+              createAssignDays.forEach(day => { newDays[day] = codeUpper; });
+              updated[createAssignSingleEmpId] = newDays;
+              return updated;
+            });
+            assignedCount = 1;
+          } else if (createAssignMode === 'bulk' && createAssignBulkEmpIds.length > 0) {
+            setCustomRosterMap(prev => {
+              const updated = { ...prev };
+              createAssignBulkEmpIds.forEach(empId => {
+                const currentDays = updated[empId] || { mon: 'MORNING', tue: 'MORNING', wed: 'MORNING', thu: 'MORNING', fri: 'MORNING', sat: 'OFF', sun: 'OFF' };
+                const newDays = { ...currentDays };
+                createAssignDays.forEach(day => { newDays[day] = codeUpper; });
+                updated[empId] = newDays;
+              });
+              return updated;
+            });
+            assignedCount = createAssignBulkEmpIds.length;
+          }
+
           Alert.alert(
             'Shift Timing Added ⏰',
-            `Organization Shift "${newShiftName.trim()}" (${newStartTime} - ${newEndTime}) has been saved successfully!`
+            `Organization Shift "${newShiftName.trim()}" saved successfully${assignedCount > 0 ? ` and assigned to ${assignedCount} employee(s)!` : '!'}`
           );
           setNewShiftName('');
           setNewShiftCode('');
+          setCreateAssignMode('none');
+          setCreateAssignSingleEmpId('');
+          setCreateAssignBulkEmpIds([]);
           setAddShiftModalOpen(false);
         },
         onError: err => Alert.alert('Error', err.message),
       }
     );
+  };
+
+  // Standalone Shift Assignment Handler (Single & Bulk)
+  const handleApplyStandaloneShiftAssignment = () => {
+    if (!assignShiftTargetCode) {
+      Alert.alert('Validation Error', 'Please select a shift to assign.');
+      return;
+    }
+    if (assignSelectedDays.length === 0) {
+      Alert.alert('Validation Error', 'Please select at least one day.');
+      return;
+    }
+
+    const targetEmpIds: string[] = [];
+    if (assignType === 'single') {
+      if (!assignSingleEmpId) {
+        Alert.alert('Validation Error', 'Please select an employee.');
+        return;
+      }
+      targetEmpIds.push(assignSingleEmpId);
+    } else {
+      if (assignBulkEmpIds.length === 0) {
+        Alert.alert('Validation Error', 'Please select at least one employee for bulk assignment.');
+        return;
+      }
+      targetEmpIds.push(...assignBulkEmpIds);
+    }
+
+    setCustomRosterMap(prev => {
+      const updated = { ...prev };
+      targetEmpIds.forEach(empId => {
+        const currentDays = updated[empId] || { mon: 'MORNING', tue: 'MORNING', wed: 'MORNING', thu: 'MORNING', fri: 'MORNING', sat: 'OFF', sun: 'OFF' };
+        const newDays = { ...currentDays };
+        assignSelectedDays.forEach(day => { newDays[day] = assignShiftTargetCode; });
+        updated[empId] = newDays;
+      });
+      return updated;
+    });
+
+    const countStr = assignType === 'single' ? '1 employee' : `${targetEmpIds.length} employees`;
+    Alert.alert(
+      'Shift Assigned ⚡',
+      `Successfully assigned "${assignShiftTargetCode}" shift to ${countStr} for days [${assignSelectedDays.map(d => d.toUpperCase()).join(', ')}].`
+    );
+    setAssignShiftModalOpen(false);
   };
 
   // Organization Delete Shift Timing Handler
@@ -464,19 +550,28 @@ export const ShiftRosterScreen: React.FC = () => {
           ]}
         >
           <View style={styles.cardHeaderRow}>
-            <View>
+            <View style={{ flex: 1, paddingRight: 6 }}>
               <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>⏰ Organization Shift Timings</Text>
               <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
                 Add & manage company shift timing rules
               </Text>
             </View>
-            <TouchableOpacity
-              style={[styles.addTimingBtn, { backgroundColor: colors.accent }]}
-              onPress={() => setAddShiftModalOpen(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.addTimingBtnText}>+ Add Shift</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={[styles.addTimingBtn, { backgroundColor: colors.accent }]}
+                onPress={() => setAddShiftModalOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.addTimingBtnText}>+ Add Shift</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.addTimingBtn, { backgroundColor: '#8b5cf6' }]}
+                onPress={() => setAssignShiftModalOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.addTimingBtnText}>⚡ Assign Shift</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {shiftTimings.length > 0 ? (
@@ -870,6 +965,120 @@ export const ShiftRosterScreen: React.FC = () => {
               ))}
             </View>
 
+            {/* Optional Employee Shift Assignment during Creation */}
+            <View style={{ marginTop: 8, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.background }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textPrimary }}>
+                Assign Shift to Employee(s) <Text style={{ fontSize: 10, fontWeight: '400', color: colors.textSecondary }}>(Optional)</Text>
+              </Text>
+
+              <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                <TouchableOpacity
+                  style={[{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1 }, createAssignMode === 'none' ? { backgroundColor: colors.accent, borderColor: colors.accent } : { borderColor: colors.cardBorder }]}
+                  onPress={() => setCreateAssignMode('none')}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: createAssignMode === 'none' ? '#fff' : colors.textSecondary }}>Don't Assign</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1 }, createAssignMode === 'single' ? { backgroundColor: colors.accent, borderColor: colors.accent } : { borderColor: colors.cardBorder }]}
+                  onPress={() => setCreateAssignMode('single')}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: createAssignMode === 'single' ? '#fff' : colors.textSecondary }}>Single</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1 }, createAssignMode === 'bulk' ? { backgroundColor: colors.accent, borderColor: colors.accent } : { borderColor: colors.cardBorder }]}
+                  onPress={() => setCreateAssignMode('bulk')}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: createAssignMode === 'bulk' ? '#fff' : colors.textSecondary }}>Bulk</Text>
+                </TouchableOpacity>
+              </View>
+
+              {createAssignMode === 'single' && (
+                <View style={{ marginTop: 6 }}>
+                  <Text style={{ fontSize: 10, color: colors.textSecondary, marginBottom: 2 }}>Select Employee:</Text>
+                  <ScrollView style={{ maxHeight: 100 }} nestedScrollEnabled>
+                    {employees.map(emp => (
+                      <TouchableOpacity
+                        key={emp.id}
+                        style={[{ paddingVertical: 5, paddingHorizontal: 8, borderRadius: 6, marginBottom: 3 }, createAssignSingleEmpId === emp.id ? { backgroundColor: colors.accent + '20' } : null]}
+                        onPress={() => setCreateAssignSingleEmpId(emp.id)}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: createAssignSingleEmpId === emp.id ? colors.accent : colors.textPrimary }}>
+                          {emp.name} ({emp.id})
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {createAssignMode === 'bulk' && (
+                <View style={{ marginTop: 6 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <Text style={{ fontSize: 10, color: colors.textSecondary }}>Select Employees ({createAssignBulkEmpIds.length}):</Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (createAssignBulkEmpIds.length === employees.length) {
+                          setCreateAssignBulkEmpIds([]);
+                        } else {
+                          setCreateAssignBulkEmpIds(employees.map(e => e.id));
+                        }
+                      }}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: colors.accent }}>
+                        {createAssignBulkEmpIds.length === employees.length ? 'Deselect All' : 'Select All'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView style={{ maxHeight: 100 }} nestedScrollEnabled>
+                    {employees.map(emp => {
+                      const checked = createAssignBulkEmpIds.includes(emp.id);
+                      return (
+                        <TouchableOpacity
+                          key={emp.id}
+                          style={[{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 6, borderRadius: 6, marginBottom: 2 }, checked ? { backgroundColor: colors.accent + '15' } : null]}
+                          onPress={() => {
+                            if (checked) {
+                              setCreateAssignBulkEmpIds(prev => prev.filter(id => id !== emp.id));
+                            } else {
+                              setCreateAssignBulkEmpIds(prev => [...prev, emp.id]);
+                            }
+                          }}
+                        >
+                          <Text style={{ fontSize: 11, color: checked ? colors.accent : colors.textPrimary, fontWeight: checked ? '700' : '400' }}>
+                            {checked ? '✓ ' : '○ '} {emp.name} ({emp.id})
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+
+              {createAssignMode !== 'none' && (
+                <View style={{ marginTop: 6 }}>
+                  <Text style={{ fontSize: 10, color: colors.textSecondary, marginBottom: 4 }}>Assign Days:</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                    {(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const).map(d => {
+                      const isSel = createAssignDays.includes(d);
+                      return (
+                        <TouchableOpacity
+                          key={d}
+                          style={[{ paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4, borderWidth: 1 }, isSel ? { backgroundColor: '#10b981', borderColor: '#10b981' } : { borderColor: colors.cardBorder }]}
+                          onPress={() => {
+                            setCreateAssignDays(prev => 
+                              prev.includes(d) ? prev.filter(item => item !== d) : [...prev, d]
+                            );
+                          }}
+                        >
+                          <Text style={{ fontSize: 9, fontWeight: '700', color: isSel ? '#fff' : colors.textSecondary }}>{d.toUpperCase()}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+            </View>
+
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
                 style={[styles.modalCancelBtn, { borderColor: colors.cardBorder }]}
@@ -891,6 +1100,167 @@ export const ShiftRosterScreen: React.FC = () => {
                 ) : (
                   <Text style={{ color: '#fff', fontWeight: '700' }}>Save Organization Shift</Text>
                 )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Standalone Single & Bulk Shift Assignment Modal */}
+      <Modal visible={assignShiftModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground }]}>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
+              ⚡ Assign Shift to Employee(s)
+            </Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              Assign shift to single or multiple employees in bulk for {selectedWeek}.
+            </Text>
+
+            {/* Select Shift Target Code */}
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SELECT SHIFT TO ASSIGN *</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
+              {['MORNING', 'EVENING', 'NIGHT', 'OFF', ...shiftTimings.map(t => t.code)].map(sc => {
+                const isSelected = assignShiftTargetCode === sc;
+                return (
+                  <TouchableOpacity
+                    key={sc}
+                    style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, marginRight: 6 }, isSelected ? { backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' } : { borderColor: colors.cardBorder, backgroundColor: colors.background }]}
+                    onPress={() => setAssignShiftTargetCode(sc)}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: isSelected ? '#fff' : colors.textPrimary }}>{sc}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Assignment Mode Toggle */}
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>ASSIGNMENT MODE *</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginVertical: 2 }}>
+              <TouchableOpacity
+                style={[{ flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, alignItems: 'center' }, assignType === 'single' ? { backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' } : { borderColor: colors.cardBorder, backgroundColor: colors.background }]}
+                onPress={() => setAssignType('single')}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: assignType === 'single' ? '#fff' : colors.textSecondary }}>Single Employee</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[{ flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, alignItems: 'center' }, assignType === 'bulk' ? { backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' } : { borderColor: colors.cardBorder, backgroundColor: colors.background }]}
+                onPress={() => setAssignType('bulk')}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: assignType === 'bulk' ? '#fff' : colors.textSecondary }}>Bulk ({assignBulkEmpIds.length})</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Employee Selector */}
+            {assignType === 'single' ? (
+              <View style={{ marginTop: 4 }}>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SELECT EMPLOYEE *</Text>
+                <ScrollView style={{ maxHeight: 120 }} nestedScrollEnabled>
+                  {employees.map(emp => {
+                    const isSel = assignSingleEmpId === emp.id;
+                    return (
+                      <TouchableOpacity
+                        key={emp.id}
+                        style={[{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, marginBottom: 3, borderWidth: 1 }, isSel ? { backgroundColor: '#8b5cf620', borderColor: '#8b5cf6' } : { borderColor: colors.cardBorder }]}
+                        onPress={() => setAssignSingleEmpId(emp.id)}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: isSel ? '#8b5cf6' : colors.textPrimary }}>
+                          {emp.name} ({emp.id})
+                        </Text>
+                        <Text style={{ fontSize: 10, color: colors.textSecondary }}>{emp.designation || 'Staff'}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            ) : (
+              <View style={{ marginTop: 4 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SELECT EMPLOYEES ({assignBulkEmpIds.length}) *</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (assignBulkEmpIds.length === employees.length) {
+                        setAssignBulkEmpIds([]);
+                      } else {
+                        setAssignBulkEmpIds(employees.map(e => e.id));
+                      }
+                    }}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#8b5cf6' }}>
+                      {assignBulkEmpIds.length === employees.length ? 'Deselect All' : 'Select All'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={{ maxHeight: 120 }} nestedScrollEnabled>
+                  {employees.map(emp => {
+                    const checked = assignBulkEmpIds.includes(emp.id);
+                    return (
+                      <TouchableOpacity
+                        key={emp.id}
+                        style={[{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 8, borderRadius: 8, marginBottom: 3, borderWidth: 1 }, checked ? { backgroundColor: '#8b5cf615', borderColor: '#8b5cf6' } : { borderColor: colors.cardBorder }]}
+                        onPress={() => {
+                          if (checked) {
+                            setAssignBulkEmpIds(prev => prev.filter(id => id !== emp.id));
+                          } else {
+                            setAssignBulkEmpIds(prev => [...prev, emp.id]);
+                          }
+                        }}
+                      >
+                        <Text style={{ fontSize: 12, color: checked ? '#8b5cf6' : colors.textPrimary, fontWeight: checked ? '700' : '400' }}>
+                          {checked ? '✓ ' : '○ '} {emp.name} ({emp.id})
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Target Days */}
+            <View style={{ marginTop: 4 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>TARGET DAYS *</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity onPress={() => setAssignSelectedDays(['mon', 'tue', 'wed', 'thu', 'fri'])}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: colors.accent }}>Mon-Fri</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setAssignSelectedDays(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: colors.accent }}>All Days</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                {(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const).map(d => {
+                  const isSel = assignSelectedDays.includes(d);
+                  return (
+                    <TouchableOpacity
+                      key={d}
+                      style={[{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1 }, isSel ? { backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' } : { borderColor: colors.cardBorder }]}
+                      onPress={() => {
+                        setAssignSelectedDays(prev => 
+                          prev.includes(d) ? prev.filter(item => item !== d) : [...prev, d]
+                        );
+                      }}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: isSel ? '#fff' : colors.textSecondary }}>{d.toUpperCase()}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={[styles.modalCancelBtn, { borderColor: colors.cardBorder }]}
+                onPress={() => setAssignShiftModalOpen(false)}
+              >
+                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, { backgroundColor: '#8b5cf6' }]}
+                onPress={handleApplyStandaloneShiftAssignment}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Apply & Assign Shift</Text>
               </TouchableOpacity>
             </View>
           </View>

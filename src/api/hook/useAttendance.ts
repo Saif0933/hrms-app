@@ -76,18 +76,7 @@ let localGeofences: GeofenceLocation[] = [
   },
 ];
 
-let localRegularizations: RegularizationRequest[] = [
-  {
-    id: 'REG_001',
-    employeeName: 'Alex Johnson',
-    employeeId: 'EMP001',
-    date: '2026-08-01',
-    timeIn: '09:00 AM',
-    timeOut: '06:00 PM',
-    reason: 'Client Meeting Out-of-office',
-    status: 'Approved',
-  },
-];
+let localRegularizations: RegularizationRequest[] = [];
 
 // Queries and Mutations
 
@@ -109,14 +98,12 @@ export const usePunches = (employeeId: string) => {
         console.log('API GET /attendance/punches error (using local fallback):', error?.message || error);
       }
 
-      // Return local cache filtered by employeeId
-      const filtered = localPunchLogs.filter(
-        p => !p.employeeId || p.employeeId === employeeId || employeeId === 'EMP001'
-      );
+      // Return local cache filtered strictly by employeeId
+      const filtered = localPunchLogs.filter(p => p.employeeId === employeeId);
       return {
         success: true,
         message: 'Attendance punch history retrieved',
-        data: filtered.length > 0 ? filtered : localPunchLogs,
+        data: filtered,
       };
     },
     enabled: !!employeeId,

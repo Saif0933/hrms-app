@@ -24,6 +24,7 @@ import {
   useShiftTimings,
 } from '../../api/hook/useAttendance';
 import { useProfile } from '../../api/hook/useAuth';
+import { useEmployees } from '../../api/hook/useEmployee';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
@@ -51,12 +52,25 @@ export const GpsSelfiePunchScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
 
-  // Dynamic Auth User Profile
+  // Dynamic Auth User Profile & Employee matching
   const { data: profileResponse, refetch: refetchProfile } = useProfile();
   const user = profileResponse?.data?.user;
-  const employeeId = user?.id || 'EMP001';
-  const userName = user?.name || 'Alex';
-  const greetingName = userName.split(' ')[0] || 'Alex';
+  const { data: employeesRes } = useEmployees();
+  const employees = employeesRes?.data || [];
+
+  const matchedEmp = useMemo(() => {
+    if (!user) return null;
+    return employees.find((e: any) =>
+      (user.employeeId && e.id === user.employeeId) ||
+      (user.id && e.userId === user.id) ||
+      (user.email && e.email?.toLowerCase() === user.email.toLowerCase()) ||
+      (user.phone && e.phone === user.phone)
+    ) || null;
+  }, [user, employees]);
+
+  const employeeId = matchedEmp?.id || user?.employeeId || user?.id || '';
+  const userName = matchedEmp?.name || user?.name || 'Employee';
+  const greetingName = userName.split(' ')[0] || 'Employee';
 
   const [punchType, setPunchType] = useState<'In' | 'Out'>('In');
   const [isUserManualSelection, setIsUserManualSelection] = useState(false);

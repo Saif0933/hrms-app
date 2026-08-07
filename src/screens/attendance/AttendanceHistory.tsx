@@ -16,6 +16,7 @@ import {
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { usePunches } from '../../api/hook/useAttendance';
 import { useProfile } from '../../api/hook/useAuth';
+import { useEmployees } from '../../api/hook/useEmployee';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'AttendanceHistory'>;
@@ -36,7 +37,20 @@ export const AttendanceHistoryScreen: React.FC = () => {
   // Dynamic Auth & Punches
   const { data: profileResponse, refetch: refetchProfile } = useProfile();
   const user = profileResponse?.data?.user;
-  const employeeId = user?.employeeId || user?.id || 'EMP001';
+  const { data: employeesRes } = useEmployees();
+  const employees = employeesRes?.data || [];
+
+  const matchedEmp = useMemo(() => {
+    if (!user) return null;
+    return employees.find((e: any) =>
+      (user.employeeId && e.id === user.employeeId) ||
+      (user.id && e.userId === user.id) ||
+      (user.email && e.email?.toLowerCase() === user.email.toLowerCase()) ||
+      (user.phone && e.phone === user.phone)
+    ) || null;
+  }, [user, employees]);
+
+  const employeeId = matchedEmp?.id || user?.employeeId || user?.id || '';
 
   const { data: punchesRes, isLoading, refetch: refetchPunches, isRefetching } = usePunches(employeeId);
   const punches = punchesRes?.data || [];
