@@ -266,44 +266,11 @@ export const useCreateEmployee = () => {
           else localEmployees.unshift(createdEmp);
           return response.data;
         }
-      } catch (error) {
-        console.log('API /employees POST error, using local fallback store');
+        return response.data;
+      } catch (error: any) {
+        console.log('API /employees POST error:', error?.response?.data?.message || error?.message);
+        throw error;
       }
-
-      const newId = data.employeeId || `EMP-${Date.now().toString().slice(-4)}`;
-      const deptName = typeof data.department === 'string' ? data.department : (data.department?.name || 'General');
-      createdEmp = {
-        id: newId,
-        name: data.name || data.firstName || 'New Employee',
-        email: data.email || `${newId.toLowerCase()}@company.com`,
-        phone: data.phone || null,
-        avatar: data.avatar || null,
-        status: data.status || 'ACTIVE',
-        joiningDate: data.joiningDate || new Date().toISOString().split('T')[0],
-        location: data.location || 'Mumbai',
-        designation: data.designation || 'Employee',
-        role: data.role || data.designation || 'Employee',
-        department: { id: `dept-${Date.now()}`, name: deptName, code: deptName.slice(0, 3).toUpperCase() },
-        basic: data.basic || 0,
-        hra: data.hra || 0,
-        allowance: data.allowance || 0,
-        deductions: data.deductions || 0,
-        netSalary: data.netSalary || (data.basic || 0) * 1.5,
-        gender: data.gender || null,
-        dob: data.dob || data.dateOfBirth || null,
-        bloodGroup: data.bloodGroup || null,
-        maritalStatus: data.maritalStatus || null,
-        confirmationStatus: 'CONFIRMED',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      localEmployees.unshift(createdEmp);
-      return {
-        success: true,
-        message: 'Employee profile created successfully',
-        data: createdEmp,
-      };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });

@@ -258,7 +258,29 @@ export const useSubmitLeaveRequest = () => {
   const queryClient = useQueryClient();
   return useMutation<BaseResponse<LeaveRequest>, Error, SubmitLeaveRequest>({
     mutationFn: async (data) => {
-      const response = await apiClient.post<BaseResponse<LeaveRequest>>('/leaves/requests', data);
+      let cleanAttachmentUrl: string | null = null;
+      if (data.attachmentUrl && typeof data.attachmentUrl === 'string') {
+        const trimmed = data.attachmentUrl.trim();
+        if (trimmed) {
+          let formatted = trimmed;
+          if (!/^https?:\/\//i.test(formatted) && (formatted.includes('.') || formatted.startsWith('localhost'))) {
+            formatted = `https://${formatted}`;
+          }
+          try {
+            new URL(formatted);
+            cleanAttachmentUrl = formatted;
+          } catch {
+            cleanAttachmentUrl = null;
+          }
+        }
+      }
+
+      const payload: SubmitLeaveRequest = {
+        ...data,
+        attachmentUrl: cleanAttachmentUrl,
+      };
+
+      const response = await apiClient.post<BaseResponse<LeaveRequest>>('/leaves/requests', payload);
       return response.data;
     },
     onSuccess: () => {

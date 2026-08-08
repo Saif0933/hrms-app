@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useProfile } from '../../api/hook/useAuth';
 import {
   HalfDaySession,
   useLeaveAllocations,
@@ -30,7 +31,9 @@ export const ApplyLeaveScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark } = useTheme();
 
-  const currentEmployeeId = 'EMP001';
+  const { data: profileRes } = useProfile();
+  const loggedInUser = profileRes?.data?.user;
+  const currentEmployeeId = loggedInUser?.employeeId || loggedInUser?.id || 'EMP001';
 
   // Form State
   const [selectedLeaveTypeId, setSelectedLeaveTypeId] = useState<string>('');
@@ -93,6 +96,26 @@ export const ApplyLeaveScreen: React.FC = () => {
       return;
     }
 
+    let finalReason = reason.trim();
+    let validAttachmentUrl: string | null = null;
+    const trimmedAttachment = attachmentUrl.trim();
+
+    if (trimmedAttachment) {
+      let formattedUrl = trimmedAttachment;
+      if (!/^https?:\/\//i.test(formattedUrl) && (formattedUrl.includes('.') || formattedUrl.startsWith('localhost'))) {
+        formattedUrl = `https://${formattedUrl}`;
+      }
+      try {
+        new URL(formattedUrl);
+        validAttachmentUrl = formattedUrl;
+      } catch {
+        validAttachmentUrl = null;
+        if (!finalReason.includes(trimmedAttachment)) {
+          finalReason = `${finalReason} (Attachment: ${trimmedAttachment})`;
+        }
+      }
+    }
+
     submitLeaveMutation.mutate(
       {
         employeeId: currentEmployeeId,
@@ -101,8 +124,8 @@ export const ApplyLeaveScreen: React.FC = () => {
         endDate: new Date(endDate).toISOString(),
         halfDay: isHalfDay,
         halfDaySession: isHalfDay ? halfDaySession : null,
-        reason: reason.trim(),
-        attachmentUrl: attachmentUrl || null,
+        reason: finalReason,
+        attachmentUrl: validAttachmentUrl,
       },
       {
         onSuccess: () => {
@@ -111,6 +134,7 @@ export const ApplyLeaveScreen: React.FC = () => {
             'Your leave application has been submitted for manager approval.'
           );
           setReason('');
+          setAttachmentUrl('');
         },
         onError: err => Alert.alert('Error', err.message),
       }
