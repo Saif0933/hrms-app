@@ -13,6 +13,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+// @ts-ignore
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useLogout, useProfile } from '../api/hook/useAuth';
 import {
   PendingClaimApproval,
@@ -185,10 +187,7 @@ export const DashboardScreen: React.FC = () => {
               onPress={handleLogout}
               activeOpacity={0.8}
             >
-              <Text style={{ fontSize: 14 }}>🔔</Text>
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>3</Text>
-              </View>
+              <MaterialCommunityIcons name="login" size={20} color={isDark ? '#38bdf8' : '#2563eb'} />
             </TouchableOpacity>
           </View>
         </View>

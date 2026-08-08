@@ -6,9 +6,10 @@ import { useTheme } from '../context/ThemeContext';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { MenuScreen } from '../screens/MenuScreen';
 
-// Auth Screens
+// Auth & Splash Screens
 import { LoginScreen } from '../screens/login/LoginScreen';
 import { RegisterScreen } from '../screens/login/RegisterScreen';
+import { SplashScreen } from '../screens/splas/SplashScreen';
 
 // Employee Screens
 import { AssignRoleScreen } from '../screens/employee/AssignRoleScreen';
@@ -96,6 +97,7 @@ import { PlanComparisonScreen } from '../screens/subscription/PlanComparisonScre
 import { PlansPricingScreen } from '../screens/subscription/PlansPricingScreen';
 
 export type RootStackParamList = {
+  Splash: undefined;
   Login: undefined;
   Register: undefined;
   Dashboard: undefined;
@@ -222,12 +224,17 @@ export const AppStackNavigator = () => {
 
   return (
     <Stack.Navigator
-      initialRouteName={initialRoute}
+      initialRouteName="Splash"
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
       }}
     >
+      <Stack.Screen
+        name="Splash"
+        component={SplashScreen}
+        options={{ title: 'Splash' }}
+      />
       <Stack.Screen
         name="Login"
         component={LoginScreen}

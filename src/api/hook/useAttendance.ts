@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../apiClient';
 
@@ -78,6 +79,29 @@ let localGeofences: GeofenceLocation[] = [
 
 let localRegularizations: RegularizationRequest[] = [];
 
+const PUNCH_STORAGE_KEY = '@app_attendance_punch_logs';
+
+const loadStoredPunches = async (): Promise<PunchLog[]> => {
+  try {
+    const raw = await AsyncStorage.getItem(PUNCH_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (err) {
+    console.log('Error reading stored punches:', err);
+  }
+  return localPunchLogs;
+};
+
+const saveStoredPunches = async (punches: PunchLog[]) => {
+  try {
+    await AsyncStorage.setItem(PUNCH_STORAGE_KEY, JSON.stringify(punches));
+  } catch (err) {
+    console.log('Error saving stored punches:', err);
+  }
+};
+
 // Queries and Mutations
 
 /**
@@ -89,21 +113,32 @@ export const usePunches = (employeeId: string) => {
     queryKey: ['attendancePunches', employeeId],
     refetchInterval: 3000,
     queryFn: async () => {
+      let apiPunches: PunchLog[] = [];
       try {
         const response = await apiClient.get<BaseResponse<PunchLog[]>>(`/attendance/punches/${employeeId}`);
         if (response.data && Array.isArray(response.data.data)) {
-          return response.data;
+          apiPunches = response.data.data;
         }
       } catch (error: any) {
         console.log('API GET /attendance/punches error (using local fallback):', error?.message || error);
       }
 
-      // Return local cache filtered strictly by employeeId
-      const filtered = localPunchLogs.filter(p => p.employeeId === employeeId);
+      const stored = await loadStoredPunches();
+      const combinedMap = new Map<string, PunchLog>();
+
+      stored.forEach(p => {
+        if (!employeeId || p.employeeId === employeeId || !p.employeeId) {
+          combinedMap.set(p.id, p);
+        }
+      });
+      apiPunches.forEach(p => combinedMap.set(p.id, p));
+
+      const combinedList = Array.from(combinedMap.values());
+
       return {
         success: true,
         message: 'Attendance punch history retrieved',
-        data: filtered,
+        data: combinedList,
       };
     },
     enabled: !!employeeId,
@@ -164,7 +199,10 @@ export const useCreatePunch = () => {
         createdAt: new Date().toISOString(),
       };
 
-      localPunchLogs = [...localPunchLogs, newPunch];
+      const stored = await loadStoredPunches();
+      const updated = [newPunch, ...stored];
+      localPunchLogs = updated;
+      await saveStoredPunches(updated);
 
       if (apiSuccessRes) {
         return apiSuccessRes;
@@ -444,8 +482,8 @@ export const useSaveRosters = () => {
         data: payload,
       };
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['shiftRosters', variables.week] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shiftRosters'] });
     },
   });
 };

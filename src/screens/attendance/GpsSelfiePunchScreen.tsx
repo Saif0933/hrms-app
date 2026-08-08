@@ -116,12 +116,24 @@ export const GpsSelfiePunchScreen: React.FC = () => {
   }, []);
 
   const employeeRoster = useMemo(() => {
-    return rosters.find(r => r.employeeId === employeeId);
-  }, [rosters, employeeId]);
+    return rosters.find(r =>
+      r.employeeId === employeeId ||
+      r.employeeId === user?.id ||
+      r.employeeId === matchedEmp?.id ||
+      (r.employee && (r.employee.id === employeeId || r.employee.id === matchedEmp?.id || r.employee.id === user?.id))
+    );
+  }, [rosters, employeeId, matchedEmp, user]);
 
   const assignedShiftCode = useMemo(() => {
     if (employeeRoster && (employeeRoster as any)[dayKey]) {
-      return String((employeeRoster as any)[dayKey]);
+      const raw = String((employeeRoster as any)[dayKey]).trim();
+      const norm = raw.toUpperCase();
+      if (norm === 'MORNING' || norm === 'MORNING SHIFT' || norm === 'M') return 'MORNING';
+      if (norm === 'EVENING' || norm === 'EVENING SHIFT' || norm === 'E') return 'EVENING';
+      if (norm === 'NIGHT' || norm === 'NIGHT SHIFT' || norm === 'N') return 'NIGHT';
+      if (norm === 'OFF' || norm === 'WEEK OFF' || norm === 'WEEKOFF' || norm === 'WO') return 'OFF';
+      if (norm === 'GENERAL' || norm === 'GENERAL SHIFT' || norm === 'G') return 'MORNING';
+      return raw;
     }
     return 'MORNING';
   }, [employeeRoster, dayKey]);

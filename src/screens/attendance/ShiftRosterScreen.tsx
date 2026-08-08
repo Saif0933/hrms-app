@@ -68,6 +68,17 @@ const getWeekOptions = (currentWeek: string) => {
   return list;
 };
 
+const normalizeShiftVal = (val?: string): ShiftCode => {
+  if (!val) return 'MORNING';
+  const norm = val.trim().toUpperCase();
+  if (norm === 'MORNING' || norm === 'MORNING SHIFT' || norm === 'M') return 'MORNING';
+  if (norm === 'EVENING' || norm === 'EVENING SHIFT' || norm === 'E') return 'EVENING';
+  if (norm === 'NIGHT' || norm === 'NIGHT SHIFT' || norm === 'N') return 'NIGHT';
+  if (norm === 'OFF' || norm === 'WEEK OFF' || norm === 'WEEKOFF' || norm === 'WO') return 'OFF';
+  if (norm === 'GENERAL' || norm === 'GENERAL SHIFT' || norm === 'G') return 'MORNING';
+  return val.trim();
+};
+
 export const ShiftRosterScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
@@ -133,27 +144,30 @@ export const ShiftRosterScreen: React.FC = () => {
 
     const initialMap: Record<string, Record<string, ShiftCode>> = {};
 
-    employees.forEach((emp: Employee, index: number) => {
-      const found = rosters.find(r => r.employeeId === emp.id);
+    employees.forEach((emp: Employee) => {
+      const found = rosters.find(r =>
+        r.employeeId === emp.id ||
+        r.employeeId === emp.userId ||
+        (r.employee && (r.employee.id === emp.id || r.employee.id === emp.userId))
+      );
       if (found) {
         initialMap[emp.id] = {
-          mon: (found.mon as ShiftCode) || 'MORNING',
-          tue: (found.tue as ShiftCode) || 'MORNING',
-          wed: (found.wed as ShiftCode) || 'MORNING',
-          thu: (found.thu as ShiftCode) || 'MORNING',
-          fri: (found.fri as ShiftCode) || 'MORNING',
-          sat: (found.sat as ShiftCode) || 'OFF',
-          sun: (found.sun as ShiftCode) || 'OFF',
+          mon: normalizeShiftVal(found.mon),
+          tue: normalizeShiftVal(found.tue),
+          wed: normalizeShiftVal(found.wed),
+          thu: normalizeShiftVal(found.thu),
+          fri: normalizeShiftVal(found.fri),
+          sat: normalizeShiftVal(found.sat),
+          sun: normalizeShiftVal(found.sun),
         };
       } else {
-        const defaultShift: ShiftCode = index % 3 === 0 ? 'MORNING' : index % 3 === 1 ? 'EVENING' : 'NIGHT';
         initialMap[emp.id] = {
-          mon: defaultShift,
-          tue: defaultShift,
-          wed: defaultShift,
-          thu: defaultShift,
-          fri: defaultShift,
-          sat: index % 2 === 0 ? 'OFF' : defaultShift,
+          mon: 'MORNING',
+          tue: 'MORNING',
+          wed: 'MORNING',
+          thu: 'MORNING',
+          fri: 'MORNING',
+          sat: 'OFF',
           sun: 'OFF',
         };
       }
@@ -389,20 +403,32 @@ export const ShiftRosterScreen: React.FC = () => {
       targetEmpIds.push(...assignBulkEmpIds);
     }
 
-    setCustomRosterMap(prev => {
-      const updated = { ...prev };
-      targetEmpIds.forEach(empId => {
-        const currentDays = updated[empId] || { mon: 'MORNING', tue: 'MORNING', wed: 'MORNING', thu: 'MORNING', fri: 'MORNING', sat: 'OFF', sun: 'OFF' };
-        const newDays = { ...currentDays };
-        assignSelectedDays.forEach(day => { newDays[day] = assignShiftTargetCode; });
-        updated[empId] = newDays;
-      });
-      return updated;
+    const updatedMap = { ...customRosterMap };
+    targetEmpIds.forEach(empId => {
+      const currentDays = updatedMap[empId] || { mon: 'MORNING', tue: 'MORNING', wed: 'MORNING', thu: 'MORNING', fri: 'MORNING', sat: 'OFF', sun: 'OFF' };
+      const newDays = { ...currentDays };
+      assignSelectedDays.forEach(day => { newDays[day] = assignShiftTargetCode; });
+      updatedMap[empId] = newDays;
     });
+
+    setCustomRosterMap(updatedMap);
+
+    const payload = employees.map((emp: Employee) => ({
+      employeeId: emp.id,
+      mon: updatedMap[emp.id]?.mon || 'MORNING',
+      tue: updatedMap[emp.id]?.tue || 'MORNING',
+      wed: updatedMap[emp.id]?.wed || 'MORNING',
+      thu: updatedMap[emp.id]?.thu || 'MORNING',
+      fri: updatedMap[emp.id]?.fri || 'MORNING',
+      sat: updatedMap[emp.id]?.sat || 'OFF',
+      sun: updatedMap[emp.id]?.sun || 'OFF',
+    }));
+
+    saveRosterMutation.mutate({ week: selectedWeek, rosters: payload });
 
     const countStr = assignType === 'single' ? '1 employee' : `${targetEmpIds.length} employees`;
     Alert.alert(
-      'Shift Assigned ⚡',
+      'Shift Assigned & Saved ⚡',
       `Successfully assigned "${assignShiftTargetCode}" shift to ${countStr} for days [${assignSelectedDays.map(d => d.toUpperCase()).join(', ')}].`
     );
     setAssignShiftModalOpen(false);

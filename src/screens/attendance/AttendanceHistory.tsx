@@ -93,12 +93,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
       const matchesMonth = selectedMonthOffset === 0 || (pDate.getFullYear() === targetYear && pDate.getMonth() === targetMonth);
       if (matchesMonth) {
         const key = pDate.toLocaleDateString('en-US', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
-        let timeStr = '';
-        if (p.time && p.time.includes(',')) {
-          timeStr = p.time.split(',')[1].trim();
-        } else {
-          timeStr = pDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        }
+        const timeStr = pDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         if (!map.has(key)) {
           map.set(key, { dateObj: pDate });
@@ -107,7 +102,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
         const typeStr = (p.type || '').toLowerCase();
         if (typeStr.includes('in') && !entry.in) {
           entry.in = timeStr;
-        } else if (typeStr.includes('out')) {
+        } else if (typeStr.includes('out') && !entry.out) {
           entry.out = timeStr;
         }
       }
