@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
@@ -41,19 +42,61 @@ export const DashboardScreen: React.FC = () => {
 
   const [activeInsightTab, setActiveInsightTab] = useState<'attendance' | 'departments' | 'diversity'>('attendance');
   const [activeApprovalTab, setActiveApprovalTab] = useState<'leaves' | 'claims'>('leaves');
+  const [storedName, setStoredName] = useState<string>('');
+  const [storedRole, setStoredRole] = useState<string>('');
 
-  // Dynamic User Profile Data
-  const userName = profileResponse?.data?.user?.name || 'John';
-  const greetingName = userName.split(' ')[0] || 'John';
-  const userRole = profileResponse?.data?.user?.role || 'Software Engineer • HRMS Portal';
-  const userInitials = userName
-    ? userName
+  React.useEffect(() => {
+    const loadStoredUser = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('currentUser');
+        const storedOrg = await AsyncStorage.getItem('organizationName');
+        const storedCompany = await AsyncStorage.getItem('companyName');
+        if (storedUser) {
+          try {
+            const parsed = JSON.parse(storedUser);
+            if (parsed?.name) setStoredName(parsed.name);
+            if (parsed?.organizationName) setStoredName(parsed.organizationName);
+            if (parsed?.companyName) setStoredName(parsed.companyName);
+            if (parsed?.role) setStoredRole(parsed.role);
+          } catch {
+            setStoredName(storedUser);
+          }
+        } else if (storedOrg) {
+          setStoredName(storedOrg);
+        } else if (storedCompany) {
+          setStoredName(storedCompany);
+        }
+      } catch (err) {}
+    };
+    loadStoredUser();
+  }, []);
+
+  // Dynamic User & Organization Profile Data
+  const rawUser = profileResponse?.data?.user || (profileResponse?.data as any)?.organization;
+  const displayName =
+    rawUser?.name ||
+    rawUser?.organizationName ||
+    rawUser?.companyName ||
+    (profileResponse?.data as any)?.name ||
+    (profileResponse?.data as any)?.companyName ||
+    storedName ||
+    'Organization User';
+
+  const userRole =
+    rawUser?.role ||
+    storedRole ||
+    (displayName !== 'Organization User' ? `${displayName} • Active Session` : 'HRMS Organization Portal');
+
+  const userInitials = displayName
+    ? displayName
+        .trim()
         .split(' ')
-        .map(n => n[0])
+        .filter(Boolean)
+        .map((n: string) => n[0])
         .join('')
         .substring(0, 2)
         .toUpperCase()
-    : 'JD';
+    : 'OU';
 
   const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   const dateFormatted = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -203,7 +246,7 @@ export const DashboardScreen: React.FC = () => {
 
           <View style={styles.profileTextContainer}>
             <Text style={[styles.greetingLabel, { color: isDark ? '#94a3b8' : '#475569' }]}>Good Morning,</Text>
-            <Text style={[styles.userNameText, { color: isDark ? '#ffffff' : '#0f172a' }]}>{greetingName}! 👋</Text>
+            <Text style={[styles.userNameText, { color: isDark ? '#ffffff' : '#0f172a' }]}>{displayName}! 👋</Text>
             <Text style={[styles.userRoleText, { color: isDark ? '#cbd5e1' : '#64748b' }]}>{userRole}</Text>
           </View>
 

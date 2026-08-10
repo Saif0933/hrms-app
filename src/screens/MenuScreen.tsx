@@ -24,7 +24,7 @@ import { RootStackParamList } from '../navigation/stack.tsx';
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Menu'>;
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SIDEBAR_WIDTH = Math.min(SCREEN_WIDTH * 0.84, 340);
+const SIDEBAR_WIDTH = Math.min(SCREEN_WIDTH * 0.86, 350);
 
 interface SubMenuItem {
   id: string;
@@ -38,6 +38,56 @@ interface MenuItem {
   subItems?: SubMenuItem[];
 }
 
+// Color palette config per module to match the target UI design
+const getItemColorConfig = (id: string, isDark: boolean) => {
+  switch (id) {
+    case 'employees':
+    case 'organization':
+      return {
+        iconColor: '#4F46E5',
+        bgExpanded: isDark ? '#1E1B4B' : '#EEF2FF',
+        activeSubBg: isDark ? '#312E81' : '#E0E7FF',
+      };
+    case 'attendance':
+      return {
+        iconColor: '#10B981',
+        bgExpanded: isDark ? '#064E3B' : '#ECFDF5',
+        activeSubBg: isDark ? '#065F46' : '#D1FAE5',
+      };
+    case 'leave':
+      return {
+        iconColor: '#F59E0B',
+        bgExpanded: isDark ? '#451A03' : '#FFFBEB',
+        activeSubBg: isDark ? '#78350F' : '#FEF3C7',
+      };
+    case 'payroll':
+      return {
+        iconColor: '#0D9488',
+        bgExpanded: isDark ? '#134E4A' : '#F0FDFA',
+        activeSubBg: isDark ? '#115E59' : '#E6FFFA',
+      };
+    case 'performance':
+      return {
+        iconColor: '#3B82F6',
+        bgExpanded: isDark ? '#1E3A8A' : '#EFF6FF',
+        activeSubBg: isDark ? '#1E40AF' : '#DBEAFE',
+      };
+    case 'engagement':
+    case 'reports':
+      return {
+        iconColor: '#EC4899',
+        bgExpanded: isDark ? '#831843' : '#FDF2F8',
+        activeSubBg: isDark ? '#9D174D' : '#FCE7F3',
+      };
+    default:
+      return {
+        iconColor: '#64748B',
+        bgExpanded: isDark ? '#1E293B' : '#F8FAFC',
+        activeSubBg: isDark ? '#334155' : '#E2E8F0',
+      };
+  }
+};
+
 export const MenuScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark, toggleTheme } = useTheme();
@@ -45,6 +95,7 @@ export const MenuScreen: React.FC = () => {
   const { data: profileResponse } = useProfile();
 
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [selectedSubKey, setSelectedSubKey] = useState<string | null>('payroll_payslips');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Animated values for sidebar sliding and backdrop fade
@@ -65,23 +116,21 @@ export const MenuScreen: React.FC = () => {
     : 'JD';
 
   useEffect(() => {
-    // Fast hardware-accelerated slide in from left & fade in backdrop overlay
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 200,
+        duration: 220,
         easing: Easing.out(Easing.poly(4)),
         useNativeDriver: true,
       }),
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 200,
+        duration: 220,
         easing: Easing.out(Easing.poly(4)),
         useNativeDriver: true,
       }),
     ]).start();
 
-    // Android hardware back button handler
     const onBackPress = () => {
       handleClose();
       return true;
@@ -98,13 +147,13 @@ export const MenuScreen: React.FC = () => {
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: -SIDEBAR_WIDTH,
-        duration: 150,
+        duration: 180,
         easing: Easing.in(Easing.poly(3)),
         useNativeDriver: true,
       }),
       Animated.timing(fadeAnim, {
         toValue: 0,
-        duration: 150,
+        duration: 180,
         easing: Easing.in(Easing.poly(3)),
         useNativeDriver: true,
       }),
@@ -133,15 +182,14 @@ export const MenuScreen: React.FC = () => {
   };
 
   const menuItems: MenuItem[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
     {
       id: 'employees',
-      label: 'Employee Center',
+      label: 'Employee Management',
       icon: '👥',
       subItems: [
         { id: 'directory', label: 'Employee Directory' },
         { id: 'master', label: 'Employee Master' },
-        // { id: 'idcard', label: 'ID Card Generator' },
         { id: 'orgchart', label: 'Organization Chart' },
         { id: 'exit', label: 'Exit & Settlement' },
         { id: 'resignation', label: 'Resignation Archive' },
@@ -154,7 +202,7 @@ export const MenuScreen: React.FC = () => {
     {
       id: 'attendance',
       label: 'Attendance',
-      icon: '⏰',
+      icon: '📅',
       subItems: [
         { id: 'punch', label: 'GPS / Selfie Punch' },
         { id: 'roster', label: 'Shift & Roster' },
@@ -167,7 +215,7 @@ export const MenuScreen: React.FC = () => {
     {
       id: 'leave',
       label: 'Leave Management',
-      icon: '📅',
+      icon: '✈️',
       subItems: [
         { id: 'apply', label: 'Apply Leave' },
         { id: 'approvals', label: 'Leave Approvals' },
@@ -178,21 +226,21 @@ export const MenuScreen: React.FC = () => {
     },
     {
       id: 'payroll',
-      label: 'Payroll Processing',
+      label: 'Payroll',
       icon: '💳',
       subItems: [
-        { id: 'process', label: 'Salary Processing' },
-        { id: 'revisions', label: 'Salary Structure & Revisions' },
-        { id: 'loans', label: 'Loans & Advances' },
+        { id: 'payslips', label: 'Payslips' },
+        { id: 'process', label: 'Salary Structure' },
+        { id: 'revisions', label: 'Allowances' },
+        { id: 'loans', label: 'Deductions' },
         { id: 'investment', label: 'Investment Declarations' },
-        { id: 'payslips', label: 'Payslip Templates' },
         { id: 'reports', label: 'Payroll Reports & ECR' },
       ],
     },
     {
       id: 'performance',
-      label: 'Performance (PMS)',
-      icon: '🏆',
+      label: 'Performance',
+      icon: '⭐',
       subItems: [
         { id: 'goals', label: 'KRA & Goal Setting' },
         { id: 'feedback', label: '360° Feedback' },
@@ -201,8 +249,8 @@ export const MenuScreen: React.FC = () => {
     },
     {
       id: 'engagement',
-      label: 'Engagement & Surveys',
-      icon: '❤️',
+      label: 'Reports',
+      icon: '📊',
       subItems: [
         { id: 'feed', label: 'Social Feed & Posts' },
         { id: 'mood', label: 'Mood Analysis' },
@@ -212,7 +260,7 @@ export const MenuScreen: React.FC = () => {
     {
       id: 'claims',
       label: 'Travel & Claims',
-      icon: '✈️',
+      icon: '🛫',
       subItems: [
         { id: 'apply-claim', label: 'New Travel Request' },
         { id: 'my-claims', label: 'Expense Reimbursements' },
@@ -280,8 +328,8 @@ export const MenuScreen: React.FC = () => {
     },
     {
       id: 'subscription',
-      label: 'Subscription & Plans',
-      icon: '🌟',
+      label: 'Settings',
+      icon: '⚙️',
       subItems: [
         { id: 'plans', label: 'Plans & Pricing' },
         { id: 'compare', label: 'Feature Comparison Matrix' },
@@ -291,7 +339,7 @@ export const MenuScreen: React.FC = () => {
   ];
 
   const toggleDropdown = (id: string) => {
-    setOpenDropdown(openDropdown === id ? null : id);
+    setOpenDropdown(prev => (prev === id ? null : id));
   };
 
   const navigateToRoute = (itemId: string, subItemId?: string) => {
@@ -308,9 +356,6 @@ export const MenuScreen: React.FC = () => {
         case 'master':
           navigation.navigate('EmployeeMaster', {});
           break;
-        // case 'idcard':
-        //   navigation.navigate('IdCardGenerator', {});
-        //   break;
         case 'orgchart':
           navigation.navigate('OrgChart');
           break;
@@ -582,6 +627,9 @@ export const MenuScreen: React.FC = () => {
   };
 
   const handleSelectMenuItem = (itemId: string, subItemId?: string) => {
+    if (subItemId) {
+      setSelectedSubKey(`${itemId}_${subItemId}`);
+    }
     handleClose(() => {
       navigateToRoute(itemId, subItemId);
     });
@@ -617,113 +665,83 @@ export const MenuScreen: React.FC = () => {
           styles.sidebarContainer,
           {
             width: SIDEBAR_WIDTH,
-            backgroundColor: colors.background,
-            borderRightColor: colors.cardBorder,
+            backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+            borderRightColor: isDark ? '#1E293B' : '#E2E8F0',
             transform: [{ translateX: slideAnim }],
           },
         ]}
       >
         <SafeAreaView style={styles.safeArea}>
-          {/* Drawer Profile Header */}
-          <View
-            style={[
-              styles.sidebarHeader,
-              {
-                backgroundColor: isDark ? '#1e293b' : '#f0f7ff',
-                borderBottomColor: colors.cardBorder,
-              },
-            ]}
-          >
-            {/* Sheet Drag Handle Indicator */}
-            <View style={styles.sheetHandleContainer}>
-              <View style={[styles.sheetHandleBar, { backgroundColor: isDark ? '#475569' : '#cbd5e1' }]} />
+          {/* Header section matching exact reference image */}
+          <View style={styles.brandHeaderContainer}>
+            <View style={styles.brandLeftRow}>
+              <View style={[styles.brandLogoBox, { backgroundColor: isDark ? '#312E81' : '#EEF2FF' }]}>
+                <Text style={styles.brandLogoIcon}>👥</Text>
+              </View>
+              <View style={styles.brandTextContainer}>
+                <Text style={[styles.brandTitle, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>HRMS</Text>
+                <Text style={[styles.brandSubtitle, { color: isDark ? '#94A3B8' : '#64748B' }]} numberOfLines={2}>
+                  Human Resource Management System
+                </Text>
+              </View>
             </View>
 
-            <View style={styles.profileRow}>
-              <View style={[styles.avatarCircle, { backgroundColor: colors.accent || '#2563eb' }]}>
-                <Text style={styles.avatarText}>{userInitials}</Text>
-                <View style={[styles.onlineBadge, { borderColor: isDark ? '#1e293b' : '#f0f7ff' }]} />
-              </View>
-
-              <View style={styles.profileInfo}>
-                <Text style={[styles.profileName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>
-                  {userName}
-                </Text>
-                <Text style={[styles.profileRole, { color: isDark ? '#94a3b8' : '#64748b' }]} numberOfLines={1}>
-                  {userRole}
-                </Text>
-                <View style={styles.statusPill}>
-                  <View style={styles.statusDot} />
-                  <Text style={styles.statusPillText}>Active • HRMS Portal</Text>
-                </View>
-              </View>
-
-              {/* Action Buttons: Theme Switcher & Close Drawer */}
-              <View style={styles.headerActionBtns}>
-                <TouchableOpacity
-                  style={[styles.iconBtn, { backgroundColor: isDark ? '#334155' : '#ffffff', borderColor: colors.cardBorder }]}
-                  onPress={toggleTheme}
-                  activeOpacity={0.8}
-                >
-                  <Text style={{ fontSize: 13 }}>{isDark ? '☀️' : '🌙'}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.iconBtn, { backgroundColor: isDark ? '#334155' : '#ffffff', borderColor: colors.cardBorder }]}
-                  onPress={() => handleClose()}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.closeIconText, { color: isDark ? '#f8fafc' : '#0f172a' }]}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <TouchableOpacity
+              style={styles.collapseBtn}
+              onPress={() => handleClose()}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.collapseIconText, { color: isDark ? '#94A3B8' : '#94A3B8' }]}>«</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Module Search Section */}
-          <View style={[styles.searchSection, { backgroundColor: colors.background, borderBottomColor: colors.divider }]}>
-            <View style={[styles.searchBox, { backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderColor: colors.cardBorder }]}>
+          {/* Quick Search Bar & User / Theme Bar */}
+          <View style={[styles.userControlsBar, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+            <View style={[styles.searchBox, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
               <Text style={styles.searchIcon}>🔍</Text>
               <TextInput
-                style={[styles.searchInput, { color: colors.inputText }]}
-                placeholder="Search modules..."
-                placeholderTextColor={colors.inputPlaceholder}
+                style={[styles.searchInput, { color: isDark ? '#F8FAFC' : '#0F172A' }]}
+                placeholder="Quick search..."
+                placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Text style={{ color: colors.textMuted, fontSize: 14, paddingHorizontal: 6 }}>✕</Text>
+                  <Text style={{ color: '#94A3B8', fontSize: 13, paddingHorizontal: 4 }}>✕</Text>
                 </TouchableOpacity>
               )}
             </View>
+
+            <TouchableOpacity
+              style={[styles.themeBtn, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}
+              onPress={toggleTheme}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 13 }}>{isDark ? '☀️' : '🌙'}</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Accordion Categories List */}
+          {/* Accordion Categories List with exact Tree Line UI */}
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             {filteredMenuItems.map(item => {
               const isOpen = openDropdown === item.id || searchQuery.trim().length > 0;
               const hasSubItems = item.subItems && item.subItems.length > 0;
-              const subCount = item.subItems ? item.subItems.length : 0;
+              const colorConfig = getItemColorConfig(item.id, isDark);
 
               return (
-                <View
-                  key={item.id}
-                  style={[
-                    styles.menuCard,
-                    {
-                      backgroundColor: isOpen
-                        ? (isDark ? '#1e293b' : '#f0fdf4')
-                        : colors.cardBackground,
-                      borderColor: isOpen
-                        ? (isDark ? '#3b82f640' : '#bbf7d0')
-                        : colors.cardBorder,
-                    },
-                  ]}
-                >
+                <View key={item.id} style={styles.menuItemWrapper}>
+                  {/* Top Level Menu Button */}
                   <TouchableOpacity
-                    style={styles.menuHeaderButton}
+                    style={[
+                      styles.menuHeaderButton,
+                      isOpen && {
+                        backgroundColor: colorConfig.bgExpanded,
+                        borderRadius: 12,
+                      },
+                    ]}
                     onPress={() => {
-                      if (hasSubItems && !searchQuery.trim()) {
+                      if (hasSubItems) {
                         toggleDropdown(item.id);
                       } else {
                         handleSelectMenuItem(item.id);
@@ -732,38 +750,90 @@ export const MenuScreen: React.FC = () => {
                     activeOpacity={0.7}
                   >
                     <View style={styles.menuHeaderLeft}>
-                      <View style={[styles.menuIconBox, { backgroundColor: isDark ? '#334155' : '#e0f2fe' }]}>
-                        <Text style={styles.menuIcon}>{item.icon}</Text>
-                      </View>
-                      <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>{item.label}</Text>
+                      <Text style={[styles.menuIcon, { color: isOpen ? colorConfig.iconColor : colorConfig.iconColor }]}>
+                        {item.icon}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.menuLabel,
+                          {
+                            color: isOpen
+                              ? colorConfig.iconColor
+                              : (isDark ? '#E2E8F0' : '#1E293B'),
+                            fontWeight: isOpen ? '700' : '600',
+                          },
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
                     </View>
 
                     {hasSubItems && (
-                      <View style={styles.menuHeaderRight}>
-                        <View style={[styles.badgePill, { backgroundColor: isDark ? '#334155' : '#e2e8f0' }]}>
-                          <Text style={[styles.badgeText, { color: isDark ? '#cbd5e1' : '#475569' }]}>{subCount}</Text>
-                        </View>
-                        <Text style={[styles.dropdownArrow, { color: colors.textSecondary }]}>
-                          {isOpen ? '▲' : '▼'}
-                        </Text>
-                      </View>
+                      <Text
+                        style={[
+                          styles.dropdownArrow,
+                          { color: isOpen ? colorConfig.iconColor : '#94A3B8' },
+                        ]}
+                      >
+                        {isOpen ? '∨' : '›'}
+                      </Text>
                     )}
                   </TouchableOpacity>
 
-                  {/* Sub-menu accordion */}
+                  {/* Sub-menu Accordion with Vertical Left Accent Tree Line */}
                   {hasSubItems && isOpen && (
-                    <View style={[styles.subMenuContainer, { backgroundColor: isDark ? '#0f172a80' : '#f8fafc', borderTopColor: colors.divider }]}>
-                      {item.subItems?.map(sub => (
-                        <TouchableOpacity
-                          key={sub.id}
-                          style={styles.subMenuItemButton}
-                          onPress={() => handleSelectMenuItem(item.id, sub.id)}
-                          activeOpacity={0.7}
-                        >
-                          <View style={[styles.subMenuDot, { backgroundColor: colors.accent || '#2563eb' }]} />
-                          <Text style={[styles.subMenuLabel, { color: colors.textPrimary }]}>{sub.label}</Text>
-                        </TouchableOpacity>
-                      ))}
+                    <View style={styles.subTreeContainer}>
+                      {/* Vertical Accent Tree Line */}
+                      <View
+                        style={[
+                          styles.verticalTreeLine,
+                          { backgroundColor: colorConfig.iconColor },
+                        ]}
+                      />
+
+                      <View style={styles.subItemsList}>
+                        {item.subItems?.map(sub => {
+                          const subKey = `${item.id}_${sub.id}`;
+                          const isSelected = selectedSubKey === subKey;
+
+                          return (
+                            <TouchableOpacity
+                              key={sub.id}
+                              style={[
+                                styles.subMenuItemButton,
+                                isSelected && {
+                                  backgroundColor: colorConfig.activeSubBg,
+                                  borderRadius: 8,
+                                },
+                              ]}
+                              onPress={() => handleSelectMenuItem(item.id, sub.id)}
+                              activeOpacity={0.7}
+                            >
+                              <Text
+                                style={[
+                                  styles.bulletDot,
+                                  { color: isSelected ? colorConfig.iconColor : '#94A3B8' },
+                                ]}
+                              >
+                                •
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.subMenuLabel,
+                                  {
+                                    color: isSelected
+                                      ? colorConfig.iconColor
+                                      : (isDark ? '#CBD5E1' : '#475569'),
+                                    fontWeight: isSelected ? '700' : '500',
+                                  },
+                                ]}
+                              >
+                                {sub.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
                     </View>
                   )}
                 </View>
@@ -775,8 +845,8 @@ export const MenuScreen: React.FC = () => {
               style={[
                 styles.logoutButton,
                 {
-                  backgroundColor: isDark ? '#450a0a40' : '#fef2f2',
-                  borderColor: isDark ? '#991b1b80' : '#fecaca',
+                  backgroundColor: isDark ? '#450a0a40' : '#FEF2F2',
+                  borderColor: isDark ? '#991b1b80' : '#FECACA',
                 },
               ]}
               onPress={handleLogout}
@@ -787,13 +857,13 @@ export const MenuScreen: React.FC = () => {
             </TouchableOpacity>
 
             {/* Footer info */}
-            <View style={[styles.footerContainer, { borderTopColor: colors.divider }]}>
-              <Text style={[styles.footerBrand, { color: colors.textSecondary }]}>Symbosys HRMS v4.2</Text>
-              <Text style={[styles.footerServer, { color: colors.textMuted }]}>Server: Cloud Secure Enterprise</Text>
-              <View style={styles.syncStatus}>
-                <View style={styles.syncDot} />
-                <Text style={styles.syncText}>Live Sync Active</Text>
-              </View>
+            <View style={[styles.footerContainer, { borderTopColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+              <Text style={[styles.footerBrand, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                Symbosys HRMS v4.2
+              </Text>
+              <Text style={[styles.footerServer, { color: isDark ? '#64748B' : '#94A3B8' }]}>
+                Server: Cloud Secure Enterprise
+              </Text>
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -809,273 +879,207 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
   sidebarContainer: {
     position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
-    borderTopRightRadius: 24,
-    borderBottomRightRadius: 24,
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 20,
     overflow: 'hidden',
-    elevation: 25,
+    elevation: 20,
     shadowColor: '#000000',
-    shadowOffset: { width: 10, height: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 24,
+    shadowOffset: { width: 8, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
     borderRightWidth: 1,
   },
   safeArea: {
     flex: 1,
   },
-  sidebarHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-  },
-  sheetHandleContainer: {
-    alignItems: 'center',
-    paddingVertical: 6,
-    marginBottom: 6,
-  },
-  sheetHandleBar: {
-    width: 38,
-    height: 4,
-    borderRadius: 2,
-  },
-  profileRow: {
+  /* Brand Header styling matching reference screenshot */
+  brandHeaderContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 16,
   },
-  avatarCircle: {
+  brandLeftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  brandLogoBox: {
     width: 46,
     height: 46,
-    borderRadius: 23,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
     marginRight: 12,
-    elevation: 2,
-    shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
   },
-  avatarText: {
-    color: '#ffffff',
-    fontSize: 17,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+  brandLogoIcon: {
+    fontSize: 22,
   },
-  onlineBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#22c55e',
-    borderWidth: 2.5,
-  },
-  profileInfo: {
+  brandTextContainer: {
     flex: 1,
-    marginRight: 6,
   },
-  profileName: {
-    fontSize: 15,
+  brandTitle: {
+    fontSize: 18,
     fontWeight: '700',
-    letterSpacing: 0.2,
+    letterSpacing: -0.2,
   },
-  profileRole: {
+  brandSubtitle: {
     fontSize: 11,
+    lineHeight: 14,
     marginTop: 2,
     fontWeight: '500',
   },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
+  collapseBtn: {
+    padding: 6,
+    marginLeft: 8,
   },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#22c55e',
-    marginRight: 5,
-  },
-  statusPillText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#22c55e',
-  },
-  headerActionBtns: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-  closeIconText: {
-    fontSize: 14,
+  collapseIconText: {
+    fontSize: 22,
     fontWeight: '700',
   },
-  searchSection: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  searchBox: {
+  /* User Controls & Search */
+  userControlsBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    gap: 8,
+  },
+  searchBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderWidth: 1,
   },
   searchIcon: {
-    fontSize: 14,
-    marginRight: 8,
+    fontSize: 13,
+    marginRight: 6,
   },
   searchInput: {
     flex: 1,
     fontSize: 13,
     paddingVertical: 0,
   },
+  themeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scrollContent: {
-    padding: 14,
+    paddingHorizontal: 14,
+    paddingTop: 14,
     paddingBottom: 36,
   },
-  menuCard: {
-    borderRadius: 14,
-    marginBottom: 10,
-    overflow: 'hidden',
-    borderWidth: 1,
+  menuItemWrapper: {
+    marginBottom: 4,
   },
   menuHeaderButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
   },
   menuHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  menuIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
   menuIcon: {
-    fontSize: 16,
+    fontSize: 18,
+    marginRight: 14,
+    width: 22,
+    textAlign: 'center',
   },
   menuLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    letterSpacing: 0.1,
-  },
-  menuHeaderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  badgePill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 15,
+    letterSpacing: -0.1,
   },
   dropdownArrow: {
-    fontSize: 10,
-    marginLeft: 2,
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 6,
   },
-  subMenuContainer: {
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
+  /* Sub-menu Tree Accent Line Layout */
+  subTreeContainer: {
+    position: 'relative',
+    marginLeft: 26,
+    paddingTop: 2,
+    paddingBottom: 6,
+  },
+  verticalTreeLine: {
+    position: 'absolute',
+    left: 4,
+    top: 6,
+    bottom: 10,
+    width: 2,
+    borderRadius: 1,
+  },
+  subItemsList: {
+    marginLeft: 14,
   },
   subMenuItemButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 9,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginVertical: 1,
   },
-  subMenuDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 12,
+  bulletDot: {
+    fontSize: 16,
+    marginRight: 10,
+    lineHeight: 18,
   },
   subMenuLabel: {
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: 13.5,
+    letterSpacing: -0.1,
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 13,
-    marginTop: 10,
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginTop: 18,
     marginBottom: 10,
   },
   logoutIcon: {
-    fontSize: 16,
+    fontSize: 15,
     marginRight: 8,
   },
   logoutText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#ef4444',
+    color: '#EF4444',
   },
   footerContainer: {
-    marginTop: 14,
+    marginTop: 10,
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderTopWidth: 1,
   },
   footerBrand: {
     fontSize: 11,
     fontWeight: '600',
-    letterSpacing: 0.3,
   },
   footerServer: {
     fontSize: 10,
     marginTop: 2,
-  },
-  syncStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-  },
-  syncDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#22c55e',
-    marginRight: 6,
-  },
-  syncText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#22c55e',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
 });
