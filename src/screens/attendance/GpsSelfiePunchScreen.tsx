@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -353,29 +352,7 @@ export const GpsSelfiePunchScreen: React.FC = () => {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
 
-      {/* Top Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Image
-            source={{
-              uri: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&h=120&fit=crop&crop=faces',
-            }}
-            style={styles.avatar}
-          />
-          <Text style={styles.headerTitle}>Attendance</Text>
-        </View>
-        <TouchableOpacity
-          onPress={handleRefresh}
-          activeOpacity={0.7}
-          style={styles.refreshBtn}
-        >
-          {isRefetching ? (
-            <ActivityIndicator size="small" color="#064e3b" />
-          ) : (
-            <MaterialCommunityIcons name="refresh" size={24} color="#064e3b" />
-          )}
-        </TouchableOpacity>
-      </View>
+
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Greeting & Date Info Card */}
