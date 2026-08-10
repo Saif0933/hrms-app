@@ -111,7 +111,6 @@ const saveStoredPunches = async (punches: PunchLog[]) => {
 export const usePunches = (employeeId: string) => {
   return useQuery<BaseResponse<PunchLog[]>, Error>({
     queryKey: ['attendancePunches', employeeId],
-    refetchInterval: 3000,
     queryFn: async () => {
       let apiPunches: PunchLog[] = [];
       try {

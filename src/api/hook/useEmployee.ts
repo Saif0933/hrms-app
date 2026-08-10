@@ -162,7 +162,6 @@ let localEmployees: Employee[] = [];
 export const useEmployees = (filters?: EmployeeFilters) => {
   return useQuery<BaseResponse<Employee[]>, Error>({
     queryKey: ['employees', filters],
-    refetchInterval: 3000,
     queryFn: async () => {
       try {
         const response = await apiClient.get<any>('/employees', {
@@ -224,7 +223,6 @@ export const useEmployees = (filters?: EmployeeFilters) => {
 export const useEmployeeById = (id?: string) => {
   return useQuery<BaseResponse<Employee | null>, Error>({
     queryKey: ['employee', id],
-    refetchInterval: 3000,
     queryFn: async () => {
       if (!id) throw new Error('Employee ID is required');
       try {

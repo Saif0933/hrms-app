@@ -239,6 +239,26 @@ export const GpsSelfiePunchScreen: React.FC = () => {
 
   // Shift & Geofence Validation Function before Punching IN / OUT
   const validateGeofenceAndShift = (): boolean => {
+    // 0. ALREADY PUNCHED IN / OUT VALIDATION
+    const lastPunchToday = todayPunches.length > 0 ? todayPunches[todayPunches.length - 1] : null;
+    const lastType = (lastPunchToday?.type || '').toLowerCase();
+
+    if (punchType === 'In' && lastType.includes('in')) {
+      Alert.alert(
+        'Punch Restriction ⚠️',
+        'You are already punched in!'
+      );
+      return false;
+    }
+
+    if (punchType === 'Out' && (!lastPunchToday || lastType.includes('out'))) {
+      Alert.alert(
+        'Punch Restriction ⚠️',
+        'You are already punched out!'
+      );
+      return false;
+    }
+
     // 1. SHIFT VALIDATION
     if (assignedShiftDetail.code === 'OFF') {
       Alert.alert(
