@@ -546,9 +546,9 @@ export const SalaryProcessingScreen: React.FC = () => {
       }
 
       // Calculate dynamic salary components for employee
-      const basic = emp.basic || 15000;
+      const basic = emp.basic || 50000;
       const hra = emp.hra || Math.round(basic * 0.4);
-      const allowance = emp.allowance || Math.round(basic * 0.2);
+      const allowance = emp.allowance || Math.round(basic * 0.3);
       const gross = basic + hra + allowance;
       const pf = Math.min(1800, Math.round(basic * 0.12));
       const pt = 200;

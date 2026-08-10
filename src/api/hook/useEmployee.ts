@@ -516,20 +516,7 @@ export const useEmployeeFamily = (id?: string) => {
       return {
         success: true,
         message: 'Family details loaded',
-        data: [
-          {
-            id: 'fam-1',
-            employeeId: id,
-            name: 'swedr',
-            relation: 'Father',
-            contact: '+91 98000 11223',
-            bloodGroup: 'AB+',
-            isNominee: true,
-            isInsuranceCovered: true,
-            createdAt: '2026-07-28T00:00:00.000Z',
-            updatedAt: '2026-07-28T00:00:00.000Z',
-          },
-        ],
+        data: [],
       };
     },
     enabled: !!id,

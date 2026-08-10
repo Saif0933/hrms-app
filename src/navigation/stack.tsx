@@ -256,7 +256,7 @@ export const AppStackNavigator = () => {
         options={{
           headerShown: false,
           presentation: 'transparentModal',
-          animation: 'fade',
+          animation: 'none',
           contentStyle: { backgroundColor: 'transparent' },
         }}
       />

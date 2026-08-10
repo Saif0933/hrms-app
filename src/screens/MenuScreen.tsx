@@ -6,6 +6,7 @@ import {
   Animated,
   BackHandler,
   Dimensions,
+  Easing,
   Pressable,
   ScrollView,
   StatusBar,
@@ -64,16 +65,18 @@ export const MenuScreen: React.FC = () => {
     : 'JD';
 
   useEffect(() => {
-    // Slide in from left & fade in backdrop overlay
+    // Fast hardware-accelerated slide in from left & fade in backdrop overlay
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 250,
+        duration: 200,
+        easing: Easing.out(Easing.poly(4)),
         useNativeDriver: true,
       }),
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 250,
+        duration: 200,
+        easing: Easing.out(Easing.poly(4)),
         useNativeDriver: true,
       }),
     ]).start();
@@ -95,12 +98,14 @@ export const MenuScreen: React.FC = () => {
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: -SIDEBAR_WIDTH,
-        duration: 200,
+        duration: 150,
+        easing: Easing.in(Easing.poly(3)),
         useNativeDriver: true,
       }),
       Animated.timing(fadeAnim, {
         toValue: 0,
-        duration: 200,
+        duration: 150,
+        easing: Easing.in(Easing.poly(3)),
         useNativeDriver: true,
       }),
     ]).start(() => {

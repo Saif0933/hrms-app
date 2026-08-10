@@ -57,9 +57,9 @@ export const SalaryRevisionsScreen: React.FC = () => {
   React.useEffect(() => {
     if (apiEmployees.length > 0) {
       const mapped = apiEmployees.map(emp => {
-        const basic = emp.basic || 15000;
+        const basic = emp.basic || 50000;
         const hra = emp.hra || Math.round(basic * 0.4);
-        const special = emp.allowance || Math.round(basic * 0.2);
+        const special = emp.allowance || Math.round(basic * 0.3);
         const monthlyGross = basic + hra + special;
         const annualCtc = monthlyGross * 12;
         const epf = Math.min(1800, Math.round(basic * 0.12));
