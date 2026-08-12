@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -87,16 +88,22 @@ export const DashboardScreen: React.FC = () => {
     storedRole ||
     (displayName !== 'Organization User' ? `${displayName} • Active Session` : 'HRMS Organization Portal');
 
-  const userInitials = displayName
-    ? displayName
-        .trim()
-        .split(' ')
-        .filter(Boolean)
-        .map((n: string) => n[0])
-        .join('')
-        .substring(0, 2)
-        .toUpperCase()
-    : 'OU';
+  const profilePicUrl =
+    rawUser?.profilePic ||
+    rawUser?.profileImage ||
+    rawUser?.avatarUrl ||
+    rawUser?.avatar ||
+    rawUser?.logoUrl ||
+    rawUser?.image ||
+    (profileResponse?.data as any)?.profilePic ||
+    (profileResponse?.data as any)?.profileImage ||
+    (profileResponse?.data as any)?.avatarUrl ||
+    (profileResponse?.data as any)?.avatar ||
+    null;
+
+  const firstLetter = displayName && displayName.trim().length > 0 ? displayName.trim().charAt(0).toUpperCase() : 'U';
+
+  const userInitials = firstLetter;
 
   const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   const dateFormatted = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -239,7 +246,11 @@ export const DashboardScreen: React.FC = () => {
         <View style={[styles.profileBanner, { backgroundColor: isDark ? '#1e293b' : '#e0f2fe' }]}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>{userInitials}</Text>
+              {profilePicUrl ? (
+                <Image source={{ uri: profilePicUrl }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>{firstLetter}</Text>
+              )}
             </View>
             <View style={styles.onlineDot} />
           </View>
@@ -795,10 +806,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
   },
   avatarText: {
     color: '#ffffff',
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '800',
   },
   onlineDot: {

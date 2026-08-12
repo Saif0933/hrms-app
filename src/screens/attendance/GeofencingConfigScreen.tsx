@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -264,14 +264,22 @@ const MovableTileMap: React.FC<TileMapProps> = ({
   const [mapZoom, setMapZoom] = useState(zoom);
 
   const mapZoomRef = useRef(zoom);
-  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const mapCenterRef = useRef({ lat: centerLat, lng: centerLng });
+  const isInternalDragRef = useRef(false);
+  const pendingResetRef = useRef(false);
+  const mapPan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const initialPinchDistRef = useRef<number>(0);
 
-  // Sync external location changes (GPS button, search result select)
+  // Sync external location changes (GPS button, search result select ONLY)
   useEffect(() => {
+    if (isInternalDragRef.current) {
+      isInternalDragRef.current = false;
+      return;
+    }
     setMapCenter({ lat: centerLat, lng: centerLng });
-    pan.setOffset({ x: 0, y: 0 });
-    pan.setValue({ x: 0, y: 0 });
+    mapCenterRef.current = { lat: centerLat, lng: centerLng };
+    mapPan.setOffset({ x: 0, y: 0 });
+    mapPan.setValue({ x: 0, y: 0 });
   }, [centerLat, centerLng]);
 
   useEffect(() => {
@@ -279,7 +287,19 @@ const MovableTileMap: React.FC<TileMapProps> = ({
     mapZoomRef.current = zoom;
   }, [zoom]);
 
-  // Calculate Map Tiles Grid (7x7 grid to prevent white tile flashing)
+  // KEY FIX: Reset Animated pan value AFTER React has committed the new tile positions.
+  // useLayoutEffect runs synchronously after React commits but BEFORE the frame is painted.
+  // This ensures the tiles are repositioned and the Animated.View transform is reset
+  // in the SAME visual frame — eliminating the 1-frame snap-back flash.
+  useLayoutEffect(() => {
+    if (pendingResetRef.current) {
+      pendingResetRef.current = false;
+      mapPan.setOffset({ x: 0, y: 0 });
+      mapPan.setValue({ x: 0, y: 0 });
+    }
+  });
+
+  // Calculate Map Tiles Grid (7x7 grid)
   const centerPixel = latLngToPixel(mapCenter.lat, mapCenter.lng, mapZoom);
   const centerTileX = Math.floor(centerPixel.px / 256);
   const centerTileY = Math.floor(centerPixel.py / 256);
@@ -312,17 +332,20 @@ const MovableTileMap: React.FC<TileMapProps> = ({
     return Math.sqrt(dx * dx + dy * dy);
   };
 
-  // PanResponder Gesture Handling with Two-Finger Pinch-to-Zoom & Zero-Snap-Back
+  // PanResponder Gesture Handling (Fixed Center Pointer Pin, Movable Map Canvas)
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_evt, gs) =>
+        Math.abs(gs.dx) > 3 || Math.abs(gs.dy) > 3,
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
       onPanResponderGrant: (evt) => {
         if (evt.nativeEvent.touches && evt.nativeEvent.touches.length === 2) {
           initialPinchDistRef.current = getTouchDistance(evt.nativeEvent.touches);
         } else {
           initialPinchDistRef.current = 0;
-          pan.extractOffset();
+          mapPan.extractOffset();
         }
       },
       onPanResponderMove: (evt, gestureState) => {
@@ -356,25 +379,56 @@ const MovableTileMap: React.FC<TileMapProps> = ({
           }
         } else {
           initialPinchDistRef.current = 0;
-          Animated.event([null, { dx: pan.x, dy: pan.y }], {
-            useNativeDriver: false,
-          })(evt, gestureState);
+          // FIX: Direct setValue is faster than Animated.event wrapper
+          mapPan.x.setValue(gestureState.dx);
+          mapPan.y.setValue(gestureState.dy);
         }
       },
-      onPanResponderRelease: (_, gestureState) => {
+      onPanResponderRelease: (evt, gestureState) => {
         initialPinchDistRef.current = 0;
-        pan.flattenOffset();
-        const totalDx = (pan.x as any)._value || 0;
-        const totalDy = (pan.y as any)._value || 0;
 
-        const newPx = centerPixel.px - totalDx;
-        const newPy = centerPixel.py - totalDy;
+        // Tap anywhere on map
+        if (Math.abs(gestureState.dx) < 5 && Math.abs(gestureState.dy) < 5) {
+          const touchX = evt.nativeEvent.locationX;
+          const touchY = evt.nativeEvent.locationY;
+          if (touchX !== undefined && touchY !== undefined && touchX > 0 && touchY > 0) {
+            const tapDx = touchX - SCREEN_WIDTH / 2;
+            const tapDy = touchY - containerHeight / 2;
+
+            mapPan.flattenOffset();
+            const cPixel = latLngToPixel(mapCenterRef.current.lat, mapCenterRef.current.lng, mapZoomRef.current);
+            const tappedPx = cPixel.px + tapDx;
+            const tappedPy = cPixel.py + tapDy;
+            const tappedLatLng = pixelToLatLng(tappedPx, tappedPy, mapZoomRef.current);
+
+            isInternalDragRef.current = true;
+            mapCenterRef.current = tappedLatLng;
+            pendingResetRef.current = true;
+            setMapCenter(tappedLatLng);
+            // Don't reset mapPan here — useLayoutEffect will do it AFTER tiles re-render
+
+            if (onLocationChange) {
+              onLocationChange(tappedLatLng.lat, tappedLatLng.lng);
+            }
+            return;
+          }
+        }
+
+        // Drag release — commit the pan displacement as new center
+        mapPan.flattenOffset();
+        const totalDx = (mapPan.x as any)._value || 0;
+        const totalDy = (mapPan.y as any)._value || 0;
+
+        const cPixel = latLngToPixel(mapCenterRef.current.lat, mapCenterRef.current.lng, mapZoomRef.current);
+        const newPx = cPixel.px - totalDx;
+        const newPy = cPixel.py - totalDy;
         const newLatLng = pixelToLatLng(newPx, newPy, mapZoomRef.current);
 
-        // Update internal map center and reset pan offset synchronously (No Snap-Back!)
+        isInternalDragRef.current = true;
+        mapCenterRef.current = newLatLng;
+        pendingResetRef.current = true;
         setMapCenter(newLatLng);
-        pan.setOffset({ x: 0, y: 0 });
-        pan.setValue({ x: 0, y: 0 });
+        // Don't reset mapPan here — useLayoutEffect will do it AFTER tiles re-render
 
         if (onLocationChange) {
           onLocationChange(newLatLng.lat, newLatLng.lng);
@@ -389,11 +443,12 @@ const MovableTileMap: React.FC<TileMapProps> = ({
 
   return (
     <View style={[styles.tileMapContainer, { height: containerHeight }]} {...panResponder.panHandlers}>
+      {/* Movable Map Canvas */}
       <Animated.View
         style={[
           styles.tileMapCanvas,
           {
-            transform: [{ translateX: pan.x }, { translateY: pan.y }],
+            transform: [{ translateX: mapPan.x }, { translateY: mapPan.y }],
           },
         ]}
       >
@@ -406,7 +461,7 @@ const MovableTileMap: React.FC<TileMapProps> = ({
         ))}
       </Animated.View>
 
-      {/* Center Marker Pin & Geofence Radius Circle Overlay */}
+      {/* FIXED Center Marker Pin & Geofence Radius Circle Overlay */}
       {showPin && (
         <View style={styles.centerPinOverlay} pointerEvents="none">
           <View
@@ -550,11 +605,12 @@ export const GeofencingConfigScreen: React.FC = () => {
   }, []);
 
   // Map Drag/Move Callback
-  const handleMapLocationChange = async (newLat: number, newLng: number) => {
+  const handleMapLocationChange = (newLat: number, newLng: number) => {
     setSelectedCoords({ lat: newLat, lng: newLng });
-    const realAddr = await fetchAddressFromCoords(newLat, newLng);
-    setAddressName(realAddr);
-    setCurrentFetchedAddress(realAddr);
+    fetchAddressFromCoords(newLat, newLng).then(realAddr => {
+      setAddressName(realAddr);
+      setCurrentFetchedAddress(realAddr);
+    });
   };
 
   // Handlers
