@@ -40,6 +40,7 @@ export const MoodAnalysisScreen: React.FC = () => {
   const employees = empRes?.data || [];
 
   // Auto-sync selected employee from organization employees list
+  
   React.useEffect(() => {
     if (employees.length > 0 && !selectedEmpId) {
       setSelectedEmpId(employees[0].id);
