@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Platform,
   SafeAreaView,
@@ -17,6 +18,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { launchImageLibrary } from 'react-native-image-picker';
+import api from '../../api/apiClient';
 // @ts-ignore
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {
@@ -135,6 +138,19 @@ export const EmployeeMasterScreen: React.FC = () => {
   const [isNominee, setIsNominee] = useState(true);
   const [isInsuranceCovered, setIsInsuranceCovered] = useState(true);
 
+  // Local draft state for family members during creation mode
+  interface LocalFamilyMember {
+    id: string;
+    name: string;
+    relation: string;
+    contact?: string | null;
+    dob?: string | null;
+    isNominee: boolean;
+    isInsuranceCovered: boolean;
+  }
+  const [localFamilyMembers, setLocalFamilyMembers] = useState<LocalFamilyMember[]>([]);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
   // TanStack Queries & Mutations
   const { data: empRes, isLoading: isEmpLoading } = useEmployeeById(employeeId);
   const { data: salaryRes } = useEmployeeSalary(employeeId);
@@ -147,22 +163,7 @@ export const EmployeeMasterScreen: React.FC = () => {
   const fetchedDepartments = deptRes?.data || [];
   const fetchedNames = fetchedDepartments.map(d => d.name).filter(Boolean);
 
-  const defaultDeptList = [
-    'Design',
-    'Product',
-    'Executive',
-    'Human Resources',
-    'Finance',
-    'IT',
-    'Sales',
-  ];
-
-  const dynamicDeptNames = Array.from(
-    new Set([
-      ...fetchedNames,
-      ...(fetchedNames.length === 0 ? defaultDeptList : []),
-    ])
-  );
+  const dynamicDeptNames = fetchedNames;
 
   const departmentDropdownOptions = dynamicDeptNames.map(deptName => {
     const deptObj = fetchedDepartments.find(d => d.name === deptName);
@@ -196,7 +197,12 @@ export const EmployeeMasterScreen: React.FC = () => {
       setEmail(emp.email || '');
       setPhone(emp.phone || '');
       setDesignation(emp.designation || '');
-      if (emp.department) setDepartment(typeof emp.department === 'string' ? emp.department : emp.department.name || 'Finance');
+      if (emp.department) {
+        setDepartment(typeof emp.department === 'string' ? emp.department : (emp.department.name || 'Finance'));
+      } else if (emp.departmentId) {
+        const matched = fetchedDepartments.find(d => d.id === emp.departmentId);
+        if (matched?.name) setDepartment(matched.name);
+      }
       if (emp.location) setLocation(emp.location);
       setStatus(emp.status || 'ACTIVE');
       if (emp.joiningDate) setJoiningDate(emp.joiningDate.split('T')[0]);
@@ -299,10 +305,10 @@ export const EmployeeMasterScreen: React.FC = () => {
   const canAccessTab = (tabIndex: number): boolean => {
     if (isEditing) return true;
     if (tabIndex === 0) return true;
-    if (tabIndex === 1) return completedSteps.includes(0) && isOverviewValid;
-    if (tabIndex === 2) return completedSteps.includes(1) && isSalaryValid;
-    if (tabIndex === 3) return completedSteps.includes(2) && isLeaveValid;
-    if (tabIndex === 4) return completedSteps.includes(3) && isPersonalValid;
+    if (tabIndex === 1) return completedSteps.includes(0);
+    if (tabIndex === 2) return completedSteps.includes(1);
+    if (tabIndex === 3) return completedSteps.includes(2);
+    if (tabIndex === 4) return completedSteps.includes(3);
     return false;
   };
 
@@ -353,28 +359,42 @@ export const EmployeeMasterScreen: React.FC = () => {
 
   // Step 1 Save (Overview)
   const handleSaveOverview = (onSuccessCallback?: () => void) => {
-    if (!isOverviewValid) {
+    if (!name.trim() || !email.trim()) {
       Alert.alert('Validation Error', 'Full Name and Official Email are required.');
+      return;
+    }
+    if (!designation.trim()) {
+      Alert.alert('Validation Error', 'Job Designation (Title) is required.');
+      return;
+    }
+    if (!selectedRoleId) {
+      Alert.alert('Validation Error', 'Organization Role (Permissions) is required. Please select a role.');
       return;
     }
 
     const payloadPassword = accountPassword.trim() ? accountPassword.trim() : undefined;
+    const matchedDept = fetchedDepartments.find(
+      d => d.name === department || d.id === department || (d.code && d.code === department)
+    );
 
     if (isEditing && employeeId) {
       updateMutation.mutate(
         {
           id: employeeId,
           data: {
-            name,
-            email,
-            phone,
+            name: name.trim(),
+            email: email.trim(),
+            phone: phone.trim() || null,
             password: payloadPassword,
-            designation,
-            department,
-            location,
+            designation: designation.trim() || undefined,
+            role: designation.trim() || undefined,
+            roleId: selectedRoleId || undefined,
+            department: department || undefined,
+            departmentId: matchedDept?.id || null,
+            location: location || undefined,
             status,
             joiningDate,
-            avatar: photoUrl,
+            avatar: photoUrl || null,
           },
         },
         {
@@ -387,69 +407,48 @@ export const EmployeeMasterScreen: React.FC = () => {
         }
       );
     } else {
-      createMutation.mutate(
-        {
-          name,
-          email,
-          phone,
-          password: payloadPassword,
-          roleId: selectedRoleId || undefined,
-          designation,
-          department,
-          location,
-          status,
-          joiningDate,
-          avatar: photoUrl,
-        },
-        {
-          onSuccess: res => {
-            setCompletedSteps(prev => Array.from(new Set([...prev, 0])));
-            Alert.alert('Step 1 Saved', 'Employee registered in database.');
-            navigation.replace('EmployeeMaster', { employeeId: res.data.id });
-            if (onSuccessCallback) onSuccessCallback();
-          },
-          onError: err => Alert.alert('Error', err.message),
-        }
-      );
+      setCompletedSteps(prev => Array.from(new Set([...prev, 0])));
+      if (onSuccessCallback) onSuccessCallback();
     }
   };
 
   // Step 2 Save (Salary)
   const handleSaveSalary = (onSuccessCallback?: () => void) => {
-    if (!employeeId) {
-      Alert.alert('Note', 'Please complete Step 1 (Overview) first to create the employee record.');
-      return;
-    }
     if (!isSalaryValid) {
       Alert.alert('Validation Error', 'Basic Salary and Bank Account Number are required.');
       return;
     }
 
-    updateSalaryMutation.mutate(
-      {
-        id: employeeId,
-        data: {
-          basic: basic ? parseFloat(basic) : null,
-          hra: hra ? parseFloat(hra) : null,
-          allowance: allowance ? parseFloat(allowance) : null,
-          deductions: deductions ? parseFloat(deductions) : null,
-          netSalary: netSalary ? parseFloat(netSalary) : null,
-          bankName,
-          bankAccount,
-          ifsc,
-          pan,
-          aadhaar: aadhaar.trim() || null,
+    if (isEditing && employeeId) {
+      updateSalaryMutation.mutate(
+        {
+          id: employeeId,
+          data: {
+            basic: basic ? parseFloat(basic) : null,
+            hra: hra ? parseFloat(hra) : null,
+            allowance: allowance ? parseFloat(allowance) : null,
+            deductions: deductions ? parseFloat(deductions) : null,
+            netSalary: netSalary ? parseFloat(netSalary) : null,
+            bankName: bankName.trim() || null,
+            bankAccount: bankAccount.trim() || null,
+            ifsc: ifsc.trim() || null,
+            pan: pan.trim() || null,
+            aadhaar: aadhaar.trim() || null,
+          },
         },
-      },
-      {
-        onSuccess: () => {
-          setCompletedSteps(prev => Array.from(new Set([...prev, 1])));
-          Alert.alert('Step 2 Saved', 'Salary structure & bank details updated in database.');
-          if (onSuccessCallback) onSuccessCallback();
-        },
-        onError: err => Alert.alert('Error', err.message),
-      }
-    );
+        {
+          onSuccess: () => {
+            setCompletedSteps(prev => Array.from(new Set([...prev, 1])));
+            Alert.alert('Step 2 Saved', 'Salary structure & bank details updated in database.');
+            if (onSuccessCallback) onSuccessCallback();
+          },
+          onError: err => Alert.alert('Error', err.message),
+        }
+      );
+    } else {
+      setCompletedSteps(prev => Array.from(new Set([...prev, 1])));
+      if (onSuccessCallback) onSuccessCallback();
+    }
   };
 
   // Step 3 Save (Leave)
@@ -459,95 +458,130 @@ export const EmployeeMasterScreen: React.FC = () => {
       return;
     }
     setCompletedSteps(prev => Array.from(new Set([...prev, 2])));
-    Alert.alert('Step 3 Saved', `Leave Allocations Saved to Database:\nCasual: ${casualLeave}d, Sick: ${sickLeave}d, Earned: ${earnedLeave}d, Maternity: ${maternityLeave}d`);
     if (onSuccessCallback) onSuccessCallback();
   };
 
   // Step 4 Save (Personal)
   const handleSavePersonal = (onSuccessCallback?: () => void) => {
-    if (!employeeId) {
-      Alert.alert('Note', 'Please complete Step 1 (Overview) first.');
-      return;
-    }
     if (!isPersonalValid) {
       Alert.alert('Validation Error', "Father's Name and Permanent Address are required.");
       return;
     }
 
-    updatePersonalMutation.mutate(
-      {
-        id: employeeId,
-        data: {
-          gender,
-          dob,
-          bloodGroup,
-          maritalStatus,
-          qualification,
-          fatherName,
-          permanentAddress,
-          languagesSpoken,
-        },
-      },
-      {
-        onSuccess: () => {
-          setCompletedSteps(prev => Array.from(new Set([...prev, 3])));
-          Alert.alert('Step 4 Saved', 'Personal background details updated in database.');
-          if (onSuccessCallback) onSuccessCallback();
-        },
-        onError: err => Alert.alert('Error', err.message),
-      }
-    );
-  };
-
-  // Step 5 Save All Details to Database
-  const handleSaveAll = () => {
-    if (!employeeId && !isOverviewValid) {
-      Alert.alert('Error', 'Please complete all required fields in the setup wizard.');
-      return;
-    }
-
-    // Perform final sync across all sections
-    if (employeeId) {
-      updateMutation.mutate(
+    if (isEditing && employeeId) {
+      updatePersonalMutation.mutate(
         {
           id: employeeId,
-          data: { name, email, phone, designation, department, location, status, joiningDate, avatar: photoUrl },
+          data: {
+            gender: gender || null,
+            dob: dob || null,
+            bloodGroup: bloodGroup || null,
+            maritalStatus: maritalStatus || null,
+            qualification: qualification.trim() || null,
+            fatherName: fatherName.trim() || null,
+            permanentAddress: permanentAddress.trim() || null,
+            languagesSpoken: languagesSpoken.trim() || null,
+          },
         },
         {
           onSuccess: () => {
-            updateSalaryMutation.mutate({
-              id: employeeId,
-              data: {
-                basic: basic ? parseFloat(basic) : null,
-                hra: hra ? parseFloat(hra) : null,
-                allowance: allowance ? parseFloat(allowance) : null,
-                deductions: deductions ? parseFloat(deductions) : null,
-                netSalary: netSalary ? parseFloat(netSalary) : null,
-                bankName,
-                bankAccount,
-                ifsc,
-                pan,
-                aadhaar: aadhaar.trim() || null,
-              },
-            });
+            setCompletedSteps(prev => Array.from(new Set([...prev, 3])));
+            Alert.alert('Step 4 Saved', 'Personal background details updated in database.');
+            if (onSuccessCallback) onSuccessCallback();
+          },
+          onError: err => Alert.alert('Error', err.message),
+        }
+      );
+    } else {
+      setCompletedSteps(prev => Array.from(new Set([...prev, 3])));
+      if (onSuccessCallback) onSuccessCallback();
+    }
+  };
 
-            updatePersonalMutation.mutate({
-              id: employeeId,
-              data: {
-                gender,
-                dob,
-                bloodGroup,
-                maritalStatus,
-                qualification,
-                fatherName,
-                permanentAddress,
-                languagesSpoken,
-              },
-            });
+  // Step 5 Save All Details to Database (Final single API call on onboarding)
+  const handleSaveAll = () => {
+    if (!isOverviewValid) {
+      Alert.alert('Validation Error', 'Please complete Full Name and Official Email in Step 1 (Overview).');
+      setActiveTab('OVERVIEW');
+      return;
+    }
+    if (!isSalaryValid) {
+      Alert.alert('Validation Error', 'Please fill Basic Salary and Bank Account Number in Step 2 (Salary).');
+      setActiveTab('SALARY');
+      return;
+    }
+    if (!isLeaveValid) {
+      Alert.alert('Validation Error', 'Please verify Casual and Sick Leave quotas in Step 3 (Leave).');
+      setActiveTab('LEAVE');
+      return;
+    }
+    if (!isPersonalValid) {
+      Alert.alert('Validation Error', "Please enter Father's Name and Permanent Address in Step 4 (Personal).");
+      setActiveTab('PERSONAL');
+      return;
+    }
+
+    const matchedDept = fetchedDepartments.find(
+      d => d.name === department || d.id === department || (d.code && d.code === department)
+    );
+
+    if (isEditing && employeeId) {
+      updateMutation.mutate(
+        {
+          id: employeeId,
+          data: {
+            name: name.trim(),
+            email: email.trim(),
+            phone: phone.trim() || null,
+            password: accountPassword.trim() ? accountPassword.trim() : undefined,
+            designation: designation.trim() || undefined,
+            department: department || undefined,
+            departmentId: matchedDept?.id || null,
+            location: location || undefined,
+            status,
+            joiningDate,
+            avatar: photoUrl || null,
+          },
+        },
+        {
+          onSuccess: () => {
+            if (basic || bankAccount) {
+              updateSalaryMutation.mutate({
+                id: employeeId,
+                data: {
+                  basic: basic ? parseFloat(basic) : null,
+                  hra: hra ? parseFloat(hra) : null,
+                  allowance: allowance ? parseFloat(allowance) : null,
+                  deductions: deductions ? parseFloat(deductions) : null,
+                  netSalary: netSalary ? parseFloat(netSalary) : null,
+                  bankName: bankName.trim() || null,
+                  bankAccount: bankAccount.trim() || null,
+                  ifsc: ifsc.trim() || null,
+                  pan: pan.trim() || null,
+                  aadhaar: aadhaar.trim() || null,
+                },
+              });
+            }
+
+            if (fatherName || permanentAddress || gender || dob || bloodGroup || maritalStatus) {
+              updatePersonalMutation.mutate({
+                id: employeeId,
+                data: {
+                  gender: gender || null,
+                  dob: dob || null,
+                  bloodGroup: bloodGroup || null,
+                  maritalStatus: maritalStatus || null,
+                  qualification: qualification.trim() || null,
+                  fatherName: fatherName.trim() || null,
+                  permanentAddress: permanentAddress.trim() || null,
+                  languagesSpoken: languagesSpoken.trim() || null,
+                },
+              });
+            }
 
             Alert.alert(
-              'Registration Complete 🎉',
-              'All employee details have been successfully saved into the database.',
+              'Changes Saved 🎉',
+              'All employee details have been successfully updated in database.',
               [
                 {
                   text: 'OK / Open Directory',
@@ -562,32 +596,134 @@ export const EmployeeMasterScreen: React.FC = () => {
         }
       );
     } else {
-      handleSaveOverview(() => {
-        Alert.alert(
-          'Registration Complete 🎉',
-          'All employee details have been successfully saved into the database.',
-          [
-            {
-              text: 'OK / Open Directory',
-              onPress: () => {
-                navigation.navigate('EmployeeDirectory');
-              },
-            },
-          ]
-        );
-      });
+      // Creation mode: Single API Call saving the complete employee record
+      const payloadPassword = accountPassword.trim() ? accountPassword.trim() : undefined;
+
+      createMutation.mutate(
+        {
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim() || null,
+          password: payloadPassword,
+          roleId: selectedRoleId || undefined,
+          designation: designation.trim() || undefined,
+          role: designation.trim() || undefined,
+          department: department || undefined,
+          departmentId: matchedDept?.id || null,
+          location: location || undefined,
+          status,
+          joiningDate,
+          avatar: photoUrl || null,
+          // Salary Details
+          basic: basic ? parseFloat(basic) : null,
+          hra: hra ? parseFloat(hra) : null,
+          allowance: allowance ? parseFloat(allowance) : null,
+          deductions: deductions ? parseFloat(deductions) : null,
+          netSalary: netSalary ? parseFloat(netSalary) : null,
+          bankName: bankName.trim() || null,
+          bankAccount: bankAccount.trim() || null,
+          ifsc: ifsc.trim() || null,
+          pan: pan.trim() || null,
+          aadhaar: aadhaar.trim() || null,
+          // Personal Details
+          gender: gender || null,
+          dob: dob || null,
+          bloodGroup: bloodGroup || null,
+          maritalStatus: maritalStatus || null,
+          qualification: qualification.trim() || null,
+          fatherName: fatherName.trim() || null,
+          permanentAddress: permanentAddress.trim() || null,
+          languagesSpoken: languagesSpoken.trim() || null,
+        },
+        {
+          onSuccess: async res => {
+            const newEmpId = res.data?.id;
+
+            // Batch add family members added during creation
+            if (newEmpId && localFamilyMembers.length > 0) {
+              for (const fam of localFamilyMembers) {
+                try {
+                  await addFamilyMutation.mutateAsync({
+                    employeeId: newEmpId,
+                    data: {
+                      name: fam.name,
+                      relation: fam.relation,
+                      contact: fam.contact || null,
+                      dob: fam.dob || null,
+                      isNominee: fam.isNominee,
+                      isInsuranceCovered: fam.isInsuranceCovered,
+                    },
+                  });
+                } catch (famErr) {
+                  console.warn('[Onboarding] Error batch-adding family member:', famErr);
+                }
+              }
+            }
+
+            Alert.alert(
+              'Onboarding Complete 🎉',
+              `Employee ${name} has been successfully registered and saved into the database.`,
+              [
+                {
+                  text: 'OK / Open Directory',
+                  onPress: () => {
+                    navigation.navigate('EmployeeDirectory');
+                  },
+                },
+              ]
+            );
+          },
+          onError: err => Alert.alert('Registration Failed', err.message || 'Error creating employee'),
+        }
+      );
     }
   };
 
   const handleNextStep = () => {
     if (activeTab === 'OVERVIEW') {
-      handleSaveOverview(() => setActiveTab('SALARY'));
+      if (!isOverviewValid) {
+        Alert.alert('Validation Error', 'Full Name and Official Email are required.');
+        return;
+      }
+      setCompletedSteps(prev => Array.from(new Set([...prev, 0])));
+      if (isEditing) {
+        handleSaveOverview(() => setActiveTab('SALARY'));
+      } else {
+        setActiveTab('SALARY');
+      }
     } else if (activeTab === 'SALARY') {
-      handleSaveSalary(() => setActiveTab('LEAVE'));
+      if (!isSalaryValid) {
+        Alert.alert('Validation Error', 'Basic Salary and Bank Account Number are required.');
+        return;
+      }
+      setCompletedSteps(prev => Array.from(new Set([...prev, 1])));
+      if (isEditing) {
+        handleSaveSalary(() => setActiveTab('LEAVE'));
+      } else {
+        setActiveTab('LEAVE');
+      }
     } else if (activeTab === 'LEAVE') {
-      handleSaveLeave(() => setActiveTab('PERSONAL'));
+      if (!isLeaveValid) {
+        Alert.alert('Validation Error', 'Casual and Sick leave quotas are required.');
+        return;
+      }
+      setCompletedSteps(prev => Array.from(new Set([...prev, 2])));
+      if (isEditing) {
+        handleSaveLeave(() => setActiveTab('PERSONAL'));
+      } else {
+        setActiveTab('PERSONAL');
+      }
     } else if (activeTab === 'PERSONAL') {
-      handleSavePersonal(() => setActiveTab('FAMILY'));
+      if (!isPersonalValid) {
+        Alert.alert('Validation Error', "Father's Name and Permanent Address are required.");
+        return;
+      }
+      setCompletedSteps(prev => Array.from(new Set([...prev, 3])));
+      if (isEditing) {
+        handleSavePersonal(() => setActiveTab('FAMILY'));
+      } else {
+        setActiveTab('FAMILY');
+      }
     } else if (activeTab === 'FAMILY') {
       handleSaveAll();
     }
@@ -600,15 +736,44 @@ export const EmployeeMasterScreen: React.FC = () => {
   };
 
   const handleAddFamilyMember = () => {
-    if (!employeeId || !famName.trim() || !famRelation.trim()) {
+    if (!famName.trim() || !famRelation.trim()) {
       Alert.alert('Validation Error', 'Name and Relation are required');
       return;
     }
 
-    addFamilyMutation.mutate(
-      {
-        employeeId,
-        data: {
+    if (isEditing && employeeId) {
+      addFamilyMutation.mutate(
+        {
+          employeeId,
+          data: {
+            name: famName.trim(),
+            relation: famRelation.trim(),
+            contact: famContact.trim() || null,
+            dob: famDob.trim() || null,
+            isNominee,
+            isInsuranceCovered,
+          },
+        },
+        {
+          onSuccess: () => {
+            setFamilyModalOpen(false);
+            setFamName('');
+            setFamRelation('Spouse');
+            setFamContact('');
+            setFamDob('');
+            setIsNominee(false);
+            setIsInsuranceCovered(true);
+            Alert.alert('Success', 'Family member added to database.');
+          },
+          onError: err => Alert.alert('Error', err.message),
+        }
+      );
+    } else {
+      // Creation mode: Add to local draft list
+      setLocalFamilyMembers(prev => [
+        ...prev,
+        {
+          id: `draft-fam-${Date.now()}`,
           name: famName.trim(),
           relation: famRelation.trim(),
           contact: famContact.trim() || null,
@@ -616,21 +781,16 @@ export const EmployeeMasterScreen: React.FC = () => {
           isNominee,
           isInsuranceCovered,
         },
-      },
-      {
-        onSuccess: () => {
-          setFamilyModalOpen(false);
-          setFamName('');
-          setFamRelation('Spouse');
-          setFamContact('');
-          setFamDob('');
-          setIsNominee(false);
-          setIsInsuranceCovered(true);
-          Alert.alert('Success', 'Family member added to database.');
-        },
-        onError: err => Alert.alert('Error', err.message),
-      }
-    );
+      ]);
+      setFamilyModalOpen(false);
+      setFamName('');
+      setFamRelation('Spouse');
+      setFamContact('');
+      setFamDob('');
+      setIsNominee(false);
+      setIsInsuranceCovered(true);
+      Alert.alert('Added', 'Family member added to onboarding draft.');
+    }
   };
 
   const handleDeleteEmployee = () => {
@@ -652,15 +812,51 @@ export const EmployeeMasterScreen: React.FC = () => {
     ]);
   };
 
-  const handlePhotoUploadSimulate = () => {
-    const sampleAvatars = [
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-    ];
-    const picked = sampleAvatars[Math.floor(Math.random() * sampleAvatars.length)];
-    setPhotoUrl(picked);
-    Alert.alert('Photo Selected', 'Employee profile photo updated.');
+  const handlePickPhoto = () => {
+    launchImageLibrary(
+      {
+        mediaType: 'photo',
+        selectionLimit: 1,
+        quality: 0.8,
+      },
+      async response => {
+        if (response.didCancel) return;
+        if (response.errorMessage) {
+          Alert.alert('Photo Picker Error', response.errorMessage);
+          return;
+        }
+
+        if (response.assets && response.assets.length > 0) {
+          const pickedAsset = response.assets[0];
+          if (!pickedAsset.uri) return;
+
+          // Instant local preview
+          setPhotoUrl(pickedAsset.uri);
+
+          // Upload to server endpoint in background
+          try {
+            setIsUploadingPhoto(true);
+            const formData = new FormData();
+            formData.append('file', {
+              uri: pickedAsset.uri,
+              name: pickedAsset.fileName || `avatar_${Date.now()}.jpg`,
+              type: pickedAsset.type || 'image/jpeg',
+            } as any);
+
+            const res = await api.post('/documents/upload-avatar', formData);
+            const serverUrl = res.data?.data?.url || res.data?.url;
+            if (serverUrl) {
+              setPhotoUrl(serverUrl);
+              Alert.alert('Photo Uploaded', 'Employee profile photo uploaded successfully.');
+            }
+          } catch (uploadErr: any) {
+            console.warn('[Avatar Upload] Server upload notice:', uploadErr?.message);
+          } finally {
+            setIsUploadingPhoto(false);
+          }
+        }
+      }
+    );
   };
 
   // Helper check for current step validation
@@ -672,6 +868,9 @@ export const EmployeeMasterScreen: React.FC = () => {
     if (activeTab === 'FAMILY') return true;
     return false;
   };
+
+  const displayedFamilyMembers = isEditing ? (familyRes?.data || []) : localFamilyMembers;
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -793,7 +992,17 @@ export const EmployeeMasterScreen: React.FC = () => {
               {/* Photo Upload Zone */}
               <View style={[styles.photoCard, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder }]}>
                 <View style={styles.avatarPreviewBox}>
-                  <Text style={{ fontSize: 32 }}>{photoUrl ? '📸' : '👤'}</Text>
+                  {isUploadingPhoto ? (
+                    <ActivityIndicator size="small" color={colors.accent} />
+                  ) : photoUrl ? (
+                    <Image
+                      source={{ uri: photoUrl }}
+                      style={{ width: 52, height: 52, borderRadius: 26 }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Text style={{ fontSize: 32 }}>👤</Text>
+                  )}
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.photoCardTitle, { color: colors.textPrimary }]}>Employee Profile Photo</Text>
@@ -801,11 +1010,14 @@ export const EmployeeMasterScreen: React.FC = () => {
                     Upload photo badge for official digital ID card.
                   </Text>
                   <TouchableOpacity
-                    style={[styles.uploadPhotoBtn, { backgroundColor: colors.accent }]}
-                    onPress={handlePhotoUploadSimulate}
+                    style={[styles.uploadPhotoBtn, { backgroundColor: colors.accent, opacity: isUploadingPhoto ? 0.6 : 1 }]}
+                    onPress={handlePickPhoto}
                     activeOpacity={0.8}
+                    disabled={isUploadingPhoto}
                   >
-                    <Text style={styles.uploadPhotoBtnText}>📷 Select / Upload Photo</Text>
+                    <Text style={styles.uploadPhotoBtnText}>
+                      {isUploadingPhoto ? '⏳ Uploading Photo...' : '📷 Select / Upload Photo'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1352,8 +1564,8 @@ export const EmployeeMasterScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
 
-              {familyRes?.data && familyRes.data.length > 0 ? (
-                familyRes.data.map(fam => (
+              {displayedFamilyMembers && displayedFamilyMembers.length > 0 ? (
+                displayedFamilyMembers.map(fam => (
                   <View
                     key={fam.id}
                     style={[styles.famCard, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder }]}
@@ -1378,10 +1590,13 @@ export const EmployeeMasterScreen: React.FC = () => {
                       </View>
                     </View>
                     <TouchableOpacity
-                      onPress={() =>
-                        employeeId &&
-                        deleteFamilyMutation.mutate({ employeeId, familyId: fam.id })
-                      }
+                      onPress={() => {
+                        if (isEditing && employeeId) {
+                          deleteFamilyMutation.mutate({ employeeId, familyId: fam.id });
+                        } else {
+                          setLocalFamilyMembers(prev => prev.filter(f => f.id !== fam.id));
+                        }
+                      }}
                     >
                       <Text style={styles.famDeleteText}>Remove</Text>
                     </TouchableOpacity>
@@ -1430,19 +1645,23 @@ export const EmployeeMasterScreen: React.FC = () => {
                 styles.nextButton,
                 {
                   backgroundColor: isCurrentStepValid() ? colors.accent : '#cbd5e1',
-                  opacity: isCurrentStepValid() ? 1 : 0.6,
+                  opacity: isCurrentStepValid() && !isSubmitting ? 1 : 0.6,
                 },
                 currentTabIndex === 0 && { flex: 1 },
               ]}
               onPress={handleNextStep}
-              disabled={!isCurrentStepValid()}
+              disabled={!isCurrentStepValid() || isSubmitting}
               activeOpacity={0.85}
             >
-              <Text style={styles.nextButtonText}>
-                {currentTabIndex === tabs.length - 1
-                  ? '💾 Save All Employee Details'
-                  : `Next Step: ${tabLabels[tabs[currentTabIndex + 1]]} →`}
-              </Text>
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.nextButtonText}>
+                  {currentTabIndex === tabs.length - 1
+                    ? (isEditing ? '💾 Update All Details' : 'Confirm & Onboard Employee 🎉')
+                    : `Next Step: ${tabLabels[tabs[currentTabIndex + 1]]} →`}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
           {!isCurrentStepValid() && (

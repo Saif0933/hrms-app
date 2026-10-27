@@ -20,10 +20,13 @@ import {
 } from 'react-native';
 // @ts-ignore
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useQueryClient } from '@tanstack/react-query';
+import { Dropdown } from 'react-native-element-dropdown';
 import { useAssets } from '../../api/hook/useAssets';
 import { usePunches } from '../../api/hook/useAttendance';
 import { useProfile } from '../../api/hook/useAuth';
 import { useDocuments } from '../../api/hook/useDocuments';
+import { useDepartments } from '../../api/hook/useDepartment';
 import {
   Employee,
   useDeleteEmployee,
@@ -32,6 +35,7 @@ import {
   useEmployees,
   useEmployeeSalary,
   useUpdateEmployee,
+  useUpdateEmployeeSalary,
 } from '../../api/hook/useEmployee';
 import { useLeaveAllocations } from '../../api/hook/useLeave';
 import { useTheme } from '../../context/ThemeContext';
@@ -44,9 +48,13 @@ export const EmployeeDirectoryScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ScreenRouteProp>();
   const { colors, isDark } = useTheme();
+  const queryClient = useQueryClient();
 
   const { data: profileResponse } = useProfile();
   const loggedInUser = profileResponse?.data?.user;
+
+  const { data: deptsResponse } = useDepartments(loggedInUser?.organizationId);
+  const departments = deptsResponse?.data || [];
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -58,15 +66,15 @@ export const EmployeeDirectoryScreen: React.FC = () => {
 
   // Promote / Transfer Modal State
   const [promoteModalOpen, setPromoteModalOpen] = useState(false);
-  const [actionType, setActionType] = useState<'Role Upgrade' | 'Dept Transfer' | 'Role + Transfer'>('Role Upgrade');
   const [newRole, setNewRole] = useState('Employee');
-  const [targetDept, setTargetDept] = useState('General');
+  const [targetDept, setTargetDept] = useState('');
   const [effectiveDate, setEffectiveDate] = useState('2026-08-04');
   const [showEffectiveDatePicker, setShowEffectiveDatePicker] = useState(false);
   const [revisedSalary, setRevisedSalary] = useState('0');
   const [remarks, setRemarks] = useState('');
 
   const updateEmployeeMutation = useUpdateEmployee();
+  const updateSalaryMutation = useUpdateEmployeeSalary();
   const deleteEmployeeMutation = useDeleteEmployee();
 
   // Queries for dynamic modal content when selectedEmployee is set
@@ -110,6 +118,26 @@ export const EmployeeDirectoryScreen: React.FC = () => {
   const employees = rawEmployees.filter((emp: any) => {
     const roleStr = (emp.role?.name || emp.role || emp.user?.role?.name || emp.designation || '').toString().toUpperCase();
     return roleStr !== 'SUPER_ADMIN' && roleStr !== 'SUPER ADMIN';
+  });
+
+  // Department options strictly derived from created departments in DB (matching Web behavior)
+  const dbDeptNames = departments.map(d => d.name).filter(Boolean);
+  const existingEmpDeptNames = Array.from(
+    new Set(
+      employees
+        .map(e => (typeof e.department === 'string' ? e.department : e.department?.name || ''))
+        .filter(Boolean)
+    )
+  );
+
+  const availableDeptNames = dbDeptNames.length > 0 ? dbDeptNames : existingEmpDeptNames;
+
+  const departmentDropdownOptions = availableDeptNames.map(deptName => {
+    const deptObj = departments.find(d => d.name?.toLowerCase() === deptName.toLowerCase());
+    return {
+      label: deptObj?.code ? `${deptName} (${deptObj.code})` : deptName,
+      value: deptName,
+    };
   });
 
   // Match logged-in user profile from directory database or construct dynamic profile
@@ -164,10 +192,13 @@ export const EmployeeDirectoryScreen: React.FC = () => {
     }
   }, [route.params, employees, myEmployeeRecord]);
 
-  const getDepartmentName = (dept: any): string => {
-    if (!dept) return 'N/A';
-    if (typeof dept === 'string' && dept.trim().length > 0) return dept.trim();
-    if (typeof dept === 'object' && dept.name && typeof dept.name === 'string') return dept.name.trim();
+  const getDepartmentName = (dept: any, deptId?: string | null): string => {
+    if (typeof dept === 'string' && dept.trim().length > 0 && dept.trim() !== 'N/A') return dept.trim();
+    if (typeof dept === 'object' && dept?.name && typeof dept.name === 'string' && dept.name.trim().length > 0) return dept.name.trim();
+    if (deptId) {
+      const found = departments.find(d => d.id === deptId);
+      if (found?.name) return found.name;
+    }
     return 'N/A';
   };
 
@@ -254,7 +285,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
 
   const renderEmployeeCard = ({ item }: { item: Employee }) => {
     const statusColor = getStatusColor(item.status);
-    const deptStr = getDepartmentName(item.department);
+    const deptStr = getDepartmentName(item.department, item.departmentId);
     const initials = item.name
       ? item.name
           .split(' ')
@@ -289,7 +320,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
             </View>
 
             <Text style={[styles.employeeDesignation, { color: colors.textSecondary }]}>
-              {item.designation || 'N/A'}
+              {item.designation || (getRoleName(item.role) !== 'N/A' ? getRoleName(item.role) : '') || 'N/A'}
             </Text>
 
             <View style={styles.deptLocationRow}>
@@ -563,7 +594,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                     </View>
 
                     <Text style={[styles.profileRoleText, { color: isDark ? '#cbd5e1' : '#475569' }]}>
-                      {selectedEmployee.designation || 'N/A'}{getDepartmentName(selectedEmployee.department) !== 'N/A' ? ` • ${getDepartmentName(selectedEmployee.department)}` : (selectedEmployee.location ? ` • ${selectedEmployee.location}` : '')}
+                      {selectedEmployee.designation || (getRoleName(selectedEmployee.role) !== 'N/A' ? getRoleName(selectedEmployee.role) : '') || 'N/A'}{getDepartmentName(selectedEmployee.department, selectedEmployee.departmentId) !== 'N/A' ? ` • ${getDepartmentName(selectedEmployee.department, selectedEmployee.departmentId)}` : (selectedEmployee.location ? ` • ${selectedEmployee.location}` : '')}
                     </Text>
 
                     <View style={{ marginTop: 4, gap: 2 }}>
@@ -646,7 +677,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                     onPress={() => {
                       if (selectedEmployee) {
                         setNewRole(selectedEmployee.designation || 'Employee');
-                        setTargetDept(selectedEmployee.department?.name || 'General');
+                        setTargetDept(selectedEmployee.department?.name || (availableDeptNames[0] || ''));
                         setEffectiveDate(new Date().toISOString().split('T')[0]);
                         setRevisedSalary(selectedEmployee.basic ? String(selectedEmployee.basic) : '0');
                         setRemarks('');
@@ -724,7 +755,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxLabel}>Department</Text>
                         <Text style={[styles.infoBoxValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>
-                          {getDepartmentName(selectedEmployee.department)}
+                          {getDepartmentName(selectedEmployee.department, selectedEmployee.departmentId)}
                         </Text>
                       </View>
 
@@ -1358,47 +1389,44 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                 </View>
               </View>
 
-              {/* Workflow Action Type Pills */}
-              <Text style={styles.fieldLabelText}>Workflow Action Type</Text>
-              <View style={styles.actionTypePillsRow}>
-                {['Role Upgrade', 'Dept Transfer', 'Role + Transfer'].map(type => {
-                  const isSelected = actionType === type;
-                  return (
-                    <TouchableOpacity
-                      key={type}
-                      style={[
-                        styles.typePill,
-                        { backgroundColor: isSelected ? colors.accent : (isDark ? '#334155' : '#f1f5f9') },
-                      ]}
-                      onPress={() => setActionType(type as any)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.typePillText, { color: isSelected ? '#ffffff' : (isDark ? '#cbd5e1' : '#64748b') }]}>
-                        {type}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
               {/* New Job Designation Role */}
               <Text style={styles.fieldLabelText}>New Job Designation Role</Text>
               <TextInput
                 style={[styles.modalInput, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1', backgroundColor: isDark ? '#0f172a' : '#ffffff' }]}
                 value={newRole}
                 onChangeText={setNewRole}
-                placeholder="Enter designation / role"
+                placeholder="e.g. Senior Software Engineer"
                 placeholderTextColor="#94a3b8"
               />
 
-              {/* Target Department */}
-              <Text style={styles.fieldLabelText}>Target Department</Text>
-              <TextInput
-                style={[styles.modalInput, { color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#334155' : '#cbd5e1', backgroundColor: isDark ? '#0f172a' : '#ffffff' }]}
+              {/* Target Department Dropdown */}
+              <Text style={styles.fieldLabelText}>Target Department *</Text>
+              <Dropdown
+                style={[
+                  styles.dropdownInput,
+                  {
+                    backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                    borderColor: isDark ? '#334155' : '#cbd5e1',
+                    marginBottom: 12,
+                  },
+                ]}
+                placeholderStyle={[styles.dropdownPlaceholder, { color: '#94a3b8' }]}
+                selectedTextStyle={[styles.dropdownSelectedText, { color: isDark ? '#ffffff' : '#0f172a' }]}
+                inputSearchStyle={[styles.dropdownSearchInput, { color: isDark ? '#ffffff' : '#0f172a', backgroundColor: isDark ? '#0f172a' : '#ffffff' }]}
+                containerStyle={[styles.dropdownContainer, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}
+                itemTextStyle={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 14 }}
+                activeColor={isDark ? '#334155' : '#f1f5f9'}
+                data={departmentDropdownOptions}
+                search
+                maxHeight={260}
+                labelField="label"
+                valueField="value"
+                placeholder="Select Target Department"
+                searchPlaceholder="Search department..."
                 value={targetDept}
-                onChangeText={setTargetDept}
-                placeholder="Enter department name"
-                placeholderTextColor="#94a3b8"
+                onChange={item => {
+                  setTargetDept(item.value);
+                }}
               />
 
               {/* Effective Date & Revised Basic Salary Row */}
@@ -1464,17 +1492,25 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                   style={[styles.btnConfirmPromote, { backgroundColor: colors.accent }]}
                   onPress={() => {
                     if (selectedEmployee) {
-                      const updatedDept = {
-                        id: selectedEmployee.departmentId || 'd1',
-                        name: targetDept,
-                        code: targetDept.substring(0, 3).toUpperCase(),
-                      };
-                      const parsedBasic = parseFloat(revisedSalary) || selectedEmployee.basic;
+                      const cleanDept = targetDept.trim();
+                      const matchedDept = departments.find(
+                        d => d.name.toLowerCase() === cleanDept.toLowerCase() || d.id === cleanDept || d.code.toLowerCase() === cleanDept.toLowerCase()
+                      );
+                      const targetDeptId = matchedDept ? matchedDept.id : (selectedEmployee.departmentId || null);
+                      const updatedDept = matchedDept
+                        ? { id: matchedDept.id, name: matchedDept.name, code: matchedDept.code }
+                        : {
+                            id: selectedEmployee.departmentId || 'd1',
+                            name: cleanDept || 'General',
+                            code: (cleanDept || 'GEN').substring(0, 3).toUpperCase(),
+                          };
+                      const parsedBasic = parseFloat(revisedSalary) || selectedEmployee.basic || 0;
 
                       setSelectedEmployee(prev => (prev ? {
                         ...prev,
                         designation: newRole,
                         role: newRole,
+                        departmentId: targetDeptId,
                         department: updatedDept,
                         basic: parsedBasic,
                       } : null));
@@ -1485,16 +1521,45 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                           data: {
                             designation: newRole,
                             role: newRole,
-                            department: targetDept,
+                            departmentId: targetDeptId,
+                            department: cleanDept,
                             basic: parsedBasic,
                           },
                         },
                         {
-                          onSuccess: () => {
+                          onSuccess: (res) => {
+                            const updatedEmp = res?.data;
+                            if (updatedEmp) {
+                              setSelectedEmployee(prev => (prev ? {
+                                ...prev,
+                                ...updatedEmp,
+                                designation: updatedEmp.designation || newRole,
+                                department: updatedEmp.department || updatedDept,
+                                departmentId: updatedEmp.departmentId || targetDeptId,
+                                basic: updatedEmp.basic ?? parsedBasic,
+                              } : null));
+                            }
                             refetch();
+                            queryClient.invalidateQueries({ queryKey: ['employees'] });
+                            queryClient.invalidateQueries({ queryKey: ['employee', selectedEmployee.id] });
                           },
+                          onError: (err) => {
+                            console.log('Error updating employee promotion:', err);
+                            refetch();
+                          }
                         }
                       );
+
+                      if (parsedBasic > 0) {
+                        updateSalaryMutation.mutate({
+                          id: selectedEmployee.id,
+                          data: { basic: parsedBasic }
+                        }, {
+                          onSuccess: () => {
+                            queryClient.invalidateQueries({ queryKey: ['employee', selectedEmployee.id, 'salary'] });
+                          }
+                        });
+                      }
 
                       refetch();
                     }
@@ -2187,20 +2252,30 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 2,
   },
-  actionTypePillsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 6,
+  dropdownInput: {
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    height: 46,
+    justifyContent: 'center',
   },
-  typePill: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: 10,
-    alignItems: 'center',
+  dropdownPlaceholder: {
+    fontSize: 14,
   },
-  typePillText: {
-    fontSize: 11,
-    fontWeight: '700',
+  dropdownSelectedText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dropdownSearchInput: {
+    height: 40,
+    fontSize: 14,
+    borderRadius: 8,
+  },
+  dropdownContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
   },
   modalInput: {
     borderWidth: 1,

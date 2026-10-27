@@ -192,11 +192,15 @@ export const useEmployees = (filters?: EmployeeFilters) => {
         }
 
         if (list.length > 0) {
-          localEmployees = list;
+          const mapped = list.map(emp => ({
+            ...emp,
+            designation: emp.designation || (typeof emp.role === 'string' ? emp.role : (emp.role as any)?.name) || 'Employee',
+          }));
+          localEmployees = mapped;
           return {
             success: true,
             message: 'Employees retrieved successfully',
-            data: list,
+            data: mapped,
           };
         }
       } catch (error) {
