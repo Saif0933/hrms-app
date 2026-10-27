@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useProfile } from '../../api/hook/useAuth';
 import { Employee, useEmployees } from '../../api/hook/useEmployee';
 import { Role, useAssignRole, useRoles } from '../../api/hook/useRole';
 import { useTheme } from '../../context/ThemeContext';
@@ -30,8 +31,10 @@ export const AssignRoleScreen: React.FC = () => {
   const initialEmpId = route.params?.employeeId || '';
 
   // API Hooks
+  const { data: profileResponse } = useProfile();
+  const organizationId = profileResponse?.data?.user?.organizationId;
   const { data: response, isLoading: isLoadingEmployees, refetch: refetchEmployees } = useEmployees();
-  const { data: rolesResponse, isLoading: isLoadingRoles } = useRoles();
+  const { data: rolesResponse, isLoading: isLoadingRoles } = useRoles(organizationId);
   const assignRoleMutation = useAssignRole();
 
   const rawEmpData: any = response?.data;

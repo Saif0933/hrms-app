@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Modal,
@@ -14,61 +15,98 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEmployees } from '../../api/hook/useEmployee';
+import { useDepartments, useCreateDepartment, Department } from '../../api/hook/useDepartment';
+import { useProfile } from '../../api/hook/useAuth';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Departments'>;
 
-interface DepartmentItem {
-  id: string;
-  name: string;
-  code: string;
-  headName: string;
-}
-
 export const DepartmentsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
 
-  const { data: response } = useEmployees();
-  const employees = response?.data || [];
+  const { data: profileRes } = useProfile();
+  const organizationId = profileRes?.data?.user?.organizationId;
 
-  const [departments, setDepartments] = useState<DepartmentItem[]>([
-    { id: '1', name: 'Engineering & Technology', code: 'ENG', headName: 'John Doe' },
-    { id: '2', name: 'Human Resources (HR)', code: 'HR', headName: 'Sarah Jenkins' },
-    { id: '3', name: 'Finance & Accounts', code: 'FIN', headName: 'Robert Vance' },
-    { id: '4', name: 'Sales & Marketing', code: 'MKT', headName: 'Amanda Palmer' },
-    { id: '5', name: 'Operations & Logistics', code: 'OPS', headName: 'David Miller' },
-  ]);
+  const { data: deptRes, isLoading: isDeptsLoading } = useDepartments(organizationId);
+  const departments: Department[] = deptRes?.data || [];
+
+  const { data: empRes } = useEmployees();
+  const employees = empRes?.data || [];
+
+  const createDeptMutation = useCreateDepartment();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [newDeptName, setNewDeptName] = useState('');
   const [newDeptCode, setNewDeptCode] = useState('');
-  const [newHeadName, setNewHeadName] = useState('');
+  const [newDeptDesc, setNewDeptDesc] = useState('');
+  const [isCodeManual, setIsCodeManual] = useState(false);
+
+  // Live Auto-Generation of Department Code from Name
+  const generateDeptCode = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return '';
+    const words = trimmed.split(/\s+/);
+    if (words.length > 1) {
+      return words.map(w => w[0]).join('').toUpperCase().slice(0, 5);
+    }
+    return trimmed.slice(0, 3).toUpperCase();
+  };
+
+  const handleNameChange = (val: string) => {
+    setNewDeptName(val);
+    if (!isCodeManual) {
+      setNewDeptCode(generateDeptCode(val));
+    }
+  };
+
+  const handleCodeChange = (val: string) => {
+    setNewDeptCode(val.toUpperCase());
+    setIsCodeManual(true);
+  };
 
   const handleCreateDepartment = () => {
-    if (!newDeptName || !newDeptCode) {
-      Alert.alert('Validation Error', 'Department name and code are required');
+    if (!newDeptName.trim()) {
+      Alert.alert('Validation Error', 'Department name is required.');
       return;
     }
 
-    const newDept: DepartmentItem = {
-      id: String(Date.now()),
-      name: newDeptName,
-      code: newDeptCode.toUpperCase(),
-      headName: newHeadName || 'Unassigned',
-    };
+    const finalCode = (newDeptCode.trim() || generateDeptCode(newDeptName)).toUpperCase();
 
-    setDepartments(prev => [...prev, newDept]);
-    setModalOpen(false);
-    setNewDeptName('');
-    setNewDeptCode('');
-    setNewHeadName('');
-    Alert.alert('Success', 'New department created');
+    createDeptMutation.mutate(
+      {
+        name: newDeptName.trim(),
+        code: finalCode,
+        description: newDeptDesc.trim() || undefined,
+      },
+      {
+        onSuccess: () => {
+          setModalOpen(false);
+          setNewDeptName('');
+          setNewDeptCode('');
+          setNewDeptDesc('');
+          setIsCodeManual(false);
+          Alert.alert('Success', `Department "${newDeptName.trim()}" (${finalCode}) created successfully!`);
+        },
+        onError: (err: any) => {
+          const msg =
+            err.response?.data?.message ||
+            err.message ||
+            'Department with this name or code already exists in this organization.';
+          Alert.alert('Error', msg);
+        },
+      }
+    );
   };
 
-  const renderDeptCard = ({ item }: { item: DepartmentItem }) => {
-    const headcount = employees.filter(e => e.department?.name?.toLowerCase().includes(item.code.toLowerCase()) || e.department?.code === item.code).length || Math.floor(Math.random() * 15) + 5;
+  const renderDeptCard = ({ item }: { item: Department }) => {
+    const headcount = employees.filter(
+      e =>
+        e.departmentId === item.id ||
+        e.department?.id === item.id ||
+        (e.department?.name && e.department.name.toLowerCase() === item.name.toLowerCase())
+    ).length;
 
     return (
       <View
@@ -83,7 +121,15 @@ export const DepartmentsScreen: React.FC = () => {
           </View>
           <View style={styles.headerTitleBox}>
             <Text style={[styles.deptName, { color: colors.textPrimary }]}>{item.name}</Text>
-            <Text style={[styles.deptHead, { color: colors.textSecondary }]}>Head: {item.headName}</Text>
+            {item.description ? (
+              <Text style={[styles.deptDesc, { color: colors.textSecondary }]}>
+                {item.description}
+              </Text>
+            ) : (
+              <Text style={[styles.deptHead, { color: colors.textSecondary }]}>
+                Head: {item.manager?.name || 'Unassigned'}
+              </Text>
+            )}
           </View>
           <View style={styles.countBadge}>
             <Text style={styles.countNumber}>{headcount}</Text>
@@ -120,19 +166,42 @@ export const DepartmentsScreen: React.FC = () => {
         </View>
         <TouchableOpacity
           style={[styles.addBtn, { backgroundColor: colors.accent }]}
-          onPress={() => setModalOpen(true)}
+          onPress={() => {
+            setNewDeptName('');
+            setNewDeptCode('');
+            setNewDeptDesc('');
+            setIsCodeManual(false);
+            setModalOpen(true);
+          }}
           activeOpacity={0.8}
         >
           <Text style={styles.addBtnText}>+ Add Dept</Text>
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={departments}
-        renderItem={renderDeptCard}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContent}
-      />
+      {isDeptsLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Loading organization departments...
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={departments}
+          renderItem={renderDeptCard}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No Departments Found</Text>
+              <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                Tap + Add Dept above to create your organization's first department.
+              </Text>
+            </View>
+          }
+        />
+      )}
 
       {/* Add Department Modal */}
       <Modal
@@ -145,31 +214,49 @@ export const DepartmentsScreen: React.FC = () => {
           <View style={[styles.modalCard, { backgroundColor: colors.cardBackground }]}>
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Add New Department</Text>
 
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Department Name</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DEPARTMENT NAME *</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
+              style={[
+                styles.input,
+                { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText },
+              ]}
               value={newDeptName}
-              onChangeText={setNewDeptName}
+              onChangeText={handleNameChange}
               placeholder="e.g. Quality Assurance"
               placeholderTextColor={colors.inputPlaceholder}
             />
 
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Department Code</Text>
+            <View style={styles.labelRow}>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DEPARTMENT CODE *</Text>
+              <Text style={[styles.autoNote, { color: colors.accent }]}>Auto-generated (Editable)</Text>
+            </View>
             <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
+              style={[
+                styles.input,
+                styles.codeInput,
+                { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText },
+              ]}
               value={newDeptCode}
-              onChangeText={setNewDeptCode}
+              onChangeText={handleCodeChange}
               placeholder="QA"
               placeholderTextColor={colors.inputPlaceholder}
+              autoCapitalize="characters"
             />
 
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Department Head Name</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DESCRIPTION</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
-              value={newHeadName}
-              onChangeText={setNewHeadName}
-              placeholder="e.g. Alex Turner"
+              style={[
+                styles.input,
+                styles.textArea,
+                { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText },
+              ]}
+              value={newDeptDesc}
+              onChangeText={setNewDeptDesc}
+              placeholder="Brief description of department scope..."
               placeholderTextColor={colors.inputPlaceholder}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
             />
 
             <View style={styles.modalBtns}>
@@ -180,10 +267,16 @@ export const DepartmentsScreen: React.FC = () => {
                 <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: colors.accent }]}
+                style={[
+                  styles.confirmBtn,
+                  { backgroundColor: colors.accent, opacity: createDeptMutation.isPending ? 0.6 : 1 },
+                ]}
                 onPress={handleCreateDepartment}
+                disabled={createDeptMutation.isPending}
               >
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Create Department</Text>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>
+                  {createDeptMutation.isPending ? 'Creating...' : 'Create Department'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -268,6 +361,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  deptDesc: {
+    fontSize: 11,
+    marginTop: 2,
+  },
   deptHead: {
     fontSize: 12,
     marginTop: 2,
@@ -290,6 +387,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 13,
+  },
+  emptyContainer: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -306,8 +427,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 6,
   },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   inputLabel: {
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  autoNote: {
+    fontSize: 10,
     fontWeight: '600',
   },
   input: {
@@ -316,6 +446,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     borderWidth: 1,
+  },
+  codeInput: {
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  textArea: {
+    height: 70,
   },
   modalBtns: {
     flexDirection: 'row',

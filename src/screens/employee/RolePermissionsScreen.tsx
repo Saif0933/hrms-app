@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useProfile } from '../../api/hook/useAuth';
 import {
   Role,
   useCreateRole,
@@ -38,7 +39,9 @@ export const RolePermissionsScreen: React.FC = () => {
   const { colors } = useTheme();
 
   // API Hooks
-  const { data: rolesResponse, isLoading: isLoadingRoles } = useRoles();
+  const { data: profileResponse } = useProfile();
+  const organizationId = profileResponse?.data?.user?.organizationId;
+  const { data: rolesResponse, isLoading: isLoadingRoles } = useRoles(organizationId);
   const { data: permissionsResponse, isLoading: isLoadingPermissions } = usePermissions();
 
   const createRoleMutation = useCreateRole();

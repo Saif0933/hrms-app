@@ -11,6 +11,7 @@ export interface User {
   phone: string;
   role?: string;
   permissions?: string[];
+  organizationId?: string | null;
 }
 
 export interface BaseResponse<T> {
@@ -94,6 +95,10 @@ export const useVerifyOtp = () => {
       if (response.data?.token) {
         await AsyncStorage.setItem('token', response.data.token);
       }
+      const orgId = response.data?.user?.organizationId || (response.data as any)?.organizationId;
+      if (orgId) {
+        await AsyncStorage.setItem('organizationId', orgId);
+      }
       queryClient.invalidateQueries({ queryKey: ['profile'] });
     },
   });
@@ -113,6 +118,10 @@ export const useRegister = () => {
     onSuccess: async (response) => {
       if (response.data?.token) {
         await AsyncStorage.setItem('token', response.data.token);
+      }
+      const orgId = response.data?.user?.organizationId || (response.data as any)?.organizationId;
+      if (orgId) {
+        await AsyncStorage.setItem('organizationId', orgId);
       }
       queryClient.invalidateQueries({ queryKey: ['profile'] });
     },
@@ -134,6 +143,10 @@ export const useLogin = () => {
       if (response.data?.token) {
         await AsyncStorage.setItem('token', response.data.token);
       }
+      const orgId = response.data?.user?.organizationId || (response.data as any)?.organizationId;
+      if (orgId) {
+        await AsyncStorage.setItem('organizationId', orgId);
+      }
       queryClient.invalidateQueries({ queryKey: ['profile'] });
     },
   });
@@ -152,6 +165,10 @@ export const useProfile = () => {
         throw new Error('No authentication token found');
       }
       const response = await apiClient.get<BaseResponse<ProfileResponseData>>('/auth/profile');
+      const orgId = response.data?.data?.user?.organizationId || (response.data?.data as any)?.organizationId;
+      if (orgId) {
+        await AsyncStorage.setItem('organizationId', orgId);
+      }
       return response.data;
     },
     retry: false,
@@ -167,6 +184,7 @@ export const useLogout = () => {
 
   return async () => {
     await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('organizationId');
     queryClient.clear();
   };
 };

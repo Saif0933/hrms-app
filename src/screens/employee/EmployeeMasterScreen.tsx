@@ -11,6 +11,7 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -31,6 +32,8 @@ import {
   useUpdateEmployeePersonal,
   useUpdateEmployeeSalary,
 } from '../../api/hook/useEmployee';
+import { useRoles } from '../../api/hook/useRole';
+import { useProfile } from '../../api/hook/useAuth';
 import { Dropdown } from 'react-native-element-dropdown';
 import { useDepartments } from '../../api/hook/useDepartment';
 import { useTheme } from '../../context/ThemeContext';
@@ -86,20 +89,30 @@ export const EmployeeMasterScreen: React.FC = () => {
   const [photoUrl, setPhotoUrl] = useState('');
   const [showJoiningPicker, setShowJoiningPicker] = useState(false);
 
-  // Salary State
+  // Salary State (with deductions & net salary auto-calc)
   const [basic, setBasic] = useState('');
   const [hra, setHra] = useState('');
   const [allowance, setAllowance] = useState('');
+  const [deductions, setDeductions] = useState('');
+  const [netSalary, setNetSalary] = useState('');
   const [bankName, setBankName] = useState('');
   const [bankAccount, setBankAccount] = useState('');
   const [ifsc, setIfsc] = useState('');
   const [pan, setPan] = useState('');
+  const [aadhaar, setAadhaar] = useState('');
 
-  // Leave Allocation State
+  // Leave Allocation State (aligned with Web standards)
   const [casualLeave, setCasualLeave] = useState('12');
-  const [sickLeave, setSickLeave] = useState('10');
+  const [sickLeave, setSickLeave] = useState('12');
   const [earnedLeave, setEarnedLeave] = useState('15');
-  const [maternityLeave, setMaternityLeave] = useState('90');
+  const [maternityLeave, setMaternityLeave] = useState('10');
+  const [leavePolicy, setLeavePolicy] = useState('Standard Corporate Leave Policy 2026');
+
+  const leavePolicyOptions = [
+    { label: 'Standard Corporate Policy (12 CL, 12 SL, 15 EL)', value: 'Standard Corporate Leave Policy 2026' },
+    { label: 'Executive Leave Policy (15 CL, 15 SL, 20 EL)', value: 'Executive Leave Policy 2026' },
+    { label: 'Probationer Leave Policy (6 CL, 6 SL, 0 EL)', value: 'Probationer Leave Policy 2026' },
+  ];
 
   // Personal State
   const [gender, setGender] = useState('');
@@ -112,20 +125,27 @@ export const EmployeeMasterScreen: React.FC = () => {
   const [permanentAddress, setPermanentAddress] = useState('');
   const [languagesSpoken, setLanguagesSpoken] = useState('');
 
-  // Family Modal State
+  // Family Modal State (with DOB, Nominee & Insurance)
   const [familyModalOpen, setFamilyModalOpen] = useState(false);
   const [famName, setFamName] = useState('');
-  const [famRelation, setFamRelation] = useState('');
+  const [famRelation, setFamRelation] = useState('Spouse');
   const [famContact, setFamContact] = useState('');
+  const [famDob, setFamDob] = useState('');
+  const [showFamDobPicker, setShowFamDobPicker] = useState(false);
+  const [isNominee, setIsNominee] = useState(true);
+  const [isInsuranceCovered, setIsInsuranceCovered] = useState(true);
 
   // TanStack Queries & Mutations
   const { data: empRes, isLoading: isEmpLoading } = useEmployeeById(employeeId);
   const { data: salaryRes } = useEmployeeSalary(employeeId);
   const { data: personalRes } = useEmployeePersonal(employeeId);
   const { data: familyRes } = useEmployeeFamily(employeeId);
-  const { data: deptRes } = useDepartments();
+  const { data: profileResponse } = useProfile();
+  const organizationId = profileResponse?.data?.user?.organizationId;
+  const { data: deptRes } = useDepartments(organizationId);
 
   const fetchedDepartments = deptRes?.data || [];
+  const fetchedNames = fetchedDepartments.map(d => d.name).filter(Boolean);
 
   const defaultDeptList = [
     'Design',
@@ -139,15 +159,26 @@ export const EmployeeMasterScreen: React.FC = () => {
 
   const dynamicDeptNames = Array.from(
     new Set([
-      ...defaultDeptList,
-      ...fetchedDepartments.map(d => d.name).filter(Boolean),
+      ...fetchedNames,
+      ...(fetchedNames.length === 0 ? defaultDeptList : []),
     ])
   );
 
-  const departmentDropdownOptions = dynamicDeptNames.map(deptName => ({
-    label: deptName,
-    value: deptName,
+  const departmentDropdownOptions = dynamicDeptNames.map(deptName => {
+    const deptObj = fetchedDepartments.find(d => d.name === deptName);
+    return {
+      label: deptObj?.code ? `${deptName} (${deptObj.code})` : deptName,
+      value: deptName,
+    };
+  });
+
+  const { data: rolesResponse } = useRoles(organizationId);
+  const fetchedRoles = rolesResponse?.data || [];
+  const roleDropdownOptions = fetchedRoles.map(r => ({
+    label: `${r.name}${r.description ? ` (${r.description})` : ''}`,
+    value: r.id,
   }));
+  const [selectedRoleId, setSelectedRoleId] = useState<string>('');
 
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
@@ -170,6 +201,9 @@ export const EmployeeMasterScreen: React.FC = () => {
       setStatus(emp.status || 'ACTIVE');
       if (emp.joiningDate) setJoiningDate(emp.joiningDate.split('T')[0]);
       if (emp.avatar) setPhotoUrl(emp.avatar);
+      if ((emp as any).user?.roleId || (emp as any).roleId) {
+        setSelectedRoleId((emp as any).user?.roleId || (emp as any).roleId);
+      }
     }
   }, [empRes]);
 
@@ -179,12 +213,69 @@ export const EmployeeMasterScreen: React.FC = () => {
       setBasic(sal.basic ? String(sal.basic) : '');
       setHra(sal.hra ? String(sal.hra) : '');
       setAllowance(sal.allowance ? String(sal.allowance) : '');
+      setDeductions(sal.deductions ? String(sal.deductions) : '');
+      setNetSalary(sal.netSalary ? String(sal.netSalary) : '');
       setBankName(sal.bankName || '');
       setBankAccount(sal.bankAccount || '');
       setIfsc(sal.ifsc || '');
       setPan(sal.pan || '');
+      setAadhaar(sal.aadhaar || '');
     }
   }, [salaryRes]);
+
+  // Auto-calculation logic for Salary & Deductions (matching Web formula)
+  const handleBasicChange = (text: string) => {
+    setBasic(text);
+    const b = parseFloat(text);
+    if (!isNaN(b) && b > 0) {
+      const h = Math.round(b * 0.4);   // 40% HRA
+      const a = Math.round(b * 0.3);   // 30% Allowance
+      const d = Math.round(b * 0.15);  // 15% Deductions
+      const net = b + h + a - d;
+      setHra(String(h));
+      setAllowance(String(a));
+      setDeductions(String(d));
+      setNetSalary(String(net));
+    } else if (!text) {
+      setHra('');
+      setAllowance('');
+      setDeductions('');
+      setNetSalary('');
+    }
+  };
+
+  const handleSalaryComponentChange = (field: 'hra' | 'allowance' | 'deductions', val: string) => {
+    if (field === 'hra') setHra(val);
+    if (field === 'allowance') setAllowance(val);
+    if (field === 'deductions') setDeductions(val);
+
+    const b = parseFloat(basic) || 0;
+    const h = parseFloat(field === 'hra' ? val : hra) || 0;
+    const a = parseFloat(field === 'allowance' ? val : allowance) || 0;
+    const d = parseFloat(field === 'deductions' ? val : deductions) || 0;
+    const net = b + h + a - d;
+    setNetSalary(String(Math.max(0, net)));
+  };
+
+  const handleLeavePolicyChange = (policy: string) => {
+    setLeavePolicy(policy);
+    if (policy === 'Standard Corporate Leave Policy 2026') {
+      setCasualLeave('12');
+      setSickLeave('12');
+      setEarnedLeave('15');
+      setMaternityLeave('10');
+    } else if (policy === 'Executive Leave Policy 2026') {
+      setCasualLeave('15');
+      setSickLeave('15');
+      setEarnedLeave('20');
+      setMaternityLeave('12');
+    } else if (policy === 'Probationer Leave Policy 2026') {
+      setCasualLeave('6');
+      setSickLeave('6');
+      setEarnedLeave('0');
+      setMaternityLeave('0');
+    }
+  };
 
   useEffect(() => {
     if (personalRes?.data) {
@@ -249,6 +340,17 @@ export const EmployeeMasterScreen: React.FC = () => {
     }
   };
 
+  const handleFamDobChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowFamDobPicker(false);
+    }
+    if (event.type === 'set' && selectedDate) {
+      setFamDob(selectedDate.toISOString().split('T')[0]);
+    } else if (event.type === 'dismissed') {
+      setShowFamDobPicker(false);
+    }
+  };
+
   // Step 1 Save (Overview)
   const handleSaveOverview = (onSuccessCallback?: () => void) => {
     if (!isOverviewValid) {
@@ -291,6 +393,7 @@ export const EmployeeMasterScreen: React.FC = () => {
           email,
           phone,
           password: payloadPassword,
+          roleId: selectedRoleId || undefined,
           designation,
           department,
           location,
@@ -329,10 +432,13 @@ export const EmployeeMasterScreen: React.FC = () => {
           basic: basic ? parseFloat(basic) : null,
           hra: hra ? parseFloat(hra) : null,
           allowance: allowance ? parseFloat(allowance) : null,
+          deductions: deductions ? parseFloat(deductions) : null,
+          netSalary: netSalary ? parseFloat(netSalary) : null,
           bankName,
           bankAccount,
           ifsc,
           pan,
+          aadhaar: aadhaar.trim() || null,
         },
       },
       {
@@ -415,10 +521,13 @@ export const EmployeeMasterScreen: React.FC = () => {
                 basic: basic ? parseFloat(basic) : null,
                 hra: hra ? parseFloat(hra) : null,
                 allowance: allowance ? parseFloat(allowance) : null,
+                deductions: deductions ? parseFloat(deductions) : null,
+                netSalary: netSalary ? parseFloat(netSalary) : null,
                 bankName,
                 bankAccount,
                 ifsc,
                 pan,
+                aadhaar: aadhaar.trim() || null,
               },
             });
 
@@ -491,7 +600,7 @@ export const EmployeeMasterScreen: React.FC = () => {
   };
 
   const handleAddFamilyMember = () => {
-    if (!employeeId || !famName || !famRelation) {
+    if (!employeeId || !famName.trim() || !famRelation.trim()) {
       Alert.alert('Validation Error', 'Name and Relation are required');
       return;
     }
@@ -500,17 +609,23 @@ export const EmployeeMasterScreen: React.FC = () => {
       {
         employeeId,
         data: {
-          name: famName,
-          relation: famRelation,
-          contact: famContact,
+          name: famName.trim(),
+          relation: famRelation.trim(),
+          contact: famContact.trim() || null,
+          dob: famDob.trim() || null,
+          isNominee,
+          isInsuranceCovered,
         },
       },
       {
         onSuccess: () => {
           setFamilyModalOpen(false);
           setFamName('');
-          setFamRelation('');
+          setFamRelation('Spouse');
           setFamContact('');
+          setFamDob('');
+          setIsNominee(false);
+          setIsInsuranceCovered(true);
           Alert.alert('Success', 'Family member added to database.');
         },
         onError: err => Alert.alert('Error', err.message),
@@ -745,13 +860,43 @@ export const EmployeeMasterScreen: React.FC = () => {
               />
 
               {/* Designation */}
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DESIGNATION & ROLE</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DESIGNATION (TITLE)</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={designation}
                 onChangeText={setDesignation}
                 placeholder="Senior UI Developer"
                 placeholderTextColor={colors.inputPlaceholder}
+              />
+
+              {/* Organization Role (Permissions) */}
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>ORGANIZATION ROLE (PERMISSIONS)</Text>
+              <Dropdown
+                style={[
+                  styles.dropdownInput,
+                  {
+                    backgroundColor: colors.inputBackground,
+                    borderColor: colors.inputBorder,
+                    marginBottom: 16,
+                  },
+                ]}
+                placeholderStyle={[styles.dropdownPlaceholder, { color: colors.inputPlaceholder }]}
+                selectedTextStyle={[styles.dropdownSelectedText, { color: colors.inputText }]}
+                inputSearchStyle={[styles.dropdownSearchInput, { color: colors.inputText, backgroundColor: colors.inputBackground }]}
+                containerStyle={[styles.dropdownContainer, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}
+                itemTextStyle={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 14 }}
+                activeColor={isDark ? '#334155' : '#f1f5f9'}
+                data={roleDropdownOptions}
+                search
+                maxHeight={280}
+                labelField="label"
+                valueField="value"
+                placeholder="Select Organization Role"
+                searchPlaceholder="Search role..."
+                value={selectedRoleId}
+                onChange={item => {
+                  setSelectedRoleId(item.value);
+                }}
               />
 
               {/* Department Dropdown */}
@@ -855,33 +1000,64 @@ export const EmployeeMasterScreen: React.FC = () => {
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={basic}
-                onChangeText={setBasic}
+                onChangeText={handleBasicChange}
                 keyboardType="numeric"
                 placeholder="50000"
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>HRA ALLOWANCE (₹)</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>HRA ALLOWANCE (₹) - [40% Auto]</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={hra}
-                onChangeText={setHra}
+                onChangeText={val => handleSalaryComponentChange('hra', val)}
                 keyboardType="numeric"
                 placeholder="20000"
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SPECIAL ALLOWANCE (₹)</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SPECIAL ALLOWANCE (₹) - [30% Auto]</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={allowance}
-                onChangeText={setAllowance}
+                onChangeText={val => handleSalaryComponentChange('allowance', val)}
                 keyboardType="numeric"
-                placeholder="10000"
+                placeholder="15000"
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>BANK NAME</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>MONTHLY DEDUCTIONS (₹) - [15% Auto PF/Tax]</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
+                value={deductions}
+                onChangeText={val => handleSalaryComponentChange('deductions', val)}
+                keyboardType="numeric"
+                placeholder="7500"
+                placeholderTextColor={colors.inputPlaceholder}
+              />
+
+              {/* Net Take-Home Salary Banner */}
+              <View
+                style={[
+                  styles.netSalaryBanner,
+                  {
+                    backgroundColor: isDark ? '#064e3b33' : '#ecfdf5',
+                    borderColor: isDark ? '#059669' : '#a7f3d0',
+                  },
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.netSalaryLabel, { color: isDark ? '#6ee7b7' : '#047857' }]}>
+                    ESTIMATED NET MONTHLY SALARY
+                  </Text>
+                  <Text style={[styles.netSalaryValue, { color: isDark ? '#ecfdf5' : '#065f46' }]}>
+                    ₹{netSalary ? parseFloat(netSalary).toLocaleString('en-IN') : '0'} / month
+                  </Text>
+                </View>
+                <MaterialCommunityIcons name="calculator-variant-outline" size={26} color={isDark ? '#34d399' : '#059669'} />
+              </View>
+
+              <Text style={[styles.inputLabel, { color: colors.textSecondary, marginTop: 8 }]}>BANK NAME</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
                 value={bankName}
@@ -916,6 +1092,17 @@ export const EmployeeMasterScreen: React.FC = () => {
                 placeholder="ABCDE1234F"
                 placeholderTextColor={colors.inputPlaceholder}
               />
+
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>AADHAAR CARD NUMBER (12-DIGIT)</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
+                value={aadhaar}
+                onChangeText={setAadhaar}
+                keyboardType="numeric"
+                maxLength={12}
+                placeholder="1234 5678 9012"
+                placeholderTextColor={colors.inputPlaceholder}
+              />
             </View>
           )}
 
@@ -929,8 +1116,32 @@ export const EmployeeMasterScreen: React.FC = () => {
                 </Text>
               </View>
               <Text style={[styles.subText, { color: colors.textSecondary }]}>
-                Configure initial leave balances assigned to this employee.
+                Configure initial leave balances and entitlement policies for this employee.
               </Text>
+
+              {/* Leave Policy Dropdown */}
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>ASSIGNED LEAVE POLICY</Text>
+              <Dropdown
+                style={[
+                  styles.dropdownInput,
+                  {
+                    backgroundColor: colors.inputBackground,
+                    borderColor: colors.inputBorder,
+                    marginBottom: 16,
+                  },
+                ]}
+                placeholderStyle={[styles.dropdownPlaceholder, { color: colors.inputPlaceholder }]}
+                selectedTextStyle={[styles.dropdownSelectedText, { color: colors.inputText }]}
+                containerStyle={[styles.dropdownContainer, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}
+                itemTextStyle={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 13 }}
+                activeColor={isDark ? '#334155' : '#f1f5f9'}
+                data={leavePolicyOptions}
+                labelField="label"
+                valueField="value"
+                placeholder="Select Leave Policy"
+                value={leavePolicy}
+                onChange={item => handleLeavePolicyChange(item.value)}
+              />
 
               <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>CASUAL LEAVE QUOTA (Days/Year) *</Text>
               <TextInput
@@ -948,7 +1159,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                 value={sickLeave}
                 onChangeText={setSickLeave}
                 keyboardType="numeric"
-                placeholder="10"
+                placeholder="12"
                 placeholderTextColor={colors.inputPlaceholder}
               />
 
@@ -968,9 +1179,34 @@ export const EmployeeMasterScreen: React.FC = () => {
                 value={maternityLeave}
                 onChangeText={setMaternityLeave}
                 keyboardType="numeric"
-                placeholder="90"
+                placeholder="10"
                 placeholderTextColor={colors.inputPlaceholder}
               />
+
+              {/* Total Annual Allocation Banner */}
+              <View
+                style={[
+                  styles.leaveTotalBanner,
+                  {
+                    backgroundColor: isDark ? '#064e3b33' : '#ecfdf5',
+                    borderColor: isDark ? '#059669' : '#a7f3d0',
+                  },
+                ]}
+              >
+                <Text style={[styles.leaveTotalText, { color: isDark ? '#6ee7b7' : '#047857' }]}>
+                  ✓ Total Annual Allocation:{' '}
+                  <Text style={{ fontWeight: '800' }}>
+                    {(parseInt(casualLeave) || 0) +
+                      (parseInt(sickLeave) || 0) +
+                      (parseInt(earnedLeave) || 0) +
+                      (parseInt(maternityLeave) || 0)}{' '}
+                    Days
+                  </Text>
+                </Text>
+                <Text style={{ fontSize: 11, color: isDark ? '#34d399' : '#059669', marginTop: 2 }}>
+                  Carry Forward Limit: Max 30 Days
+                </Text>
+              </View>
             </View>
           )}
 
@@ -1126,7 +1362,20 @@ export const EmployeeMasterScreen: React.FC = () => {
                       <Text style={[styles.famName, { color: colors.textPrimary }]}>{fam.name}</Text>
                       <Text style={[styles.famRelation, { color: colors.textSecondary }]}>
                         {fam.relation} • {fam.contact || 'No Contact'}
+                        {fam.dob ? ` • DOB: ${fam.dob.split('T')[0]}` : ''}
                       </Text>
+                      <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
+                        {fam.isNominee && (
+                          <View style={styles.nomineeBadge}>
+                            <Text style={styles.nomineeBadgeText}>✓ PRIMARY NOMINEE</Text>
+                          </View>
+                        )}
+                        {fam.isInsuranceCovered && (
+                          <View style={styles.insuranceBadge}>
+                            <Text style={styles.insuranceBadgeText}>✓ HEALTH INSURANCE</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
                     <TouchableOpacity
                       onPress={() =>
@@ -1143,6 +1392,22 @@ export const EmployeeMasterScreen: React.FC = () => {
                   No family members added yet. Tap + Add Member to specify emergency contacts.
                 </Text>
               )}
+
+              {/* Company Insurance Note Banner (aligned with Web) */}
+              <View
+                style={[
+                  styles.infoCallout,
+                  {
+                    backgroundColor: isDark ? '#1e3a8a33' : '#eff6ff',
+                    borderColor: isDark ? '#1d4ed8' : '#bfdbfe',
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons name="shield-check-outline" size={18} color={isDark ? '#93c5fd' : '#2563eb'} />
+                <Text style={[styles.infoCalloutText, { color: isDark ? '#bfdbfe' : '#1e40af' }]}>
+                  ✓ Dependents entered during onboarding will automatically be registered under Company Health Insurance coverage.
+                </Text>
+              </View>
             </View>
           )}
 
@@ -1197,34 +1462,88 @@ export const EmployeeMasterScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Add Family Member</Text>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Add Family Member / Nominee</Text>
 
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Member Name</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>MEMBER FULL NAME *</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
               value={famName}
               onChangeText={setFamName}
-              placeholder="e.g. Jane Sharma"
+              placeholder="e.g. Sunita Sharma"
               placeholderTextColor={colors.inputPlaceholder}
             />
 
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Relation</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>RELATIONSHIP *</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
               value={famRelation}
               onChangeText={setFamRelation}
-              placeholder="Spouse / Father / Mother / Child"
+              placeholder="Spouse / Father / Mother / Child / Brother"
               placeholderTextColor={colors.inputPlaceholder}
             />
 
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Contact Phone</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DATE OF BIRTH</Text>
+            <TouchableOpacity
+              style={[styles.dateInputRow, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, marginBottom: 12 }]}
+              onPress={() => setShowFamDobPicker(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: famDob ? colors.inputText : colors.inputPlaceholder, fontSize: 14, flex: 1 }}>
+                {famDob || 'YYYY-MM-DD'}
+              </Text>
+              <MaterialCommunityIcons name="calendar-account" size={20} color={colors.accent} />
+            </TouchableOpacity>
+
+            {showFamDobPicker && (
+              <DateTimePicker
+                value={famDob ? new Date(famDob) : new Date(2000, 0, 1)}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                onChange={handleFamDobChange}
+              />
+            )}
+
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>EMERGENCY CONTACT NUMBER</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
               value={famContact}
               onChangeText={setFamContact}
+              keyboardType="phone-pad"
               placeholder="+91 98765 43210"
               placeholderTextColor={colors.inputPlaceholder}
             />
+
+            {/* Nominee Switch */}
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Primary Nominee</Text>
+                <Text style={[styles.switchSubLabel, { color: colors.textSecondary }]}>
+                  Designate as primary beneficiary nominee
+                </Text>
+              </View>
+              <Switch
+                value={isNominee}
+                onValueChange={setIsNominee}
+                trackColor={{ false: '#cbd5e1', true: colors.accent }}
+                thumbColor="#ffffff"
+              />
+            </View>
+
+            {/* Health Insurance Switch */}
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Health Insurance Coverage</Text>
+                <Text style={[styles.switchSubLabel, { color: colors.textSecondary }]}>
+                  Auto-enrolled under Company Health Insurance
+                </Text>
+              </View>
+              <Switch
+                value={isInsuranceCovered}
+                onValueChange={setIsInsuranceCovered}
+                trackColor={{ false: '#cbd5e1', true: colors.accent }}
+                thumbColor="#ffffff"
+              />
+            </View>
 
             <View style={styles.modalFooterRow}>
               <TouchableOpacity
@@ -1237,7 +1556,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                 style={[styles.confirmBtn, { backgroundColor: colors.accent }]}
                 onPress={handleAddFamilyMember}
               >
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Add Member</Text>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Save Member</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1577,5 +1896,86 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     marginTop: 4,
+  },
+  netSalaryBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginVertical: 12,
+  },
+  netSalaryLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  netSalaryValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  leaveTotalBanner: {
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 14,
+  },
+  leaveTotalText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  nomineeBadge: {
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  nomineeBadgeText: {
+    color: '#15803d',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  insuranceBadge: {
+    backgroundColor: '#dbeafe',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  insuranceBadgeText: {
+    color: '#1d4ed8',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  infoCallout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 14,
+  },
+  infoCalloutText: {
+    fontSize: 11,
+    flex: 1,
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  switchLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  switchSubLabel: {
+    fontSize: 11,
+    marginTop: 2,
   },
 });

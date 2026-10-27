@@ -25,6 +25,11 @@ api.interceptors.request.use(async (request) => {
   if (token) {
     request.headers.Authorization = `Bearer ${token}`;
   }
+
+  const orgId = await AsyncStorage.getItem('organizationId');
+  if (orgId) {
+    request.headers['x-organization-id'] = orgId;
+  }
   
   // For FormData requests, delete default Content-Type so browser sets boundary automatically
   if (request.data instanceof FormData) {

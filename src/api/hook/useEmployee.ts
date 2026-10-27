@@ -30,6 +30,7 @@ export interface Employee {
   location?: string | null;
   designation?: string | null;
   role?: string | null;
+  roleId?: string | null;
 
   // Relations
   userId?: string | null;
@@ -104,6 +105,7 @@ export interface CreateEmployeeRequest {
   address?: string | null;
   designation?: string | null;
   role?: string | null;
+  roleId?: string | null;
   departmentId?: string | null;
   department?: string | any | null;
   managerId?: string | null;
@@ -115,6 +117,11 @@ export interface CreateEmployeeRequest {
   allowance?: number | null;
   deductions?: number | null;
   netSalary?: number | null;
+  bankName?: string | null;
+  bankAccount?: string | null;
+  ifsc?: string | null;
+  pan?: string | null;
+  aadhaar?: string | null;
 
   // Personal Details (optional during initial creation)
   gender?: string | null;
@@ -122,6 +129,10 @@ export interface CreateEmployeeRequest {
   dob?: string | null;
   bloodGroup?: string | null;
   maritalStatus?: string | null;
+  fatherName?: string | null;
+  permanentAddress?: string | null;
+  languagesSpoken?: string | null;
+  qualification?: string | null;
 }
 
 export interface UpdateEmployeeRequest extends Partial<CreateEmployeeRequest> {}

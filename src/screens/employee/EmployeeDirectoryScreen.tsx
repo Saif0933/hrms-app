@@ -106,7 +106,11 @@ export const EmployeeDirectoryScreen: React.FC = () => {
     status: selectedStatus !== 'ALL' ? (selectedStatus as any) : undefined,
   });
 
-  const employees = response?.data || [];
+  const rawEmployees = response?.data || [];
+  const employees = rawEmployees.filter((emp: any) => {
+    const roleStr = (emp.role?.name || emp.role || emp.user?.role?.name || emp.designation || '').toString().toUpperCase();
+    return roleStr !== 'SUPER_ADMIN' && roleStr !== 'SUPER ADMIN';
+  });
 
   // Match logged-in user profile from directory database or construct dynamic profile
   const matchedEmployee = employees.find(
