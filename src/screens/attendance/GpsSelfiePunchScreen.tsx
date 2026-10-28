@@ -47,6 +47,122 @@ const calculateDistanceInMeters = (lat1: number, lon1: number, lat2: number, lon
   return R * c;
 };
 
+// Convert a time string like "09:30 AM" or "18:00" to minutes from midnight
+const parseTimeToMinutes = (timeStr?: string): number | null => {
+  if (!timeStr || timeStr === '-' || timeStr.toLowerCase() === 'custom') return null;
+  const match = timeStr.trim().match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!match) return null;
+  let hrs = parseInt(match[1], 10);
+  const mins = parseInt(match[2], 10);
+  const ampm = match[3] ? match[3].toUpperCase() : null;
+
+  if (ampm) {
+    if (ampm === 'PM' && hrs < 12) hrs += 12;
+    if (ampm === 'AM' && hrs === 12) hrs = 0;
+  }
+  return hrs * 60 + mins;
+};
+
+// Format minutes from midnight back to 12-hour format string (e.g. 540 -> "09:00 AM")
+const formatMinutesTo12h = (totalMins: number): string => {
+  let m = totalMins % 1440;
+  if (m < 0) m += 1440;
+  let hrs = Math.floor(m / 60);
+  const mins = m % 60;
+  const ampm = hrs >= 12 ? 'PM' : 'AM';
+  hrs = hrs % 12;
+  if (hrs === 0) hrs = 12;
+  return `${hrs < 10 ? '0' + hrs : hrs}:${mins < 10 ? '0' + mins : mins} ${ampm}`;
+};
+
+// Validate that the punch (In / Out) occurs within the employee's assigned shift window
+const validateShiftTimeWindow = (
+  type: 'In' | 'Out',
+  shift: { name?: string; startTime?: string; endTime?: string; code?: string }
+): { allowed: boolean; title?: string; message?: string } => {
+  if (!shift || shift.code === 'OFF') {
+    return {
+      allowed: false,
+      title: 'Week Off Restriction 🏖️',
+      message: 'Today is scheduled as your Week Off according to your assigned shift roster.',
+    };
+  }
+
+  const startMins = parseTimeToMinutes(shift.startTime);
+  const endMins = parseTimeToMinutes(shift.endTime);
+
+  // If no specific start/end time configured, allow
+  if (startMins === null || endMins === null) {
+    return { allowed: true };
+  }
+
+  const now = new Date();
+  const currentMins = now.getHours() * 60 + now.getMinutes();
+  const isOvernight = endMins <= startMins; // e.g. 22:00 (10 PM) to 07:00 (7 AM)
+
+  if (type === 'In') {
+    // Punch IN Window:
+    // Allow up to 60 minutes before shift starts
+    const earlyBuffer = 60;
+    const earliestIn = startMins - earlyBuffer;
+
+    if (!isOvernight) {
+      if (currentMins < earliestIn) {
+        return {
+          allowed: false,
+          title: 'Early Punch In Restricted ⏰',
+          message: `Your assigned shift is ${shift.name} (${shift.startTime} - ${shift.endTime}).\n\nPunch IN is only permitted from ${formatMinutesTo12h(earliestIn)} onwards (within 60 minutes before shift starts).`,
+        };
+      }
+      if (currentMins >= endMins) {
+        return {
+          allowed: false,
+          title: 'Shift Hours Ended ⏰',
+          message: `Your assigned shift ${shift.name} ended at ${shift.endTime}. You cannot punch in after shift hours.\n\nPlease apply for Attendance Regularization if you worked today.`,
+        };
+      }
+    } else {
+      // Overnight Shift
+      const isAllowedIn = currentMins >= earliestIn || currentMins <= (endMins - 60);
+      if (!isAllowedIn) {
+        return {
+          allowed: false,
+          title: 'Shift Timing Restriction ⏰',
+          message: `Your assigned night shift is ${shift.name} (${shift.startTime} - ${shift.endTime}).\n\nPunch IN is only allowed within shift hours starting from ${formatMinutesTo12h(earliestIn)}.`,
+        };
+      }
+    }
+  } else {
+    // Punch OUT Window:
+    // Allow punching out within 30 minutes before shift ends, or any time after shift ends up to 3 hours
+    const earlyOutBuffer = 30;
+
+    if (!isOvernight) {
+      const earliestOut = endMins - earlyOutBuffer;
+      if (currentMins < earliestOut) {
+        return {
+          allowed: false,
+          title: 'Early Departure Restricted ⚠️',
+          message: `Your assigned shift is ${shift.name} (${shift.startTime} - ${shift.endTime}).\n\nPunch OUT is only permitted near shift completion (from ${formatMinutesTo12h(earliestOut)} onwards).`,
+        };
+      }
+    } else {
+      // Overnight Shift
+      const earliestOut = (endMins - earlyOutBuffer + 1440) % 1440;
+      const isEarlyDuringShift = currentMins >= startMins || currentMins < earliestOut;
+      if (isEarlyDuringShift) {
+        return {
+          allowed: false,
+          title: 'Early Departure Restricted ⚠️',
+          message: `Your assigned shift is ${shift.name} (${shift.startTime} - ${shift.endTime}).\n\nPunch OUT is only permitted near shift end (from ${formatMinutesTo12h(earliestOut)} onwards).`,
+        };
+      }
+    }
+  }
+
+  return { allowed: true };
+};
+
 export const GpsSelfiePunchScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
@@ -123,34 +239,91 @@ export const GpsSelfiePunchScreen: React.FC = () => {
     );
   }, [rosters, employeeId, matchedEmp, user]);
 
-  const assignedShiftCode = useMemo(() => {
-    if (employeeRoster && (employeeRoster as any)[dayKey]) {
-      const raw = String((employeeRoster as any)[dayKey]).trim();
-      const norm = raw.toUpperCase();
-      if (norm === 'MORNING' || norm === 'MORNING SHIFT' || norm === 'M') return 'MORNING';
-      if (norm === 'EVENING' || norm === 'EVENING SHIFT' || norm === 'E') return 'EVENING';
-      if (norm === 'NIGHT' || norm === 'NIGHT SHIFT' || norm === 'N') return 'NIGHT';
-      if (norm === 'OFF' || norm === 'WEEK OFF' || norm === 'WEEKOFF' || norm === 'WO') return 'OFF';
-      if (norm === 'GENERAL' || norm === 'GENERAL SHIFT' || norm === 'G') return 'MORNING';
-      return raw;
-    }
-    return 'MORNING';
-  }, [employeeRoster, dayKey]);
-
   const assignedShiftDetail = useMemo(() => {
-    const found = shiftTimings.find(t => t.code === assignedShiftCode);
-    if (found) return found;
-    if (assignedShiftCode === 'OFF') {
+    // 0. Extract raw shift from roster for today
+    let rawShift = '';
+    if (employeeRoster && (employeeRoster as any)[dayKey]) {
+      rawShift = String((employeeRoster as any)[dayKey]).trim();
+    }
+
+    // Fallback: If not in roster, check employee shifts relation if available
+    if (!rawShift && (matchedEmp as any)?.shifts?.length > 0) {
+      rawShift = (matchedEmp as any).shifts[0].code || (matchedEmp as any).shifts[0].name || '';
+    }
+
+    if (!rawShift) {
+      rawShift = 'MORNING';
+    }
+
+    const rawUpper = rawShift.toUpperCase();
+
+    // Check Week Off
+    if (rawUpper === 'OFF' || rawUpper === 'WEEK OFF' || rawUpper === 'WEEKOFF' || rawUpper === 'WO') {
       return { code: 'OFF', name: 'Week Off', startTime: '-', endTime: '-', shortLabel: 'OFF', color: '#94a3b8' };
     }
-    if (assignedShiftCode === 'EVENING') {
+
+    // 1. Exact match by code, name, or id (case-insensitive)
+    let found = shiftTimings.find(t => 
+      t.code?.trim().toUpperCase() === rawUpper ||
+      t.name?.trim().toUpperCase() === rawUpper ||
+      t.id === rawShift
+    );
+
+    // 2. Partial/contains match by code or name
+    if (!found) {
+      found = shiftTimings.find(t => {
+        const tCode = (t.code || '').trim().toUpperCase();
+        const tName = (t.name || '').trim().toUpperCase();
+        return (
+          tName.includes(rawUpper) ||
+          rawUpper.includes(tName) ||
+          tCode.includes(rawUpper) ||
+          rawUpper.includes(tCode)
+        );
+      });
+    }
+
+    // 3. Keyword matching for common shift types
+    if (!found) {
+      if (rawUpper.includes('MORN')) {
+        found = shiftTimings.find(t => (t.name || '').toUpperCase().includes('MORN') || (t.code || '').toUpperCase().includes('MORN'));
+      } else if (rawUpper.includes('EVEN')) {
+        found = shiftTimings.find(t => (t.name || '').toUpperCase().includes('EVEN') || (t.code || '').toUpperCase().includes('EVEN'));
+      } else if (rawUpper.includes('NIGHT')) {
+        found = shiftTimings.find(t => (t.name || '').toUpperCase().includes('NIGHT') || (t.code || '').toUpperCase().includes('NIGHT'));
+      } else if (rawUpper.includes('GEN')) {
+        found = shiftTimings.find(t => (t.name || '').toUpperCase().includes('GEN') || (t.code || '').toUpperCase().includes('GEN'));
+      }
+    }
+
+    // 4. Return matching organization shift
+    if (found) {
+      return {
+        id: found.id,
+        code: found.code,
+        name: found.name,
+        startTime: found.startTime || '09:00 AM',
+        endTime: found.endTime || '06:00 PM',
+        shortLabel: found.shortLabel || found.code || found.name?.slice(0, 3).toUpperCase(),
+        color: found.color || '#2563eb',
+        bgColor: found.bgColor || `${found.color || '#2563eb'}18`,
+      };
+    }
+
+    // 5. Default standard shift fallbacks if not customized in organization shifts
+    if (rawUpper.includes('EVEN')) {
       return { code: 'EVENING', name: 'Evening Shift', startTime: '02:00 PM', endTime: '11:00 PM', shortLabel: 'E (14-23)', color: '#8b5cf6' };
     }
-    if (assignedShiftCode === 'NIGHT') {
+    if (rawUpper.includes('NIGHT')) {
       return { code: 'NIGHT', name: 'Night Shift', startTime: '10:00 PM', endTime: '07:00 AM', shortLabel: 'N (22-07)', color: '#38bdf8' };
     }
-    return { code: 'MORNING', name: 'Morning Shift', startTime: '09:00 AM', endTime: '06:00 PM', shortLabel: 'M (09-18)', color: '#2563eb' };
-  }, [assignedShiftCode, shiftTimings]);
+    if (rawUpper.includes('GEN')) {
+      return { code: 'GENERAL', name: 'General Shift', startTime: '09:30 AM', endTime: '06:30 PM', shortLabel: 'G (09-18)', color: '#10b981' };
+    }
+    return { code: rawUpper, name: `${rawShift} Shift`, startTime: '09:00 AM', endTime: '06:00 PM', shortLabel: rawUpper.slice(0, 3), color: '#2563eb' };
+  }, [employeeRoster, dayKey, matchedEmp, shiftTimings]);
+
+  const assignedShiftCode = assignedShiftDetail?.code || 'MORNING';
 
   const getPunchDate = (p: any): Date => {
     if (p.createdAt) {
@@ -259,11 +432,12 @@ export const GpsSelfiePunchScreen: React.FC = () => {
       return false;
     }
 
-    // 1. SHIFT VALIDATION
-    if (assignedShiftDetail.code === 'OFF') {
+    // 1. SHIFT & TIME WINDOW VALIDATION
+    const shiftValidation = validateShiftTimeWindow(punchType, assignedShiftDetail);
+    if (!shiftValidation.allowed) {
       Alert.alert(
-        'Week Off Restriction 🏖️',
-        `Today (${todayDayName}) is scheduled as your Week Off according to your assigned shift roster.`
+        shiftValidation.title || 'Shift Timing Restriction ⏰',
+        shiftValidation.message || 'You cannot punch at this time according to your assigned shift.'
       );
       return false;
     }

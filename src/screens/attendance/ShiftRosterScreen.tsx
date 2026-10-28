@@ -129,7 +129,7 @@ export const ShiftRosterScreen: React.FC = () => {
   const [createAssignDays, setCreateAssignDays] = useState<Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'>>(['mon', 'tue', 'wed', 'thu', 'fri']);
 
   const [assignShiftModalOpen, setAssignShiftModalOpen] = useState(false);
-  const [assignShiftTargetCode, setAssignShiftTargetCode] = useState<ShiftCode>('MORNING');
+  const [assignShiftTargetCode, setAssignShiftTargetCode] = useState<ShiftCode>('');
   const [assignType, setAssignType] = useState<'single' | 'bulk'>('single');
   const [assignSingleEmpId, setAssignSingleEmpId] = useState('');
   const [assignBulkEmpIds, setAssignBulkEmpIds] = useState<string[]>([]);
@@ -137,6 +137,13 @@ export const ShiftRosterScreen: React.FC = () => {
 
   // Dynamic Roster Mapping State
   const [customRosterMap, setCustomRosterMap] = useState<Record<string, Record<string, ShiftCode>>>({});
+
+  // Keep selected shift in assign modal synced with organization shifts
+  useEffect(() => {
+    if (shiftTimings.length > 0 && (!assignShiftTargetCode || !shiftTimings.some(t => t.code === assignShiftTargetCode))) {
+      setAssignShiftTargetCode(shiftTimings[0].code);
+    }
+  }, [shiftTimings, assignShiftTargetCode]);
 
   // Sync state when employees or rosters load/change
   useEffect(() => {
@@ -337,33 +344,41 @@ export const ShiftRosterScreen: React.FC = () => {
       {
         onSuccess: () => {
           let assignedCount = 0;
+          const updatedMap = { ...customRosterMap };
           if (createAssignMode === 'single' && createAssignSingleEmpId) {
-            setCustomRosterMap(prev => {
-              const updated = { ...prev };
-              const currentDays = updated[createAssignSingleEmpId] || { mon: 'MORNING', tue: 'MORNING', wed: 'MORNING', thu: 'MORNING', fri: 'MORNING', sat: 'OFF', sun: 'OFF' };
-              const newDays = { ...currentDays };
-              createAssignDays.forEach(day => { newDays[day] = codeUpper; });
-              updated[createAssignSingleEmpId] = newDays;
-              return updated;
-            });
+            const currentDays = updatedMap[createAssignSingleEmpId] || { mon: 'MORNING', tue: 'MORNING', wed: 'MORNING', thu: 'MORNING', fri: 'MORNING', sat: 'OFF', sun: 'OFF' };
+            const newDays = { ...currentDays };
+            createAssignDays.forEach(day => { newDays[day] = codeUpper; });
+            updatedMap[createAssignSingleEmpId] = newDays;
             assignedCount = 1;
           } else if (createAssignMode === 'bulk' && createAssignBulkEmpIds.length > 0) {
-            setCustomRosterMap(prev => {
-              const updated = { ...prev };
-              createAssignBulkEmpIds.forEach(empId => {
-                const currentDays = updated[empId] || { mon: 'MORNING', tue: 'MORNING', wed: 'MORNING', thu: 'MORNING', fri: 'MORNING', sat: 'OFF', sun: 'OFF' };
-                const newDays = { ...currentDays };
-                createAssignDays.forEach(day => { newDays[day] = codeUpper; });
-                updated[empId] = newDays;
-              });
-              return updated;
+            createAssignBulkEmpIds.forEach(empId => {
+              const currentDays = updatedMap[empId] || { mon: 'MORNING', tue: 'MORNING', wed: 'MORNING', thu: 'MORNING', fri: 'MORNING', sat: 'OFF', sun: 'OFF' };
+              const newDays = { ...currentDays };
+              createAssignDays.forEach(day => { newDays[day] = codeUpper; });
+              updatedMap[empId] = newDays;
             });
             assignedCount = createAssignBulkEmpIds.length;
           }
 
+          if (assignedCount > 0) {
+            setCustomRosterMap(updatedMap);
+            const payload = employees.map((emp: Employee) => ({
+              employeeId: emp.id,
+              mon: updatedMap[emp.id]?.mon || 'MORNING',
+              tue: updatedMap[emp.id]?.tue || 'MORNING',
+              wed: updatedMap[emp.id]?.wed || 'MORNING',
+              thu: updatedMap[emp.id]?.thu || 'MORNING',
+              fri: updatedMap[emp.id]?.fri || 'MORNING',
+              sat: updatedMap[emp.id]?.sat || 'OFF',
+              sun: updatedMap[emp.id]?.sun || 'OFF',
+            }));
+            saveRosterMutation.mutate({ week: selectedWeek, rosters: payload });
+          }
+
           Alert.alert(
             'Shift Timing Added ⏰',
-            `Organization Shift "${newShiftName.trim()}" saved successfully${assignedCount > 0 ? ` and assigned to ${assignedCount} employee(s)!` : '!'}`
+            `Organization Shift "${newShiftName.trim()}" saved successfully${assignedCount > 0 ? ` and assigned to ${assignedCount} employee(s) in DB!` : '!'}`
           );
           setNewShiftName('');
           setNewShiftCode('');
@@ -380,7 +395,12 @@ export const ShiftRosterScreen: React.FC = () => {
   // Standalone Shift Assignment Handler (Single & Bulk)
   const handleApplyStandaloneShiftAssignment = () => {
     if (!assignShiftTargetCode) {
-      Alert.alert('Validation Error', 'Please select a shift to assign.');
+      Alert.alert('Validation Error', 'Please select an organization shift to assign.');
+      return;
+    }
+    const chosenShift = shiftTimings.find(t => t.code === assignShiftTargetCode);
+    if (!chosenShift) {
+      Alert.alert('Validation Error', 'Selected shift was not found among organization shifts.');
       return;
     }
     if (assignSelectedDays.length === 0) {
@@ -592,7 +612,15 @@ export const ShiftRosterScreen: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.addTimingBtn, { backgroundColor: '#8b5cf6' }]}
-                onPress={() => setAssignShiftModalOpen(true)}
+                onPress={() => {
+                  if (shiftTimings.length === 0) {
+                    Alert.alert('No Organization Shifts', 'Please create at least one Organization Shift first using "+ Add Shift".');
+                    return;
+                  }
+                  setAssignShiftTargetCode(shiftTimings[0]?.code || '');
+                  setAssignSelectedDays(['mon', 'tue', 'wed', 'thu', 'fri']);
+                  setAssignShiftModalOpen(true);
+                }}
                 activeOpacity={0.8}
               >
                 <Text style={styles.addTimingBtnText}>⚡ Assign Shift</Text>
@@ -1144,21 +1172,46 @@ export const ShiftRosterScreen: React.FC = () => {
             </Text>
 
             {/* Select Shift Target Code */}
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SELECT SHIFT TO ASSIGN *</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-              {['MORNING', 'EVENING', 'NIGHT', 'OFF', ...shiftTimings.map(t => t.code)].map(sc => {
-                const isSelected = assignShiftTargetCode === sc;
-                return (
-                  <TouchableOpacity
-                    key={sc}
-                    style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, marginRight: 6 }, isSelected ? { backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' } : { borderColor: colors.cardBorder, backgroundColor: colors.background }]}
-                    onPress={() => setAssignShiftTargetCode(sc)}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: isSelected ? '#fff' : colors.textPrimary }}>{sc}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SELECT SHIFT TO ASSIGN *</Text>
+              <Text style={{ fontSize: 10, color: '#8b5cf6', fontWeight: '700' }}>
+                {shiftTimings.length} Organization Shift{shiftTimings.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            {shiftTimings.length === 0 ? (
+              <View style={{ padding: 10, borderRadius: 8, backgroundColor: '#fef3c7', marginVertical: 4, borderWidth: 1, borderColor: '#fde68a' }}>
+                <Text style={{ fontSize: 11, color: '#92400e', fontWeight: '600' }}>
+                  ⚠️ No organization shifts found. Please create one first using "+ Add Shift".
+                </Text>
+              </View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
+                {shiftTimings.map(st => {
+                  const isSelected = assignShiftTargetCode === st.code;
+                  return (
+                    <TouchableOpacity
+                      key={st.id || st.code}
+                      style={[
+                        { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, marginRight: 8, alignItems: 'center' },
+                        isSelected
+                          ? { backgroundColor: st.color || '#8b5cf6', borderColor: st.color || '#8b5cf6' }
+                          : { borderColor: colors.cardBorder, backgroundColor: colors.background }
+                      ]}
+                      onPress={() => setAssignShiftTargetCode(st.code)}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: isSelected ? '#fff' : colors.textPrimary }}>
+                        {st.name || st.code}
+                      </Text>
+                      {st.startTime !== '-' && (
+                        <Text style={{ fontSize: 9, color: isSelected ? '#ffffffcc' : colors.textSecondary, marginTop: 2 }}>
+                          {st.startTime} - {st.endTime}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
 
             {/* Assignment Mode Toggle */}
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>ASSIGNMENT MODE *</Text>
