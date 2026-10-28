@@ -181,22 +181,37 @@ export const MenuScreen: React.FC = () => {
     ]);
   };
 
+  const userPermissions: string[] = profileResponse?.data?.user?.permissions || [];
+  const rawRole = (profileResponse?.data?.user?.role || '').toUpperCase();
+  const isAdmin = rawRole === 'SUPER_ADMIN' || rawRole === 'HR_ADMIN' || rawRole === 'ADMIN' || rawRole.includes('ADMIN') || rawRole.includes('CEO');
+  const isManager = rawRole === 'MANAGER' || rawRole.includes('MANAGER');
+  const isEmployee = !isAdmin && !isManager && userPermissions.length === 0;
+
+  const hasPerm = (perm: string) => {
+    if (isAdmin) return true;
+    return userPermissions.includes(perm);
+  };
+
   const menuItems: MenuItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
     {
       id: 'employees',
-      label: 'Employee Management',
+      label: hasPerm('VIEW_EMPLOYEE_MASTER') ? 'Employee Management' : 'Employee Directory',
       icon: '👥',
       subItems: [
         { id: 'directory', label: 'Employee Directory' },
-        { id: 'master', label: 'Employee Master' },
+        ...(hasPerm('VIEW_EMPLOYEE_MASTER') ? [{ id: 'master', label: 'Employee Master' }] : []),
         { id: 'orgchart', label: 'Organization Chart' },
-        { id: 'exit', label: 'Exit & Settlement' },
-        { id: 'resignation', label: 'Resignation Archive' },
-        { id: 'bulk', label: 'Bulk Imports & Exports' },
-        { id: 'roles', label: 'Role & Permissions' },
-        { id: 'assignrole', label: 'Assign Role to Employee' },
-        { id: 'departments', label: 'Departments' },
+        ...(hasPerm('VIEW_EXIT_SETTLEMENT') ? [
+          { id: 'exit', label: 'Exit & Settlement' },
+          { id: 'resignation', label: 'Resignation Archive' },
+        ] : []),
+        ...(hasPerm('MANAGE_BULK_IMPORTS') ? [{ id: 'bulk', label: 'Bulk Imports & Exports' }] : []),
+        ...(hasPerm('VIEW_ROLES_PERMISSIONS') ? [
+          { id: 'roles', label: 'Role & Permissions' },
+          { id: 'assignrole', label: 'Assign Role to Employee' },
+        ] : []),
+        ...(hasPerm('VIEW_EMPLOYEE_MASTER') ? [{ id: 'departments', label: 'Departments' }] : []),
       ],
     },
     {
@@ -205,11 +220,11 @@ export const MenuScreen: React.FC = () => {
       icon: '📅',
       subItems: [
         { id: 'punch', label: 'GPS / Selfie Punch' },
-        { id: 'roster', label: 'Shift & Roster' },
+        ...(hasPerm('VIEW_SHIFT_ROSTER') ? [{ id: 'roster', label: 'Shift & Roster' }] : []),
         { id: 'regularize', label: 'Regularization' },
-        { id: 'muster', label: 'Muster Roll / Calendar' },
-        { id: 'reports', label: 'Attendance Reports' },
-        { id: 'geofence', label: 'Geofencing Config' },
+        { id: 'muster', label: hasPerm('UPDATE_SHIFT_ROSTER') ? 'Muster Roll / Calendar' : 'My Attendance Calendar' },
+        ...(hasPerm('VIEW_ATTENDANCE_REPORTS') ? [{ id: 'reports', label: 'Attendance Reports' }] : []),
+        ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{ id: 'geofence', label: 'Geofencing Config' }] : []),
       ],
     },
     {
@@ -218,10 +233,10 @@ export const MenuScreen: React.FC = () => {
       icon: '✈️',
       subItems: [
         { id: 'apply', label: 'Apply Leave' },
-        { id: 'approvals', label: 'Leave Approvals' },
+        ...(hasPerm('UPDATE_LEAVE_APPROVAL') ? [{ id: 'approvals', label: 'Leave Approvals' }] : []),
         { id: 'calendar', label: 'Leave Calendar' },
         { id: 'policies', label: 'Leave Policies' },
-        { id: 'admin', label: 'Leave Configurations' },
+        ...(hasPerm('MANAGE_LEAVE_CONFIGURATIONS') ? [{ id: 'admin', label: 'Leave Configurations' }] : []),
       ],
     },
     {
@@ -229,12 +244,12 @@ export const MenuScreen: React.FC = () => {
       label: 'Payroll',
       icon: '💳',
       subItems: [
-        { id: 'payslips', label: 'Payslips' },
-        { id: 'process', label: 'Salary Structure' },
-        { id: 'revisions', label: 'Allowances' },
-        { id: 'loans', label: 'Deductions' },
+        { id: 'payslips', label: hasPerm('UPDATE_SALARY_PROCESSING') ? 'Payslips' : 'My Payslips' },
+        ...(hasPerm('UPDATE_SALARY_PROCESSING') ? [{ id: 'process', label: 'Salary Structure' }] : []),
+        ...(hasPerm('UPDATE_SALARY_STRUCTURE') ? [{ id: 'revisions', label: 'Allowances' }] : []),
+        { id: 'loans', label: hasPerm('UPDATE_SALARY_PROCESSING') ? 'Deductions & Loans' : 'Deductions & Advances' },
         { id: 'investment', label: 'Investment Declarations' },
-        { id: 'reports', label: 'Payroll Reports & ECR' },
+        ...(hasPerm('UPDATE_SALARY_PROCESSING') ? [{ id: 'reports', label: 'Payroll Reports & ECR' }] : []),
       ],
     },
     {
@@ -244,12 +259,12 @@ export const MenuScreen: React.FC = () => {
       subItems: [
         { id: 'goals', label: 'KRA & Goal Setting' },
         { id: 'feedback', label: '360° Feedback' },
-        { id: 'bellcurve', label: 'Bell Curve Analytics' },
+        ...(hasPerm('VIEW_BELLCURVE_ANALYTICS') ? [{ id: 'bellcurve', label: 'Bell Curve Analytics' }] : []),
       ],
     },
     {
       id: 'engagement',
-      label: 'Reports',
+      label: 'Engagement',
       icon: '📊',
       subItems: [
         { id: 'feed', label: 'Social Feed & Posts' },
@@ -264,7 +279,7 @@ export const MenuScreen: React.FC = () => {
       subItems: [
         { id: 'apply-claim', label: 'New Travel Request' },
         { id: 'my-claims', label: 'Expense Reimbursements' },
-        { id: 'approvals', label: 'Claim Approvals' },
+        ...(hasPerm('UPDATE_CLAIM_APPROVAL') ? [{ id: 'approvals', label: 'Claim Approvals' }] : []),
       ],
     },
     {
@@ -273,10 +288,10 @@ export const MenuScreen: React.FC = () => {
       icon: '📋',
       subItems: [
         { id: 'entry', label: 'Timesheet Entry' },
-        { id: 'projects', label: 'Clients & Projects' },
+        ...(hasPerm('VIEW_EMPLOYEE_MASTER') ? [{ id: 'projects', label: 'Clients & Projects' }] : []),
       ],
     },
-    {
+    ...((hasPerm('VIEW_JOB_REQUISITIONS') || hasPerm('VIEW_CANDIDATE_PIPELINE')) ? [{
       id: 'recruitment',
       label: 'Recruitment & ATS',
       icon: '💼',
@@ -285,15 +300,17 @@ export const MenuScreen: React.FC = () => {
         { id: 'candidates', label: 'Candidate Pipeline' },
         { id: 'onboarding', label: 'Pre-Onboarding Checklist' },
       ],
-    },
+    }] : []),
     {
       id: 'documents',
       label: 'Document Vault',
       icon: '📁',
       subItems: [
         { id: 'vault', label: 'Document Vault & Repository' },
-        { id: 'upload', label: 'Upload & Manage Documents' },
-        { id: 'compliance', label: 'Document Expiry & Compliance' },
+        ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [
+          { id: 'upload', label: 'Upload & Manage Documents' },
+          { id: 'compliance', label: 'Document Expiry & Compliance' },
+        ] : []),
       ],
     },
     {
@@ -301,12 +318,12 @@ export const MenuScreen: React.FC = () => {
       label: 'Asset Management',
       icon: '💻',
       subItems: [
-        { id: 'inventory', label: 'Company Asset Inventory' },
-        { id: 'allocation', label: 'Employee Asset Allocation' },
-        { id: 'register', label: 'Register New Asset' },
+        ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{ id: 'inventory', label: 'Company Asset Inventory' }] : []),
+        { id: 'allocation', label: hasPerm('MANAGE_SYSTEM_SETTINGS') ? 'Employee Asset Allocation' : 'My Assigned Assets' },
+        ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{ id: 'register', label: 'Register New Asset' }] : []),
       ],
     },
-    {
+    ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{
       id: 'letters',
       label: 'Letter Generator',
       icon: '✉️',
@@ -315,18 +332,19 @@ export const MenuScreen: React.FC = () => {
         { id: 'archive', label: 'Issued Letters Archive' },
         { id: 'templates', label: 'Corporate Letter Templates' },
       ],
-    },
+    }] : []),
     {
       id: 'helpdesk',
       label: 'HR Help Desk',
       icon: '🎧',
       subItems: [
-        { id: 'tickets', label: 'Support Tickets Queue' },
+        ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{ id: 'tickets', label: 'Support Tickets Queue' }] : []),
         { id: 'raise', label: 'Raise Support Ticket' },
-        { id: 'sla', label: 'Help Desk SLA & Analytics' },
+        ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{ id: 'sla', label: 'Help Desk SLA & Analytics' }] : []),
+        ...(!hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{ id: 'tickets', label: 'My Support Tickets' }] : []),
       ],
     },
-    {
+    ...(isAdmin ? [{
       id: 'subscription',
       label: 'Settings',
       icon: '⚙️',
@@ -335,7 +353,7 @@ export const MenuScreen: React.FC = () => {
         { id: 'compare', label: 'Feature Comparison Matrix' },
         { id: 'manage', label: 'Manage Subscription & Invoices' },
       ],
-    },
+    }] : []),
   ];
 
   const toggleDropdown = (id: string) => {
@@ -343,6 +361,29 @@ export const MenuScreen: React.FC = () => {
   };
 
   const navigateToRoute = (itemId: string, subItemId?: string) => {
+    const isRestrictedForUser =
+      (subItemId === 'master' && !hasPerm('VIEW_EMPLOYEE_MASTER')) ||
+      ((subItemId === 'exit' || subItemId === 'resignation') && !hasPerm('VIEW_EXIT_SETTLEMENT')) ||
+      (subItemId === 'bulk' && !hasPerm('MANAGE_BULK_IMPORTS')) ||
+      ((subItemId === 'roles' || subItemId === 'assignrole') && !hasPerm('VIEW_ROLES_PERMISSIONS')) ||
+      (subItemId === 'departments' && !hasPerm('VIEW_EMPLOYEE_MASTER')) ||
+      (subItemId === 'roster' && !hasPerm('VIEW_SHIFT_ROSTER')) ||
+      (subItemId === 'reports' && !hasPerm('VIEW_ATTENDANCE_REPORTS')) ||
+      (subItemId === 'geofence' && !hasPerm('MANAGE_SYSTEM_SETTINGS')) ||
+      (itemId === 'leave' && subItemId === 'approvals' && !hasPerm('UPDATE_LEAVE_APPROVAL')) ||
+      (itemId === 'leave' && subItemId === 'admin' && !hasPerm('MANAGE_LEAVE_CONFIGURATIONS')) ||
+      (itemId === 'payroll' && (subItemId === 'process' || subItemId === 'reports') && !hasPerm('UPDATE_SALARY_PROCESSING')) ||
+      (itemId === 'payroll' && subItemId === 'revisions' && !hasPerm('UPDATE_SALARY_STRUCTURE')) ||
+      (itemId === 'claims' && subItemId === 'approvals' && !hasPerm('UPDATE_CLAIM_APPROVAL')) ||
+      (itemId === 'timesheets' && subItemId === 'projects' && !hasPerm('VIEW_EMPLOYEE_MASTER')) ||
+      (itemId === 'recruitment' && !hasPerm('VIEW_JOB_REQUISITIONS') && !hasPerm('VIEW_CANDIDATE_PIPELINE')) ||
+      (itemId === 'subscription' && !isAdmin);
+
+    if (isRestrictedForUser) {
+      Alert.alert('Access Restricted', 'Your assigned role does not have permission to access this module.');
+      return;
+    }
+
     if (itemId === 'dashboard') {
       navigation.navigate('Dashboard');
       return;
@@ -395,7 +436,11 @@ export const MenuScreen: React.FC = () => {
           navigation.navigate('AttendanceRegularization');
           break;
         case 'muster':
-          navigation.navigate('MusterRoll');
+          if (isEmployee) {
+            navigation.navigate('AttendanceHistory');
+          } else {
+            navigation.navigate('MusterRoll');
+          }
           break;
         case 'reports':
           navigation.navigate('AttendanceReports');
@@ -695,6 +740,67 @@ export const MenuScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
+          {/* User Profile Card - Clickable to open Profile */}
+          <TouchableOpacity
+            style={[
+              styles.userProfileCard,
+              {
+                backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+                borderColor: isDark ? '#334155' : '#E2E8F0',
+              },
+            ]}
+            onPress={() => {
+              handleClose(() => {
+                const myEmpId = profileResponse?.data?.user?.employeeId || profileResponse?.data?.user?.id;
+                if (myEmpId) {
+                  navigation.navigate('EmployeeMaster', { employeeId: myEmpId });
+                } else {
+                  navigation.navigate('EmployeeDirectory');
+                }
+              });
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.userAvatarBox, { backgroundColor: isDark ? '#3B82F630' : '#DBEAFE' }]}>
+              <Text style={[styles.userAvatarInitials, { color: isDark ? '#93C5FD' : '#2563EB' }]}>
+                {userInitials}
+              </Text>
+            </View>
+            <View style={styles.userInfoTextCol}>
+              <Text style={[styles.userNameHeading, { color: isDark ? '#FFFFFF' : '#0F172A' }]} numberOfLines={1}>
+                {userName}
+              </Text>
+              <View
+                style={[
+                  styles.roleBadgePill,
+                  {
+                    backgroundColor: isAdmin
+                      ? (isDark ? '#4C1D95' : '#EDE9FE')
+                      : isManager
+                      ? (isDark ? '#1E3A8A' : '#EFF6FF')
+                      : (isDark ? '#064E3B' : '#ECFDF5'),
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.roleBadgePillText,
+                    {
+                      color: isAdmin
+                        ? (isDark ? '#C4B5FD' : '#6D28D9')
+                        : isManager
+                        ? (isDark ? '#93C5FD' : '#1D4ED8')
+                        : (isDark ? '#6EE7B7' : '#047857'),
+                    },
+                  ]}
+                >
+                  {isAdmin ? '🛡️ Administrator' : isManager ? '👔 Manager' : '👤 Employee (Self-Service)'}
+                </Text>
+              </View>
+            </View>
+            <Text style={{ color: isDark ? '#64748B' : '#94A3B8', fontSize: 13, marginRight: 2 }}>✎</Text>
+          </TouchableOpacity>
+
           {/* Quick Search Bar & User / Theme Bar */}
           <View style={[styles.userControlsBar, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
             <View style={[styles.searchBox, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
@@ -944,6 +1050,46 @@ const styles = StyleSheet.create({
   },
   collapseIconText: {
     fontSize: 22,
+    fontWeight: '700',
+  },
+  /* User Profile Card Styles */
+  userProfileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 10,
+  },
+  userAvatarBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userAvatarInitials: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  userInfoTextCol: {
+    flex: 1,
+    gap: 3,
+  },
+  userNameHeading: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  roleBadgePill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  roleBadgePillText: {
+    fontSize: 10,
     fontWeight: '700',
   },
   /* User Controls & Search */

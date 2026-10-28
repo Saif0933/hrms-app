@@ -31,8 +31,159 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'RolePermiss
 interface PermissionItem {
   id: string;
   name: string;
-  category: 'Employees' | 'Attendance' | 'Leave' | 'Payroll' | 'Performance' | 'Claims' | 'Recruitment' | 'Admin';
+  category: string;
+  description?: string;
 }
+
+const getCategoryForPermission = (perm: { name: string; module?: string | null }): string => {
+  const mod = (perm.module || '').toLowerCase();
+  const name = perm.name.toUpperCase();
+
+  if (mod === 'employees' || name.includes('EMPLOYEE') || name.includes('DEPARTMENT') || name.includes('ORGANIZATION_CHART') || name.includes('EXIT_SETTLEMENT') || name.includes('BULK_IMPORTS')) return 'Employees';
+  if (mod === 'attendance' || name.includes('ATTENDANCE') || name.includes('PUNCH') || name.includes('ROSTER') || name.includes('MUSTER')) return 'Attendance';
+  if (mod === 'leave' || name.includes('LEAVE')) return 'Leave';
+  if (mod === 'payroll' || name.includes('PAYROLL') || name.includes('SALARY') || name.includes('LOAN') || name.includes('PAYSLIP') || name.includes('INVESTMENT')) return 'Payroll';
+  if (mod === 'performance' || name.includes('PERFORMANCE') || name.includes('KRA') || name.includes('GOAL') || name.includes('FEEDBACK') || name.includes('BELLCURVE')) return 'Performance';
+  if (mod === 'claims' || name.includes('CLAIM') || name.includes('TRAVEL') || name.includes('EXPENSE')) return 'Claims';
+  if (mod === 'timesheets' || name.includes('TIMESHEET') || name.includes('CLIENTS') || name.includes('PROJECTS')) return 'Timesheets';
+  if (mod === 'recruitment' || name.includes('RECRUITMENT') || name.includes('CANDIDATE') || name.includes('JOB') || name.includes('ONBOARDING')) return 'Recruitment';
+  if (mod === 'documents' || name.includes('DOCUMENT') || name.includes('VAULT')) return 'Documents';
+  if (mod === 'assets' || name.includes('ASSET')) return 'Assets';
+  if (mod === 'letters' || name.includes('LETTER')) return 'Letters';
+  if (mod === 'helpdesk' || name.includes('HELPDESK') || name.includes('TICKET')) return 'Helpdesk';
+  if (mod === 'engagement' || name.includes('ENGAGEMENT') || name.includes('SOCIAL') || name.includes('MOOD') || name.includes('SURVEY')) return 'Engagement';
+  return 'Admin';
+};
+
+const formatPermissionName = (name: string, description?: string | null): string => {
+  if (description && description.trim() && !description.toLowerCase().startsWith('permission for')) {
+    return description.trim();
+  }
+  return name
+    .toLowerCase()
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+const fallbackPermissions: PermissionItem[] = [
+  // Employees
+  { id: 'VIEW_EMPLOYEES', name: 'View Employee Center', category: 'Employees' },
+  { id: 'CREATE_EMPLOYEES', name: 'Create / Onboard Employees', category: 'Employees' },
+  { id: 'UPDATE_EMPLOYEES', name: 'Update Employee Records', category: 'Employees' },
+  { id: 'DELETE_EMPLOYEES', name: 'Delete / Archive Employees', category: 'Employees' },
+  { id: 'VIEW_EMPLOYEE_DIRECTORY', name: 'View Employee Directory', category: 'Employees' },
+  { id: 'VIEW_EMPLOYEE_MASTER', name: 'View Full Employee Master', category: 'Employees' },
+  { id: 'UPDATE_EMPLOYEE_MASTER', name: 'Edit Employee Master Details', category: 'Employees' },
+  { id: 'VIEW_ORGANIZATION_CHART', name: 'View Org Chart & Hierarchy', category: 'Employees' },
+  { id: 'VIEW_EXIT_SETTLEMENT', name: 'View Resignations & F&F', category: 'Employees' },
+  { id: 'UPDATE_EXIT_SETTLEMENT', name: 'Process Exit & Clearance', category: 'Employees' },
+  { id: 'MANAGE_BULK_IMPORTS', name: 'Bulk Imports & Exports', category: 'Employees' },
+  { id: 'VIEW_DEPARTMENTS', name: 'View Company Departments', category: 'Employees' },
+  { id: 'UPDATE_DEPARTMENTS', name: 'Create & Manage Departments', category: 'Employees' },
+
+  // Attendance
+  { id: 'VIEW_ATTENDANCE', name: 'View Attendance Records', category: 'Attendance' },
+  { id: 'VIEW_GPS_SELFIE_PUNCH', name: 'GPS & Selfie Punch Logs', category: 'Attendance' },
+  { id: 'CREATE_GPS_SELFIE_PUNCH', name: 'Mark GPS / Selfie Punch', category: 'Attendance' },
+  { id: 'VIEW_SHIFT_ROSTER', name: 'View Shift Rosters & Plans', category: 'Attendance' },
+  { id: 'UPDATE_SHIFT_ROSTER', name: 'Assign Shift Rosters & Geofence', category: 'Attendance' },
+  { id: 'VIEW_ATTENDANCE_REGULARIZATION', name: 'View Regularization Requests', category: 'Attendance' },
+  { id: 'CREATE_ATTENDANCE_REGULARIZATION', name: 'Submit Attendance Regularization', category: 'Attendance' },
+  { id: 'UPDATE_ATTENDANCE_REGULARIZATION', name: 'Approve Attendance Regularization', category: 'Attendance' },
+  { id: 'VIEW_MUSTER_ROLL', name: 'View Muster Roll Calendar', category: 'Attendance' },
+  { id: 'VIEW_ATTENDANCE_REPORTS', name: 'View Attendance Reports', category: 'Attendance' },
+
+  // Leave
+  { id: 'VIEW_LEAVE', name: 'View Leave Records', category: 'Leave' },
+  { id: 'CREATE_LEAVE_APPLICATION', name: 'Apply for Leave / Time Off', category: 'Leave' },
+  { id: 'VIEW_LEAVE_APPLICATION', name: 'View Leave Applications', category: 'Leave' },
+  { id: 'UPDATE_LEAVE_APPROVAL', name: 'Approve / Reject Leaves', category: 'Leave' },
+  { id: 'VIEW_LEAVE_CALENDAR', name: 'View Team Leave Calendar', category: 'Leave' },
+  { id: 'VIEW_LEAVE_POLICIES', name: 'View Leave Policies & Balances', category: 'Leave' },
+  { id: 'UPDATE_LEAVE_POLICIES', name: 'Manage Leave Policies & Quotas', category: 'Leave' },
+
+  // Payroll
+  { id: 'VIEW_PAYROLL', name: 'View Payroll Processing', category: 'Payroll' },
+  { id: 'UPDATE_SALARY_PROCESSING', name: 'Process Monthly Payroll', category: 'Payroll' },
+  { id: 'UPDATE_SALARY_STRUCTURE', name: 'Revise Salary CTC Structure', category: 'Payroll' },
+  { id: 'VIEW_LOANS_ADVANCES', name: 'View Loans & Advances', category: 'Payroll' },
+  { id: 'CREATE_LOANS_ADVANCES', name: 'Apply for Salary Loans / Advance', category: 'Payroll' },
+  { id: 'UPDATE_LOANS_ADVANCES', name: 'Approve / Process Loans', category: 'Payroll' },
+  { id: 'VIEW_INVESTMENT_DECLARATIONS', name: 'View Investment Declarations', category: 'Payroll' },
+  { id: 'CREATE_INVESTMENT_DECLARATIONS', name: 'Submit Tax Declarations', category: 'Payroll' },
+  { id: 'UPDATE_INVESTMENT_DECLARATIONS', name: 'Verify Tax Declarations', category: 'Payroll' },
+  { id: 'VIEW_PAYSLIP_TEMPLATES', name: 'View Payslips & Templates', category: 'Payroll' },
+  { id: 'VIEW_PAYROLL_REPORTS', name: 'View Payroll & Statutory Reports', category: 'Payroll' },
+
+  // Performance
+  { id: 'VIEW_PERFORMANCE', name: 'View Performance Management', category: 'Performance' },
+  { id: 'VIEW_KRA_GOALS', name: 'View KRAs & Goal Sheets', category: 'Performance' },
+  { id: 'CREATE_KRA_GOALS', name: 'Create Goals & KRAs', category: 'Performance' },
+  { id: 'UPDATE_KRA_GOALS', name: 'Evaluate & Score Appraisals', category: 'Performance' },
+  { id: 'VIEW_FEEDBACK_360', name: 'View 360 Feedback Requests', category: 'Performance' },
+  { id: 'CREATE_FEEDBACK_360', name: 'Submit 360 Peer Feedback', category: 'Performance' },
+  { id: 'VIEW_BELLCURVE_ANALYTICS', name: 'View Bell Curve Analytics', category: 'Performance' },
+
+  // Claims & Expenses
+  { id: 'VIEW_CLAIMS', name: 'View Travel & Claims', category: 'Claims' },
+  { id: 'CREATE_TRAVEL_REQUEST', name: 'Submit New Travel Request', category: 'Claims' },
+  { id: 'VIEW_TRAVEL_REQUEST', name: 'View Travel Request History', category: 'Claims' },
+  { id: 'CREATE_EXPENSE_REIMBURSEMENT', name: 'Submit Expense Reimbursement', category: 'Claims' },
+  { id: 'VIEW_EXPENSE_REIMBURSEMENT', name: 'View Expense Claims', category: 'Claims' },
+  { id: 'UPDATE_CLAIM_APPROVAL', name: 'Approve Reimbursement Claims', category: 'Claims' },
+
+  // Timesheets
+  { id: 'VIEW_TIMESHEETS', name: 'View Timesheets', category: 'Timesheets' },
+  { id: 'CREATE_TIMESHEET_ENTRY', name: 'Log Timesheet Hours', category: 'Timesheets' },
+  { id: 'VIEW_TIMESHEET_ENTRY', name: 'View Logged Timesheets', category: 'Timesheets' },
+  { id: 'VIEW_CLIENTS_PROJECTS', name: 'View Clients & Projects', category: 'Timesheets' },
+  { id: 'UPDATE_CLIENTS_PROJECTS', name: 'Create & Manage Projects', category: 'Timesheets' },
+
+  // Recruitment
+  { id: 'VIEW_RECRUITMENT', name: 'View Recruitment & ATS', category: 'Recruitment' },
+  { id: 'VIEW_JOB_REQUISITIONS', name: 'View Job Vacancies & Requisitions', category: 'Recruitment' },
+  { id: 'CREATE_JOB_REQUISITIONS', name: 'Post New Job Vacancies', category: 'Recruitment' },
+  { id: 'VIEW_CANDIDATE_PIPELINE', name: 'View Candidate Pipeline', category: 'Recruitment' },
+  { id: 'UPDATE_CANDIDATE_PIPELINE', name: 'Update Candidate Stage / Interviews', category: 'Recruitment' },
+  { id: 'VIEW_PRE_ONBOARDING', name: 'View Pre-Onboarding Checklists', category: 'Recruitment' },
+  { id: 'UPDATE_PRE_ONBOARDING', name: 'Process Onboarding Checklists', category: 'Recruitment' },
+
+  // Documents
+  { id: 'VIEW_DOCUMENTS', name: 'View Document Vault', category: 'Documents' },
+  { id: 'VIEW_DOCUMENT_VAULT', name: 'Access Stored Company Documents', category: 'Documents' },
+  { id: 'CREATE_DOCUMENT_VAULT', name: 'Upload & Share Vault Documents', category: 'Documents' },
+
+  // Assets
+  { id: 'VIEW_ASSETS', name: 'View Asset Management', category: 'Assets' },
+  { id: 'VIEW_ASSET_MANAGEMENT', name: 'View Company Asset Registry', category: 'Assets' },
+  { id: 'UPDATE_ASSET_MANAGEMENT', name: 'Allocate & Return Hardware Assets', category: 'Assets' },
+
+  // Letters
+  { id: 'VIEW_LETTERS', name: 'View Letter Generator', category: 'Letters' },
+  { id: 'VIEW_LETTER_GENERATOR', name: 'View Issued Corporate Letters', category: 'Letters' },
+  { id: 'CREATE_LETTER_GENERATOR', name: 'Generate Experience & Offer Letters', category: 'Letters' },
+
+  // Helpdesk
+  { id: 'VIEW_HELPDESK', name: 'View HR Help Desk', category: 'Helpdesk' },
+  { id: 'CREATE_HR_HELPDESK_TICKET', name: 'Raise Support Tickets', category: 'Helpdesk' },
+  { id: 'VIEW_HR_HELPDESK_TICKETS', name: 'View Ticket Queue', category: 'Helpdesk' },
+  { id: 'UPDATE_HR_HELPDESK_TICKET', name: 'Resolve & Assign Helpdesk Tickets', category: 'Helpdesk' },
+
+  // Engagement
+  { id: 'VIEW_ENGAGEMENT', name: 'View Engagement & Surveys', category: 'Engagement' },
+  { id: 'VIEW_SOCIAL_FEED', name: 'View Social Feed Posts', category: 'Engagement' },
+  { id: 'CREATE_SOCIAL_POST', name: 'Post, Like & Comment on Feed', category: 'Engagement' },
+  { id: 'VIEW_MOOD_ANALYSIS', name: 'View Team Mood Analytics', category: 'Engagement' },
+  { id: 'VIEW_SURVEYS', name: 'Participate in Surveys', category: 'Engagement' },
+  { id: 'CREATE_SURVEYS', name: 'Create & Publish New Surveys', category: 'Engagement' },
+
+  // Admin
+  { id: 'VIEW_ADMIN', name: 'View System Administration', category: 'Admin' },
+  { id: 'VIEW_ROLES_PERMISSIONS', name: 'View Roles & Access Matrix', category: 'Admin' },
+  { id: 'UPDATE_ROLES_PERMISSIONS', name: 'Manage & Assign Role Permissions', category: 'Admin' },
+  { id: 'MANAGE_SYSTEM_SETTINGS', name: 'Manage System & Tenant Configurations', category: 'Admin' },
+];
 
 export const RolePermissionsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -88,56 +239,37 @@ export const RolePermissionsScreen: React.FC = () => {
     }
   }, [activeRole]);
 
-  // Full System Permissions List
-  const permissions: PermissionItem[] = [
-    // Employees
-    { id: 'VIEW_EMPLOYEE_DIRECTORY', name: 'View Employee Directory', category: 'Employees' },
-    { id: 'VIEW_EMPLOYEE_MASTER', name: 'View Full Employee Master', category: 'Employees' },
-    { id: 'CREATE_EMPLOYEE', name: 'Create / Onboard New Employee', category: 'Employees' },
-    { id: 'UPDATE_EMPLOYEE', name: 'Update Employee Records', category: 'Employees' },
-    { id: 'DELETE_EMPLOYEE', name: 'Archive / Terminate Employee', category: 'Employees' },
-    { id: 'VIEW_ORGANIZATION_CHART', name: 'View Org Chart & Hierarchy', category: 'Employees' },
-    { id: 'VIEW_EXIT_SETTLEMENT', name: 'Manage Resignations & Clearance', category: 'Employees' },
-    { id: 'MANAGE_BULK_IMPORTS', name: 'Manage Bulk Imports & Exports', category: 'Employees' },
+  // Full System Permissions List (Merged dynamically with DB permissions)
+  const permissions: PermissionItem[] = React.useMemo(() => {
+    const list: PermissionItem[] = [];
+    const seenNames = new Set<string>();
 
-    // Attendance
-    { id: 'VIEW_GPS_SELFIE_PUNCH', name: 'GPS & Selfie Attendance Punch', category: 'Attendance' },
-    { id: 'VIEW_SHIFT_ROSTER', name: 'View Shift Rosters & Schedules', category: 'Attendance' },
-    { id: 'UPDATE_SHIFT_ROSTER', name: 'Manage Shift Rosters & Transfers', category: 'Attendance' },
-    { id: 'VIEW_ATTENDANCE_REGULARIZATION', name: 'Regularize Missed Punches', category: 'Attendance' },
-    { id: 'VIEW_MUSTER_ROLL', name: 'View Monthly Muster Roll', category: 'Attendance' },
-    { id: 'VIEW_ATTENDANCE_REPORTS', name: 'View Attendance Analytics', category: 'Attendance' },
+    if (apiPermissions && apiPermissions.length > 0) {
+      apiPermissions.forEach((dbPerm: any) => {
+        if (!seenNames.has(dbPerm.name)) {
+          seenNames.add(dbPerm.name);
+          const cat = getCategoryForPermission(dbPerm);
+          const name = formatPermissionName(dbPerm.name, dbPerm.description);
+          list.push({
+            id: dbPerm.name,
+            name: name,
+            category: cat,
+            description: dbPerm.description || undefined,
+          });
+        }
+      });
+    }
 
-    // Leave
-    { id: 'CREATE_LEAVE_APPLICATION', name: 'Apply for Leave / Time Off', category: 'Leave' },
-    { id: 'UPDATE_LEAVE_APPROVAL', name: 'Approve / Reject Leave Requests', category: 'Leave' },
-    { id: 'VIEW_LEAVE_CALENDAR', name: 'View Team Leave Calendar', category: 'Leave' },
-    { id: 'MANAGE_LEAVE_CONFIGURATIONS', name: 'Configure Leave Types & Quotas', category: 'Leave' },
+    // Ensure all comprehensive fallback items are also represented
+    fallbackPermissions.forEach(fb => {
+      if (!seenNames.has(fb.id)) {
+        seenNames.add(fb.id);
+        list.push(fb);
+      }
+    });
 
-    // Payroll
-    { id: 'UPDATE_SALARY_PROCESSING', name: 'Process Monthly Payroll', category: 'Payroll' },
-    { id: 'UPDATE_SALARY_STRUCTURE', name: 'Revise Salary CTC Structure', category: 'Payroll' },
-    { id: 'VIEW_LOANS_ADVANCES', name: 'Manage Salary Loans & Advances', category: 'Payroll' },
-    { id: 'VIEW_INVESTMENT_DECLARATIONS', name: 'Tax Investment Declarations', category: 'Payroll' },
-    { id: 'VIEW_PAYSLIP_TEMPLATES', name: 'Generate & Mail Payslips', category: 'Payroll' },
-
-    // Performance
-    { id: 'VIEW_KRA_GOALS', name: 'Manage KRAs & Goal Sheets', category: 'Performance' },
-    { id: 'VIEW_FEEDBACK_360', name: 'Conduct 360 Feedback Appraisal', category: 'Performance' },
-    { id: 'VIEW_BELLCURVE_ANALYTICS', name: 'View Bell Curve Performance Analytics', category: 'Performance' },
-
-    // Claims & Expenses
-    { id: 'CREATE_TRAVEL_REQUEST', name: 'Submit Travel & Expense Claims', category: 'Claims' },
-    { id: 'UPDATE_CLAIM_APPROVAL', name: 'Approve Reimbursement Claims', category: 'Claims' },
-
-    // Recruitment
-    { id: 'VIEW_JOB_REQUISITIONS', name: 'Create Job Requisitions', category: 'Recruitment' },
-    { id: 'VIEW_CANDIDATE_PIPELINE', name: 'Track Candidate Hiring Pipeline', category: 'Recruitment' },
-
-    // Admin
-    { id: 'VIEW_ROLES_PERMISSIONS', name: 'Configure System Roles & Access Matrix', category: 'Admin' },
-    { id: 'MANAGE_SYSTEM_SETTINGS', name: 'Manage System & Tenant Configurations', category: 'Admin' },
-  ];
+    return list;
+  }, [apiPermissions]);
 
   const togglePermission = (permId: string) => {
     const targetPerm = apiPermissions.find(p => p.id === permId || p.name === permId);
@@ -241,11 +373,65 @@ export const RolePermissionsScreen: React.FC = () => {
     );
   };
 
-  const categories = ['ALL', 'Employees', 'Attendance', 'Leave', 'Payroll', 'Performance', 'Claims', 'Recruitment', 'Admin'];
+  const categories = [
+    'ALL',
+    'Employees',
+    'Attendance',
+    'Leave',
+    'Payroll',
+    'Performance',
+    'Claims',
+    'Timesheets',
+    'Recruitment',
+    'Documents',
+    'Assets',
+    'Letters',
+    'Helpdesk',
+    'Engagement',
+    'Admin',
+  ];
 
   const filteredPermissions = permissions.filter(
     p => activeCategory === 'ALL' || p.category === activeCategory
   );
+
+  const allCurrentCategorySelected =
+    filteredPermissions.length > 0 &&
+    filteredPermissions.every(perm => {
+      const roleName = activeRole?.name || 'DefaultRole';
+      if (roleName === 'SUPER_ADMIN' || roleName === 'Super Admin') return true;
+      const targetDbPerm = apiPermissions.find(p => p.name === perm.id || p.id === perm.id);
+      return (
+        selectedPermissionIds.includes(perm.id) ||
+        (targetDbPerm ? selectedPermissionIds.includes(targetDbPerm.id) || selectedPermissionIds.includes(targetDbPerm.name) : false)
+      );
+    });
+
+  const handleToggleAllCategory = () => {
+    if (allCurrentCategorySelected) {
+      const toRemove = new Set<string>();
+      filteredPermissions.forEach(p => {
+        toRemove.add(p.id);
+        const targetDbPerm = apiPermissions.find(db => db.name === p.id || db.id === p.id);
+        if (targetDbPerm) {
+          toRemove.add(targetDbPerm.id);
+          toRemove.add(targetDbPerm.name);
+        }
+      });
+      setSelectedPermissionIds(prev => prev.filter(id => !toRemove.has(id)));
+    } else {
+      const toAdd: string[] = [];
+      filteredPermissions.forEach(p => {
+        toAdd.push(p.id);
+        const targetDbPerm = apiPermissions.find(db => db.name === p.id || db.id === p.id);
+        if (targetDbPerm) {
+          toAdd.push(targetDbPerm.id);
+          toAdd.push(targetDbPerm.name);
+        }
+      });
+      setSelectedPermissionIds(prev => Array.from(new Set([...prev, ...toAdd])));
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -402,6 +588,20 @@ export const RolePermissionsScreen: React.FC = () => {
             })}
           </View>
         </ScrollView>
+
+        {/* Category Summary & Quick Toggle All Action */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 2 }}>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary }}>
+            {filteredPermissions.length} permissions in {activeCategory}
+          </Text>
+          {filteredPermissions.length > 0 && activeRole?.name !== 'SUPER_ADMIN' && activeRole?.name !== 'Super Admin' && (
+            <TouchableOpacity onPress={handleToggleAllCategory}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.accent }}>
+                {allCurrentCategorySelected ? 'Deselect All' : 'Select All'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Permissions Rows */}
         {filteredPermissions.map(perm => {
