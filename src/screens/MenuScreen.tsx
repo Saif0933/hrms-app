@@ -192,7 +192,108 @@ export const MenuScreen: React.FC = () => {
     return userPermissions.includes(perm);
   };
 
-  const menuItems: MenuItem[] = [
+  const getSubItemPermissions = (moduleId: string, subId: string): string[] => {
+    const modUpper = moduleId.toUpperCase();
+    switch (moduleId) {
+      case 'employees':
+        if (subId === 'directory') return [`VIEW_${modUpper}`, 'VIEW_EMPLOYEE_DIRECTORY'];
+        if (subId === 'master') return ['VIEW_EMPLOYEE_MASTER', 'UPDATE_EMPLOYEE_MASTER'];
+        if (subId === 'idcard') return [`VIEW_${modUpper}`, 'VIEW_EMPLOYEE_DIRECTORY'];
+        if (subId === 'orgchart') return [`VIEW_${modUpper}`, 'VIEW_ORGANIZATION_CHART'];
+        if (subId === 'exit' || subId === 'resignation') return ['VIEW_EXIT_SETTLEMENT', 'UPDATE_EXIT_SETTLEMENT'];
+        if (subId === 'bulk') return ['MANAGE_BULK_IMPORTS'];
+        if (subId === 'roles' || subId === 'assignrole') return ['VIEW_ROLES_PERMISSIONS', 'UPDATE_ROLES_PERMISSIONS', 'VIEW_ADMIN'];
+        if (subId === 'departments') return ['VIEW_DEPARTMENTS', 'UPDATE_DEPARTMENTS', 'VIEW_EMPLOYEE_MASTER'];
+        break;
+      case 'attendance':
+        if (subId === 'punch') return [`VIEW_${modUpper}`, 'VIEW_GPS_SELFIE_PUNCH', 'CREATE_GPS_SELFIE_PUNCH', 'CREATE_ATTENDANCE'];
+        if (subId === 'roster') return ['VIEW_SHIFT_ROSTER', 'UPDATE_SHIFT_ROSTER'];
+        if (subId === 'regularize') return [`VIEW_${modUpper}`, 'VIEW_ATTENDANCE_REGULARIZATION', 'CREATE_ATTENDANCE_REGULARIZATION', 'UPDATE_ATTENDANCE_REGULARIZATION'];
+        if (subId === 'muster') return [`VIEW_${modUpper}`, 'VIEW_MUSTER_ROLL', 'UPDATE_SHIFT_ROSTER'];
+        if (subId === 'reports') return ['VIEW_ATTENDANCE_REPORTS', 'UPDATE_SHIFT_ROSTER'];
+        if (subId === 'geofence') return ['UPDATE_SHIFT_ROSTER', 'UPDATE_ATTENDANCE', 'MANAGE_SYSTEM_SETTINGS'];
+        break;
+      case 'leave':
+        if (subId === 'apply') return [`VIEW_${modUpper}`, 'CREATE_LEAVE_APPLICATION'];
+        if (subId === 'approvals') return ['UPDATE_LEAVE_APPROVAL'];
+        if (subId === 'calendar') return [`VIEW_${modUpper}`, 'VIEW_LEAVE_CALENDAR'];
+        if (subId === 'policies') return [`VIEW_${modUpper}`, 'VIEW_LEAVE_POLICIES'];
+        if (subId === 'admin') return ['UPDATE_LEAVE_POLICIES', 'UPDATE_LEAVE', 'MANAGE_LEAVE_CONFIGURATIONS'];
+        break;
+      case 'payroll':
+        if (subId === 'process') return ['UPDATE_SALARY_PROCESSING'];
+        if (subId === 'revisions') return ['UPDATE_SALARY_STRUCTURE'];
+        if (subId === 'loans') return [`VIEW_${modUpper}`, 'VIEW_LOANS_ADVANCES', 'CREATE_LOANS_ADVANCES', 'UPDATE_LOANS_ADVANCES'];
+        if (subId === 'investment') return [`VIEW_${modUpper}`, 'VIEW_INVESTMENT_DECLARATIONS', 'CREATE_INVESTMENT_DECLARATIONS'];
+        if (subId === 'payslips') return [`VIEW_${modUpper}`, 'VIEW_PAYSLIP_TEMPLATES', 'UPDATE_SALARY_PROCESSING'];
+        if (subId === 'reports') return ['VIEW_PAYROLL_REPORTS', 'UPDATE_SALARY_PROCESSING'];
+        break;
+      case 'performance':
+        if (subId === 'goals') return [`VIEW_${modUpper}`, 'VIEW_KRA_GOALS', 'CREATE_KRA_GOALS'];
+        if (subId === 'feedback') return [`VIEW_${modUpper}`, 'VIEW_FEEDBACK_360', 'CREATE_FEEDBACK_360'];
+        if (subId === 'bellcurve') return ['VIEW_BELLCURVE_ANALYTICS', 'UPDATE_KRA_GOALS'];
+        break;
+      case 'engagement':
+        if (subId === 'feed') return [`VIEW_${modUpper}`, 'VIEW_SOCIAL_FEED', 'CREATE_SOCIAL_POST'];
+        if (subId === 'mood') return [`VIEW_${modUpper}`, 'VIEW_MOOD_ANALYSIS'];
+        if (subId === 'surveys') return [`VIEW_${modUpper}`, 'VIEW_SURVEYS', 'CREATE_SURVEYS'];
+        break;
+      case 'claims':
+        if (subId === 'apply-claim') return [`VIEW_${modUpper}`, 'CREATE_TRAVEL_REQUEST'];
+        if (subId === 'my-claims') return [`VIEW_${modUpper}`, 'VIEW_EXPENSE_REIMBURSEMENT', 'CREATE_EXPENSE_REIMBURSEMENT'];
+        if (subId === 'approvals') return ['UPDATE_CLAIM_APPROVAL'];
+        break;
+      case 'timesheets':
+        if (subId === 'entry') return [`VIEW_${modUpper}`, 'VIEW_TIMESHEET_ENTRY', 'CREATE_TIMESHEET_ENTRY'];
+        if (subId === 'projects') return ['VIEW_CLIENTS_PROJECTS', 'UPDATE_CLIENTS_PROJECTS', 'VIEW_EMPLOYEE_MASTER'];
+        break;
+      case 'recruitment':
+        if (subId === 'jobs') return [`VIEW_${modUpper}`, 'VIEW_JOB_REQUISITIONS', 'CREATE_JOB_REQUISITIONS'];
+        if (subId === 'candidates') return [`VIEW_${modUpper}`, 'VIEW_CANDIDATE_PIPELINE', 'UPDATE_CANDIDATE_PIPELINE'];
+        if (subId === 'onboarding') return [`VIEW_${modUpper}`, 'VIEW_PRE_ONBOARDING', 'UPDATE_PRE_ONBOARDING'];
+        break;
+      case 'documents':
+        if (subId === 'vault') return ['VIEW_DOCUMENT_VAULT', 'CREATE_DOCUMENT_VAULT', 'VIEW_DOCUMENTS'];
+        if (subId === 'upload') return ['VIEW_DOCUMENT_VAULT', 'CREATE_DOCUMENT_VAULT', 'MANAGE_SYSTEM_SETTINGS'];
+        if (subId === 'compliance') return ['VIEW_DOCUMENT_VAULT', 'MANAGE_SYSTEM_SETTINGS'];
+        break;
+      case 'assets':
+        if (subId === 'inventory') return ['VIEW_ASSET_MANAGEMENT', 'UPDATE_ASSET_MANAGEMENT', 'MANAGE_SYSTEM_SETTINGS'];
+        if (subId === 'allocation') return ['VIEW_ASSET_MANAGEMENT', 'VIEW_ASSETS'];
+        if (subId === 'register') return ['VIEW_ASSET_MANAGEMENT', 'UPDATE_ASSET_MANAGEMENT', 'MANAGE_SYSTEM_SETTINGS'];
+        break;
+      case 'letters':
+        if (subId === 'generate') return ['VIEW_LETTER_GENERATOR', 'CREATE_LETTER_GENERATOR', 'VIEW_LETTERS'];
+        if (subId === 'archive') return ['VIEW_LETTER_GENERATOR', 'VIEW_LETTERS'];
+        if (subId === 'templates') return ['VIEW_LETTER_GENERATOR', 'MANAGE_SYSTEM_SETTINGS'];
+        break;
+      case 'helpdesk':
+        if (subId === 'tickets') return ['VIEW_HR_HELPDESK_TICKETS', 'CREATE_HR_HELPDESK_TICKET', 'VIEW_HELPDESK'];
+        if (subId === 'raise') return ['VIEW_HR_HELPDESK_TICKETS', 'CREATE_HR_HELPDESK_TICKET', 'VIEW_HELPDESK'];
+        if (subId === 'sla') return ['VIEW_HR_HELPDESK_TICKETS', 'MANAGE_SYSTEM_SETTINGS'];
+        break;
+    }
+    return [`VIEW_${modUpper}`];
+  };
+
+  const hasModuleAccess = (item: MenuItem): boolean => {
+    if (item.id === 'dashboard') return true;
+    if (item.id === 'subscription') return isAdmin;
+    if (isAdmin) return true;
+    const modUpper = item.id.toUpperCase();
+    if (userPermissions.includes(`VIEW_${modUpper}`) || userPermissions.some(p => p.includes(modUpper))) {
+      return true;
+    }
+    if (item.subItems) {
+      return item.subItems.some(sub => {
+        const reqs = getSubItemPermissions(item.id, sub.id);
+        return reqs.some(r => userPermissions.includes(r));
+      });
+    }
+    return false;
+  };
+
+  const allMenuItems: MenuItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
     {
       id: 'employees',
@@ -200,18 +301,14 @@ export const MenuScreen: React.FC = () => {
       icon: '👥',
       subItems: [
         { id: 'directory', label: 'Employee Directory' },
-        ...(hasPerm('VIEW_EMPLOYEE_MASTER') ? [{ id: 'master', label: 'Employee Master' }] : []),
+        { id: 'master', label: 'Employee Master' },
         { id: 'orgchart', label: 'Organization Chart' },
-        ...(hasPerm('VIEW_EXIT_SETTLEMENT') ? [
-          { id: 'exit', label: 'Exit & Settlement' },
-          { id: 'resignation', label: 'Resignation Archive' },
-        ] : []),
-        ...(hasPerm('MANAGE_BULK_IMPORTS') ? [{ id: 'bulk', label: 'Bulk Imports & Exports' }] : []),
-        ...(hasPerm('VIEW_ROLES_PERMISSIONS') ? [
-          { id: 'roles', label: 'Role & Permissions' },
-          { id: 'assignrole', label: 'Assign Role to Employee' },
-        ] : []),
-        ...(hasPerm('VIEW_EMPLOYEE_MASTER') ? [{ id: 'departments', label: 'Departments' }] : []),
+        { id: 'exit', label: 'Exit & Settlement' },
+        { id: 'resignation', label: 'Resignation Archive' },
+        { id: 'bulk', label: 'Bulk Imports & Exports' },
+        { id: 'roles', label: 'Role & Permissions' },
+        { id: 'assignrole', label: 'Assign Role to Employee' },
+        { id: 'departments', label: 'Departments' },
       ],
     },
     {
@@ -220,11 +317,11 @@ export const MenuScreen: React.FC = () => {
       icon: '📅',
       subItems: [
         { id: 'punch', label: 'GPS / Selfie Punch' },
-        ...(hasPerm('VIEW_SHIFT_ROSTER') ? [{ id: 'roster', label: 'Shift & Roster' }] : []),
+        { id: 'roster', label: 'Shift & Roster' },
         { id: 'regularize', label: 'Regularization' },
         { id: 'muster', label: hasPerm('UPDATE_SHIFT_ROSTER') ? 'Muster Roll / Calendar' : 'My Attendance Calendar' },
-        ...(hasPerm('VIEW_ATTENDANCE_REPORTS') ? [{ id: 'reports', label: 'Attendance Reports' }] : []),
-        ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{ id: 'geofence', label: 'Geofencing Config' }] : []),
+        { id: 'reports', label: 'Attendance Reports' },
+        { id: 'geofence', label: 'Geofencing Config' },
       ],
     },
     {
@@ -233,10 +330,10 @@ export const MenuScreen: React.FC = () => {
       icon: '✈️',
       subItems: [
         { id: 'apply', label: 'Apply Leave' },
-        ...(hasPerm('UPDATE_LEAVE_APPROVAL') ? [{ id: 'approvals', label: 'Leave Approvals' }] : []),
+        { id: 'approvals', label: 'Leave Approvals' },
         { id: 'calendar', label: 'Leave Calendar' },
         { id: 'policies', label: 'Leave Policies' },
-        ...(hasPerm('MANAGE_LEAVE_CONFIGURATIONS') ? [{ id: 'admin', label: 'Leave Configurations' }] : []),
+        { id: 'admin', label: 'Leave Configurations' },
       ],
     },
     {
@@ -245,11 +342,11 @@ export const MenuScreen: React.FC = () => {
       icon: '💳',
       subItems: [
         { id: 'payslips', label: hasPerm('UPDATE_SALARY_PROCESSING') ? 'Payslips' : 'My Payslips' },
-        ...(hasPerm('UPDATE_SALARY_PROCESSING') ? [{ id: 'process', label: 'Salary Structure' }] : []),
-        ...(hasPerm('UPDATE_SALARY_STRUCTURE') ? [{ id: 'revisions', label: 'Allowances' }] : []),
+        { id: 'process', label: 'Salary Structure' },
+        { id: 'revisions', label: 'Allowances' },
         { id: 'loans', label: hasPerm('UPDATE_SALARY_PROCESSING') ? 'Deductions & Loans' : 'Deductions & Advances' },
         { id: 'investment', label: 'Investment Declarations' },
-        ...(hasPerm('UPDATE_SALARY_PROCESSING') ? [{ id: 'reports', label: 'Payroll Reports & ECR' }] : []),
+        { id: 'reports', label: 'Payroll Reports & ECR' },
       ],
     },
     {
@@ -279,7 +376,7 @@ export const MenuScreen: React.FC = () => {
       subItems: [
         { id: 'apply-claim', label: 'New Travel Request' },
         { id: 'my-claims', label: 'Expense Reimbursements' },
-        ...(hasPerm('UPDATE_CLAIM_APPROVAL') ? [{ id: 'approvals', label: 'Claim Approvals' }] : []),
+        { id: 'approvals', label: 'Claim Approvals' },
       ],
     },
     {
@@ -288,10 +385,10 @@ export const MenuScreen: React.FC = () => {
       icon: '📋',
       subItems: [
         { id: 'entry', label: 'Timesheet Entry' },
-        ...(hasPerm('VIEW_EMPLOYEE_MASTER') ? [{ id: 'projects', label: 'Clients & Projects' }] : []),
+        { id: 'projects', label: 'Clients & Projects' },
       ],
     },
-    ...((hasPerm('VIEW_JOB_REQUISITIONS') || hasPerm('VIEW_CANDIDATE_PIPELINE')) ? [{
+    {
       id: 'recruitment',
       label: 'Recruitment & ATS',
       icon: '💼',
@@ -300,17 +397,15 @@ export const MenuScreen: React.FC = () => {
         { id: 'candidates', label: 'Candidate Pipeline' },
         { id: 'onboarding', label: 'Pre-Onboarding Checklist' },
       ],
-    }] : []),
+    },
     {
       id: 'documents',
       label: 'Document Vault',
       icon: '📁',
       subItems: [
         { id: 'vault', label: 'Document Vault & Repository' },
-        ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [
-          { id: 'upload', label: 'Upload & Manage Documents' },
-          { id: 'compliance', label: 'Document Expiry & Compliance' },
-        ] : []),
+        { id: 'upload', label: 'Upload & Manage Documents' },
+        { id: 'compliance', label: 'Document Expiry & Compliance' },
       ],
     },
     {
@@ -318,12 +413,12 @@ export const MenuScreen: React.FC = () => {
       label: 'Asset Management',
       icon: '💻',
       subItems: [
-        ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{ id: 'inventory', label: 'Company Asset Inventory' }] : []),
+        { id: 'inventory', label: 'Company Asset Inventory' },
         { id: 'allocation', label: hasPerm('MANAGE_SYSTEM_SETTINGS') ? 'Employee Asset Allocation' : 'My Assigned Assets' },
-        ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{ id: 'register', label: 'Register New Asset' }] : []),
+        { id: 'register', label: 'Register New Asset' },
       ],
     },
-    ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{
+    {
       id: 'letters',
       label: 'Letter Generator',
       icon: '✉️',
@@ -332,16 +427,15 @@ export const MenuScreen: React.FC = () => {
         { id: 'archive', label: 'Issued Letters Archive' },
         { id: 'templates', label: 'Corporate Letter Templates' },
       ],
-    }] : []),
+    },
     {
       id: 'helpdesk',
       label: 'HR Help Desk',
       icon: '🎧',
       subItems: [
-        ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{ id: 'tickets', label: 'Support Tickets Queue' }] : []),
+        { id: 'tickets', label: hasPerm('MANAGE_SYSTEM_SETTINGS') ? 'Support Tickets Queue' : 'My Support Tickets' },
         { id: 'raise', label: 'Raise Support Ticket' },
-        ...(hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{ id: 'sla', label: 'Help Desk SLA & Analytics' }] : []),
-        ...(!hasPerm('MANAGE_SYSTEM_SETTINGS') ? [{ id: 'tickets', label: 'My Support Tickets' }] : []),
+        { id: 'sla', label: 'Help Desk SLA & Analytics' },
       ],
     },
     ...(isAdmin ? [{
@@ -356,32 +450,49 @@ export const MenuScreen: React.FC = () => {
     }] : []),
   ];
 
+  const menuItems: MenuItem[] = allMenuItems
+    .filter(hasModuleAccess)
+    .map(item => {
+      if (!item.subItems) return item;
+      if (isAdmin) return item;
+      const filteredSubs = item.subItems.filter(sub => {
+        const reqs = getSubItemPermissions(item.id, sub.id);
+        return reqs.some(r => userPermissions.includes(r));
+      });
+      return { ...item, subItems: filteredSubs };
+    })
+    .filter(item => item.id === 'dashboard' || !item.subItems || item.subItems.length > 0);
+
   const toggleDropdown = (id: string) => {
     setOpenDropdown(prev => (prev === id ? null : id));
   };
 
   const navigateToRoute = (itemId: string, subItemId?: string) => {
-    const isRestrictedForUser =
-      (subItemId === 'master' && !hasPerm('VIEW_EMPLOYEE_MASTER')) ||
-      ((subItemId === 'exit' || subItemId === 'resignation') && !hasPerm('VIEW_EXIT_SETTLEMENT')) ||
-      (subItemId === 'bulk' && !hasPerm('MANAGE_BULK_IMPORTS')) ||
-      ((subItemId === 'roles' || subItemId === 'assignrole') && !hasPerm('VIEW_ROLES_PERMISSIONS')) ||
-      (subItemId === 'departments' && !hasPerm('VIEW_EMPLOYEE_MASTER')) ||
-      (subItemId === 'roster' && !hasPerm('VIEW_SHIFT_ROSTER')) ||
-      (subItemId === 'reports' && !hasPerm('VIEW_ATTENDANCE_REPORTS')) ||
-      (subItemId === 'geofence' && !hasPerm('MANAGE_SYSTEM_SETTINGS')) ||
-      (itemId === 'leave' && subItemId === 'approvals' && !hasPerm('UPDATE_LEAVE_APPROVAL')) ||
-      (itemId === 'leave' && subItemId === 'admin' && !hasPerm('MANAGE_LEAVE_CONFIGURATIONS')) ||
-      (itemId === 'payroll' && (subItemId === 'process' || subItemId === 'reports') && !hasPerm('UPDATE_SALARY_PROCESSING')) ||
-      (itemId === 'payroll' && subItemId === 'revisions' && !hasPerm('UPDATE_SALARY_STRUCTURE')) ||
-      (itemId === 'claims' && subItemId === 'approvals' && !hasPerm('UPDATE_CLAIM_APPROVAL')) ||
-      (itemId === 'timesheets' && subItemId === 'projects' && !hasPerm('VIEW_EMPLOYEE_MASTER')) ||
-      (itemId === 'recruitment' && !hasPerm('VIEW_JOB_REQUISITIONS') && !hasPerm('VIEW_CANDIDATE_PIPELINE')) ||
-      (itemId === 'subscription' && !isAdmin);
+    if (itemId === 'dashboard') {
+      navigation.navigate('Dashboard');
+      return;
+    }
 
-    if (isRestrictedForUser) {
+    if (itemId === 'subscription' && !isAdmin) {
       Alert.alert('Access Restricted', 'Your assigned role does not have permission to access this module.');
       return;
+    }
+
+    if (!isAdmin) {
+      if (subItemId) {
+        const reqs = getSubItemPermissions(itemId, subItemId);
+        const isAllowed = reqs.some(r => userPermissions.includes(r));
+        if (!isAllowed) {
+          Alert.alert('Access Restricted', 'Your assigned role does not have permission to access this module.');
+          return;
+        }
+      } else {
+        const allowed = hasModuleAccess({ id: itemId, label: '', icon: '' });
+        if (!allowed) {
+          Alert.alert('Access Restricted', 'Your assigned role does not have permission to access this module.');
+          return;
+        }
+      }
     }
 
     if (itemId === 'dashboard') {
@@ -794,7 +905,7 @@ export const MenuScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  {isAdmin ? '🛡️ Administrator' : isManager ? '👔 Manager' : '👤 Employee (Self-Service)'}
+                  {isAdmin ? '🛡️ Administrator' : isManager ? '👔 Manager' : `👤 ${profileResponse?.data?.user?.role || 'Employee'}`}
                 </Text>
               </View>
             </View>

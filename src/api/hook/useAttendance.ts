@@ -587,3 +587,77 @@ export const useDeleteShiftTiming = () => {
     },
   });
 };
+
+export interface MusterDayDetail {
+  day: number;
+  date: string;
+  status: 'P' | 'A' | 'L' | 'HD' | 'WO' | 'LV' | '-';
+  inTime?: string | null;
+  outTime?: string | null;
+  workedHours?: number;
+  details?: string;
+}
+
+export interface MusterEmployeeCounts {
+  present: number;
+  late: number;
+  halfDay: number;
+  absent: number;
+  weekOff: number;
+  leave: number;
+  totalWorkedHours: number;
+}
+
+export interface MusterEmployeeRecord {
+  id: string;
+  name: string;
+  email: string;
+  department?: string;
+  designation?: string;
+  avatar?: string | null;
+  counts: MusterEmployeeCounts;
+  days: MusterDayDetail[];
+}
+
+export interface MusterRollSummary {
+  totalStaff: number;
+  presentToday: number;
+  absentToday: number;
+  lateToday: number;
+  halfDayToday: number;
+  leaveToday: number;
+  weekOffToday: number;
+  totalPresentDays: number;
+  totalLateDays: number;
+  totalHalfDays: number;
+  totalAbsentDays: number;
+  totalWeekOffDays: number;
+  totalLeaveDays: number;
+}
+
+export interface MusterRollResponse {
+  month: number;
+  year: number;
+  daysInMonth: number;
+  summary: MusterRollSummary;
+  employees: MusterEmployeeRecord[];
+}
+
+/**
+ * Hook to retrieve full monthly Muster Roll matrix and stats
+ * GET /api/v1/attendance/muster-roll
+ */
+export const useMusterRoll = (month?: number, year?: number, employeeId?: string) => {
+  return useQuery<BaseResponse<MusterRollResponse>, Error>({
+    queryKey: ['musterRoll', month, year, employeeId],
+    queryFn: async () => {
+      const params: any = {};
+      if (month !== undefined) params.month = month;
+      if (year !== undefined) params.year = year;
+      if (employeeId) params.employeeId = employeeId;
+      const response = await apiClient.get<BaseResponse<MusterRollResponse>>('/attendance/muster-roll', { params });
+      return response.data;
+    },
+  });
+};
+
