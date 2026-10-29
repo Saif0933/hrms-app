@@ -246,7 +246,7 @@ export const AssignRoleScreen: React.FC = () => {
                     <View style={styles.empInfo}>
                       <Text style={[styles.empName, { color: colors.textPrimary }]}>{emp.name}</Text>
                       <Text style={[styles.empSubText, { color: colors.textSecondary }]}>
-                        {emp.designation || 'Staff'} • {deptDisplayName}
+                        {deptDisplayName} • {emp.designation || 'Staff'}
                       </Text>
                       {emp.email ? (
                         <Text style={[styles.empSubText, { color: colors.textMuted }]}>{emp.email}</Text>

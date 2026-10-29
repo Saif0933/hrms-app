@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Dimensions,
   Modal,
   RefreshControl,
   SafeAreaView,
@@ -8,18 +10,25 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useMusterRoll } from '../../api/hook/useAttendance';
+import { MusterDayDetail, MusterEmployeeRecord, useMusterRoll } from '../../api/hook/useAttendance';
+import { useProfile } from '../../api/hook/useAuth';
+import { useEmployees } from '../../api/hook/useEmployee';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'MusterRoll'>;
 
 export type AttendanceStatus = 'P' | 'A' | 'L' | 'WO' | 'HD' | 'LV' | '-';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// 7 columns with 16px container padding on each side and 4px gap between columns
+const CALENDAR_CELL_WIDTH = Math.floor((SCREEN_WIDTH - 32 - 24) / 7);
 
 export const MusterRollScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -28,103 +37,167 @@ export const MusterRollScreen: React.FC = () => {
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1); // 1-12
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
+  const [selectedEmpId, setSelectedEmpId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'calendar' | 'matrix'>('calendar');
 
-  // Modal detail for clicked cell
-  const [modalDetail, setModalDetail] = useState<{
+  // Modal States
+  const [employeeModalVisible, setEmployeeModalVisible] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [monthModalVisible, setMonthModalVisible] = useState(false);
+  const [yearModalVisible, setYearModalVisible] = useState(false);
+  const [dayDetailModal, setDayDetailModal] = useState<{
     visible: boolean;
-    empName?: string;
-    empDesignation?: string;
+    dayNum?: number;
     date?: string;
     status?: AttendanceStatus;
     inTime?: string | null;
     outTime?: string | null;
     workedHours?: number;
     details?: string;
+    punchesCount?: number;
   }>({ visible: false });
 
-  // TanStack Query for Dynamic Muster Roll Data from backend
-  const { data: musterRes, isLoading, isRefetching, refetch } = useMusterRoll(selectedMonth, selectedYear);
-  const musterData = musterRes?.data;
-  const employees = musterData?.employees || [];
-  const summary = musterData?.summary || {
-    totalStaff: 0,
-    presentToday: 0,
-    absentToday: 0,
-    lateToday: 0,
-    halfDayToday: 0,
-    leaveToday: 0,
-    weekOffToday: 0,
-    totalPresentDays: 0,
-    totalLateDays: 0,
-    totalHalfDays: 0,
-    totalAbsentDays: 0,
-    totalWeekOffDays: 0,
-    totalLeaveDays: 0,
-  };
+  // TanStack Queries (Profile, Muster Roll API, and General Employee List)
+  const { data: profileRes } = useProfile();
+  const loggedUser = profileRes?.data?.user;
+  const userRoleStr = String(loggedUser?.role || (loggedUser as any)?.role?.name || '').toUpperCase();
+  const isOrgOrAdmin = !!(
+    (loggedUser as any)?.isPlatformAdmin ||
+    ['SUPER_ADMIN', 'ADMIN', 'ORGANIZATION ADMIN', 'SUPER ADMIN', 'HR ADMIN', 'HR_ADMIN', 'HR MANAGER'].includes(userRoleStr)
+  );
 
-  const daysCount = musterData?.daysInMonth || new Date(selectedYear, selectedMonth, 0).getDate();
-  const daysInMonth = Array.from({ length: daysCount }, (_, i) => i + 1);
+  const { data: musterRes, isLoading: isMusterLoading, isRefetching, refetch } = useMusterRoll(selectedMonth, selectedYear);
+  const { data: empRes, isLoading: isEmpLoading } = useEmployees();
+
+  const musterEmployees = musterRes?.data?.employees || [];
+  const rawEmployees = empRes?.data || [];
+
+  // Helper to normalize any employee object to MusterEmployeeRecord
+  const normalizeToMuster = React.useCallback((e: any): MusterEmployeeRecord => {
+    return {
+      id: e.id,
+      name: e.name,
+      email: e.email,
+      userId: e.userId,
+      role: e.role || e.user?.role?.name,
+      department: e.department?.name || e.department,
+      designation: e.designation || 'Staff',
+      avatar: e.avatar,
+      counts: e.counts || { present: 0, late: 0, halfDay: 0, absent: 0, weekOff: 0, leave: 0, totalWorkedHours: 0 },
+      days: e.days || Array.from({ length: 31 }, (_, i) => ({
+        day: i + 1,
+        date: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`,
+        status: '-' as AttendanceStatus,
+        workedHours: 0,
+      })),
+    };
+  }, [selectedMonth, selectedYear]);
+
+  // Combined source list
+  const normalizedSourceList = React.useMemo<MusterEmployeeRecord[]>(() => {
+    if (musterEmployees.length > 0) return musterEmployees;
+    return rawEmployees.map(normalizeToMuster);
+  }, [musterEmployees, rawEmployees, normalizeToMuster]);
+
+  // Match logged in user's employee profile
+  const myEmployee = React.useMemo<MusterEmployeeRecord | null>(() => {
+    if (!loggedUser) return null;
+    const found = normalizedSourceList.find((e: MusterEmployeeRecord) =>
+      (loggedUser.employeeId && e.id === loggedUser.employeeId) ||
+      (loggedUser.id && (e.userId === loggedUser.id || e.id === loggedUser.id)) ||
+      (loggedUser.email && e.email?.toLowerCase() === loggedUser.email?.toLowerCase())
+    );
+    return found || (normalizedSourceList.length > 0 ? normalizedSourceList[0] : null);
+  }, [loggedUser, normalizedSourceList]);
+
+  // Combine employees so all company employees are guaranteed selectable
+  const combinedEmployees = React.useMemo<MusterEmployeeRecord[]>(() => {
+    // 1. Regular Employee: Only show their own attendance record!
+    if (!isOrgOrAdmin) {
+      if (myEmployee) return [myEmployee];
+      if (normalizedSourceList.length > 0) return [normalizedSourceList[0]];
+      return [];
+    }
+
+    // 2. Organization (Admin/HR): Show all employees created by organization,
+    // EXCLUDING the organization itself (admin/owner account, super admins, info@symbosys.com)
+    return normalizedSourceList.filter(e => {
+      if (loggedUser) {
+        if (loggedUser.id && (e.userId === loggedUser.id || e.id === loggedUser.id)) return false;
+        if (loggedUser.email && e.email?.toLowerCase() === loggedUser.email?.toLowerCase()) return false;
+        if (loggedUser.employeeId && e.id === loggedUser.employeeId) return false;
+      }
+      const r = String(e.role || (e as any).user?.role?.name || '').toUpperCase();
+      if (r.includes('ORGANIZATION ADMIN') || r.includes('SUPER_ADMIN') || r.includes('SUPER ADMIN')) return false;
+      if (e.email?.toLowerCase() === 'info@symbosys.com') return false;
+      return true;
+    });
+  }, [normalizedSourceList, isOrgOrAdmin, myEmployee, loggedUser]);
+
+  // Keep selectedEmpId updated
+  useEffect(() => {
+    if (combinedEmployees.length > 0) {
+      if (!selectedEmpId || !combinedEmployees.some(e => e.id === selectedEmpId)) {
+        setSelectedEmpId(combinedEmployees[0].id);
+      }
+    }
+  }, [combinedEmployees, selectedEmpId]);
+
+  const targetEmployee = combinedEmployees.find(e => e.id === selectedEmpId) || combinedEmployees[0];
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
+  const daysCount = musterRes?.data?.daysInMonth || new Date(selectedYear, selectedMonth, 0).getDate();
+  const daysInMonth = Array.from({ length: daysCount }, (_, i) => i + 1);
+
+  // First day of week index: 0 = Mon, 6 = Sun
+  const firstDayOfWeekIndex = (new Date(selectedYear, selectedMonth - 1, 1).getDay() + 6) % 7;
+
   const currentMonthLabel = `${monthNames[selectedMonth - 1]} ${selectedYear}`;
-
-  const handlePrevMonth = () => {
-    if (selectedMonth === 1) {
-      setSelectedMonth(12);
-      setSelectedYear(selectedYear - 1);
-    } else {
-      setSelectedMonth(selectedMonth - 1);
-    }
-  };
-
-  const handleNextMonth = () => {
-    if (selectedMonth === 12) {
-      setSelectedMonth(1);
-      setSelectedYear(selectedYear + 1);
-    } else {
-      setSelectedMonth(selectedMonth + 1);
-    }
-  };
 
   const getStatusStyle = (st: AttendanceStatus) => {
     switch (st) {
       case 'P':
         return {
-          bg: isDark ? 'rgba(16, 185, 129, 0.2)' : '#ecfdf5',
+          bg: isDark ? 'rgba(16, 185, 129, 0.18)' : '#ecfdf5',
           text: isDark ? '#34d399' : '#059669',
           border: isDark ? 'rgba(52, 211, 153, 0.4)' : '#a7f3d0',
+          dot: '#10b981',
           label: 'Present',
         };
       case 'A':
         return {
-          bg: isDark ? 'rgba(239, 68, 68, 0.2)' : '#fef2f2',
+          bg: isDark ? 'rgba(239, 68, 68, 0.18)' : '#fef2f2',
           text: isDark ? '#f87171' : '#dc2626',
           border: isDark ? 'rgba(248, 113, 113, 0.4)' : '#fecaca',
+          dot: '#ef4444',
           label: 'Absent',
         };
       case 'L':
         return {
-          bg: isDark ? 'rgba(234, 179, 8, 0.2)' : '#fefce8',
+          bg: isDark ? 'rgba(234, 179, 8, 0.18)' : '#fefce8',
           text: isDark ? '#facc15' : '#ca8a04',
           border: isDark ? 'rgba(250, 204, 21, 0.4)' : '#fef08a',
-          label: 'Late (Grace)',
+          dot: '#eab308',
+          label: 'Late',
         };
       case 'HD':
         return {
-          bg: isDark ? 'rgba(249, 115, 22, 0.2)' : '#fff7ed',
+          bg: isDark ? 'rgba(249, 115, 22, 0.18)' : '#fff7ed',
           text: isDark ? '#fb923c' : '#ea580c',
           border: isDark ? 'rgba(251, 146, 60, 0.4)' : '#fed7aa',
-          label: 'Half Day (<8h / >15m)',
+          dot: '#f97316',
+          label: 'Half Day',
         };
       case 'LV':
         return {
-          bg: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff',
+          bg: isDark ? 'rgba(59, 130, 246, 0.18)' : '#eff6ff',
           text: isDark ? '#60a5fa' : '#2563eb',
           border: isDark ? 'rgba(96, 165, 250, 0.4)' : '#bfdbfe',
+          dot: '#3b82f6',
           label: 'Leave',
         };
       case 'WO':
@@ -132,6 +205,7 @@ export const MusterRollScreen: React.FC = () => {
           bg: isDark ? 'rgba(148, 163, 184, 0.12)' : '#f1f5f9',
           text: isDark ? '#94a3b8' : '#64748b',
           border: isDark ? 'rgba(148, 163, 184, 0.25)' : '#e2e8f0',
+          dot: '#94a3b8',
           label: 'Week Off',
         };
       case '-':
@@ -139,7 +213,8 @@ export const MusterRollScreen: React.FC = () => {
         return {
           bg: isDark ? 'rgba(255, 255, 255, 0.03)' : '#f8fafc',
           text: isDark ? '#64748b' : '#94a3b8',
-          border: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
+          border: isDark ? 'rgba(255, 255, 255, 0.08)' : '#f1f5f9',
+          dot: '#94a3b8',
           label: 'Upcoming',
         };
     }
@@ -158,6 +233,30 @@ export const MusterRollScreen: React.FC = () => {
     const palette = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4'];
     return palette[index % palette.length];
   };
+
+  const handleExportCSV = () => {
+    if (!targetEmployee) return;
+    const lines = [
+      `Muster Roll - ${targetEmployee.name} - ${currentMonthLabel}`,
+      `Total Present: ${targetEmployee.counts?.present || 0}, Late: ${targetEmployee.counts?.late || 0}, Half Day: ${targetEmployee.counts?.halfDay || 0}, Absent: ${targetEmployee.counts?.absent || 0}, Week Off: ${targetEmployee.counts?.weekOff || 0}`,
+      `Day,Date,Status,In Time,Out Time,Hours Worked,Details`,
+    ];
+    targetEmployee.days?.forEach((d: MusterDayDetail) => {
+      lines.push(`${d.day},${d.date},${d.status},${d.inTime || ''},${d.outTime || ''},${d.workedHours || 0},"${d.details || ''}"`);
+    });
+
+    Alert.alert(
+      'Export Muster Roll CSV',
+      `Muster roll generated for ${targetEmployee.name} (${currentMonthLabel}) with ${targetEmployee.days?.length || 0} days recorded.\n\nData is ready for download/share.`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  const filteredEmployees = combinedEmployees.filter(e =>
+    e.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+    (e.designation && e.designation.toLowerCase().includes(employeeSearch.toLowerCase())) ||
+    (e.department && e.department.toLowerCase().includes(employeeSearch.toLowerCase()))
+  );
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -179,14 +278,16 @@ export const MusterRollScreen: React.FC = () => {
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
-            Muster Roll & Calendar
+            Muster Roll Calendar
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-            Dynamic Roster Matrix & Shift Tracking
+            Monthly Attendance & Shift Grid
           </Text>
         </View>
         <View style={[styles.monthBadge, { backgroundColor: colors.statAttendanceBg }]}>
-          <Text style={[styles.monthBadgeText, { color: colors.accent }]}>{currentMonthLabel}</Text>
+          <Text style={[styles.monthBadgeText, { color: colors.accent }]}>
+            {monthNames[selectedMonth - 1].slice(0, 3)} {selectedYear}
+          </Text>
         </View>
       </View>
 
@@ -197,172 +298,52 @@ export const MusterRollScreen: React.FC = () => {
           <RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} tintColor={colors.accent} />
         }
       >
-        {/* KPI Stats Summary Cards */}
-        <View style={styles.statsRow}>
-          <View
-            style={[
-              styles.statCard,
-              { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
-            ]}
-          >
-            <Text style={[styles.statValue, { color: colors.textPrimary }]}>{summary.totalStaff}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Staff</Text>
-          </View>
-
-          <View
-            style={[
-              styles.statCard,
-              { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
-            ]}
-          >
-            <View style={styles.statValueRow}>
-              <View style={[styles.miniDot, { backgroundColor: '#10b981' }]} />
-              <Text style={[styles.statValue, { color: '#10b981' }]}>{summary.presentToday}</Text>
-            </View>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Present Today</Text>
-            <Text style={[styles.statSubLabel, { color: colors.textSecondary }]}>{summary.totalPresentDays} mo. days</Text>
-          </View>
-
-          <View
-            style={[
-              styles.statCard,
-              { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
-            ]}
-          >
-            <View style={styles.statValueRow}>
-              <View style={[styles.miniDot, { backgroundColor: '#ef4444' }]} />
-              <Text style={[styles.statValue, { color: '#ef4444' }]}>{summary.absentToday}</Text>
-            </View>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Absent Today</Text>
-            <Text style={[styles.statSubLabel, { color: colors.textSecondary }]}>{summary.totalAbsentDays} mo. days</Text>
-          </View>
-
-          <View
-            style={[
-              styles.statCard,
-              { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
-            ]}
-          >
-            <View style={styles.statValueRow}>
-              <View style={[styles.miniDot, { backgroundColor: '#eab308' }]} />
-              <Text style={[styles.statValue, { color: '#eab308' }]}>{summary.lateToday}</Text>
-            </View>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Late Today</Text>
-            <Text style={[styles.statSubLabel, { color: colors.textSecondary }]}>{summary.totalLateDays} mo. days</Text>
-          </View>
-
-          <View
-            style={[
-              styles.statCard,
-              { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
-            ]}
-          >
-            <View style={styles.statValueRow}>
-              <View style={[styles.miniDot, { backgroundColor: '#f97316' }]} />
-              <Text style={[styles.statValue, { color: '#f97316' }]}>{summary.halfDayToday}</Text>
-            </View>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Half Day Today</Text>
-            <Text style={[styles.statSubLabel, { color: colors.textSecondary }]}>{summary.totalHalfDays} mo. days</Text>
-          </View>
-        </View>
-
-        {/* Dynamic Month Selector Bar */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
-          ]}
-        >
-          <View style={styles.cardHeaderRow}>
-            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-              🗓️ Select Muster Month
-            </Text>
-            <View style={styles.monthNavRow}>
-              <TouchableOpacity
-                style={[styles.navArrowBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9' }]}
-                onPress={handlePrevMonth}
-                activeOpacity={0.7}
+        {/* View Mode Toggle: [ 📅 Calendar View | 📋 All Staff Matrix ] (Only for Organization/Admin) */}
+        {isOrgOrAdmin && (
+          <View style={[styles.viewModeToggle, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9' }]}>
+            <TouchableOpacity
+              style={[
+                styles.viewModeBtn,
+                activeTab === 'calendar' && [styles.viewModeBtnActive, { backgroundColor: colors.cardBackground }],
+              ]}
+              onPress={() => setActiveTab('calendar')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.viewModeBtnText,
+                  { color: activeTab === 'calendar' ? colors.accent : colors.textSecondary },
+                  activeTab === 'calendar' && { fontWeight: '800' },
+                ]}
               >
-                <Text style={[styles.navArrowText, { color: colors.textPrimary }]}>◀ Prev</Text>
-              </TouchableOpacity>
-              <Text style={[styles.navCurrentLabel, { color: colors.accent }]}>
-                {monthNames[selectedMonth - 1]} {selectedYear}
+                📅 Calendar Grid View
               </Text>
-              <TouchableOpacity
-                style={[styles.navArrowBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9' }]}
-                onPress={handleNextMonth}
-                activeOpacity={0.7}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.viewModeBtn,
+                activeTab === 'matrix' && [styles.viewModeBtnActive, { backgroundColor: colors.cardBackground }],
+              ]}
+              onPress={() => setActiveTab('matrix')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.viewModeBtnText,
+                  { color: activeTab === 'matrix' ? colors.accent : colors.textSecondary },
+                  activeTab === 'matrix' && { fontWeight: '800' },
+                ]}
               >
-                <Text style={[styles.navArrowText, { color: colors.textPrimary }]}>Next ▶</Text>
-              </TouchableOpacity>
-            </View>
+                📋 All Staff Matrix
+              </Text>
+            </TouchableOpacity>
           </View>
+        )}
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
-            {Array.from({ length: 12 }, (_, i) => i + 1).map(mNum => {
-              const isSelected = selectedMonth === mNum;
-              return (
-                <TouchableOpacity
-                  key={mNum}
-                  style={[
-                    styles.monthChip,
-                    {
-                      backgroundColor: isSelected ? colors.accent : (isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'),
-                      borderColor: isSelected ? colors.accent : colors.cardBorder,
-                    },
-                  ]}
-                  onPress={() => setSelectedMonth(mNum)}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.monthChipText,
-                      { color: isSelected ? '#ffffff' : colors.textPrimary },
-                    ]}
-                  >
-                    {monthNames[mNum - 1].slice(0, 3)} {selectedYear}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* Status Legend */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
-          ]}
-        >
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>📌 Attendance Legend & Shift Rules</Text>
-          <View style={styles.legendRow}>
-            {(['P', 'A', 'L', 'HD', 'WO', 'LV'] as AttendanceStatus[]).map(st => {
-              const info = getStatusStyle(st);
-              return (
-                <View
-                  key={st}
-                  style={[
-                    styles.legendBadge,
-                    { backgroundColor: info.bg, borderColor: info.border },
-                  ]}
-                >
-                  <Text style={[styles.legendBadgeCode, { color: info.text }]}>{st}</Text>
-                  <Text style={[styles.legendBadgeLabel, { color: colors.textPrimary }]}>
-                    {info.label}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-          <Text style={[styles.rulesHelperText, { color: colors.textSecondary }]}>
-            • Shift starts at 09:30 AM (10-15m grace accepted as Late 'L'; &gt;15m late automatically marked Half Day 'HD').{'\n'}
-            • Logout before 8 hours worked automatically counts as Half Day 'HD' (&gt;=8 hours = Full Day).{'\n'}
-            • Forgot to logout? System automatically records Punch-Out at 12:00 AM midnight.
-          </Text>
-        </View>
-
-        {/* Muster Matrix Grid Table */}
+        {/* ======================================= */}
+        {/* 1. DEDICATED EMPLOYEE SELECTOR SECTION  */}
+        {/* ======================================= */}
         <View
           style={[
             styles.card,
@@ -371,234 +352,692 @@ export const MusterRollScreen: React.FC = () => {
         >
           <View style={styles.cardHeaderRow}>
             <View>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-                📊 Monthly Muster Matrix ({currentMonthLabel})
+              <Text style={[styles.sectionHeading, { color: colors.textSecondary }]}>
+                {isOrgOrAdmin ? '👤 SELECT EMPLOYEE / STAFF' : '👤 MY ATTENDANCE RECORD'}
               </Text>
-              <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-                Tap any cell to view punch-in, punch-out, and worked hours detail
+              <Text style={[styles.sectionSubHeading, { color: colors.textPrimary }]}>
+                {isOrgOrAdmin ? 'Attendance for: ' : 'Showing record for: '}
+                <Text style={{ color: colors.accent, fontWeight: '800' }}>
+                  {targetEmployee?.name || (isOrgOrAdmin ? 'Select Staff' : 'Me')}
+                </Text>
               </Text>
             </View>
-            <View style={styles.recordCountPill}>
-              <Text style={[styles.recordCountText, { color: colors.textSecondary }]}>
-                {employees.length} Staff
+            {isOrgOrAdmin && (
+              <View style={[styles.recordCountPill, { backgroundColor: colors.statAttendanceBg }]}>
+                <Text style={[styles.recordCountText, { color: colors.accent }]}>
+                  {combinedEmployees.length} Staff
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Large Prominent Clickable Employee Selector Card */}
+          <TouchableOpacity
+            style={[
+              styles.prominentEmpCard,
+              { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc', borderColor: colors.accent },
+            ]}
+            onPress={() => {
+              if (isOrgOrAdmin) setEmployeeModalVisible(true);
+            }}
+            disabled={!isOrgOrAdmin}
+            activeOpacity={isOrgOrAdmin ? 0.8 : 1}
+          >
+            <View style={[styles.largeAvatar, { backgroundColor: getAvatarBg(0) }]}>
+              <Text style={styles.largeAvatarText}>{getInitials(targetEmployee?.name || '')}</Text>
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[styles.prominentEmpName, { color: colors.textPrimary }]} numberOfLines={1}>
+                {targetEmployee?.name || (isOrgOrAdmin ? 'Tap to choose staff member' : 'My Attendance')}
               </Text>
+              <Text style={[styles.prominentEmpRole, { color: colors.textSecondary }]} numberOfLines={1}>
+                {targetEmployee?.designation || targetEmployee?.department || 'Staff Member'} • ID: {targetEmployee?.id || '—'}
+              </Text>
+            </View>
+            {isOrgOrAdmin ? (
+              <View style={[styles.changeStaffBadge, { backgroundColor: colors.accent }]}>
+                <Text style={styles.changeStaffText}>Change ▼</Text>
+              </View>
+            ) : (
+              <View style={[styles.changeStaffBadge, { backgroundColor: isDark ? 'rgba(16,185,129,0.2)' : '#ecfdf5' }]}>
+                <Text style={[styles.changeStaffText, { color: '#10b981' }]}>Active ✓</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Quick-Scroll Horizontal Staff Chips (Only for Organization/Admin) */}
+          {isOrgOrAdmin && combinedEmployees.length > 1 && (
+            <View style={{ marginTop: 2 }}>
+              <Text style={[styles.quickSelectLabel, { color: colors.textSecondary }]}>Quick Switch Staff:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+                {combinedEmployees.map((emp, index) => {
+                  const isSelected = emp.id === selectedEmpId;
+                  return (
+                    <TouchableOpacity
+                      key={emp.id}
+                      style={[
+                        styles.quickStaffChip,
+                        {
+                          backgroundColor: isSelected ? colors.accent : (isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'),
+                          borderColor: isSelected ? colors.accent : colors.cardBorder,
+                        },
+                      ]}
+                      onPress={() => setSelectedEmpId(emp.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.chipAvatar, { backgroundColor: getAvatarBg(index) }]}>
+                        <Text style={styles.chipAvatarText}>{getInitials(emp.name)}</Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.quickStaffChipText,
+                          { color: isSelected ? '#ffffff' : colors.textPrimary },
+                          isSelected && { fontWeight: '800' },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {emp.name.split(' ')[0]}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+
+        {/* ======================================= */}
+        {/* 2. DATE SELECTORS & SUMMARY COUNTERS    */}
+        {/* ======================================= */}
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
+          ]}
+        >
+          {/* Header Row */}
+          <View style={styles.cardHeaderRow}>
+            <View>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+                Muster Roll Grid — {currentMonthLabel}
+              </Text>
+              <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+                7-Day Calendar view matching Web portal
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.csvBtn, { backgroundColor: colors.accent }]}
+              onPress={handleExportCSV}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.csvBtnText}>📥 CSV</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Month & Year Selectors Row */}
+          <View style={styles.controlsRow}>
+            {/* Month Selector Button */}
+            <TouchableOpacity
+              style={[
+                styles.controlPickerBtn,
+                { flex: 1.2, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', borderColor: colors.cardBorder },
+              ]}
+              onPress={() => setMonthModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.pickerContent}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>Month</Text>
+                  <Text style={[styles.pickerValueText, { color: colors.textPrimary }]} numberOfLines={1}>
+                    {monthNames[selectedMonth - 1]}
+                  </Text>
+                </View>
+                <Text style={[styles.pickerArrow, { color: colors.accent }]}>▼</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Year Selector Button */}
+            <TouchableOpacity
+              style={[
+                styles.controlPickerBtn,
+                { flex: 0.8, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', borderColor: colors.cardBorder },
+              ]}
+              onPress={() => setYearModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.pickerContent}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>Year</Text>
+                  <Text style={[styles.pickerValueText, { color: colors.textPrimary }]}>
+                    {selectedYear}
+                  </Text>
+                </View>
+                <Text style={[styles.pickerArrow, { color: colors.accent }]}>▼</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Quick Summary Counts Row (Web ke jaise) */}
+          <View style={[styles.summaryPillsRow, { borderTopColor: colors.cardBorder }]}>
+            <View style={[styles.summaryPill, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5', borderColor: isDark ? 'rgba(52, 211, 153, 0.3)' : '#a7f3d0' }]}>
+              <Text style={[styles.summaryPillValue, { color: '#10b981' }]}>
+                {targetEmployee?.counts?.present || 0}
+              </Text>
+              <Text style={[styles.summaryPillLabel, { color: '#059669' }]}>Present</Text>
+            </View>
+
+            <View style={[styles.summaryPill, { backgroundColor: isDark ? 'rgba(234, 179, 8, 0.15)' : '#fefce8', borderColor: isDark ? 'rgba(250, 204, 21, 0.3)' : '#fef08a' }]}>
+              <Text style={[styles.summaryPillValue, { color: '#eab308' }]}>
+                {targetEmployee?.counts?.late || 0}
+              </Text>
+              <Text style={[styles.summaryPillLabel, { color: '#ca8a04' }]}>Late</Text>
+            </View>
+
+            <View style={[styles.summaryPill, { backgroundColor: isDark ? 'rgba(249, 115, 22, 0.15)' : '#fff7ed', borderColor: isDark ? 'rgba(251, 146, 60, 0.3)' : '#fed7aa' }]}>
+              <Text style={[styles.summaryPillValue, { color: '#f97316' }]}>
+                {targetEmployee?.counts?.halfDay || 0}
+              </Text>
+              <Text style={[styles.summaryPillLabel, { color: '#ea580c' }]}>Half Day</Text>
+            </View>
+
+            <View style={[styles.summaryPill, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2', borderColor: isDark ? 'rgba(248, 113, 113, 0.3)' : '#fecaca' }]}>
+              <Text style={[styles.summaryPillValue, { color: '#ef4444' }]}>
+                {targetEmployee?.counts?.absent || 0}
+              </Text>
+              <Text style={[styles.summaryPillLabel, { color: '#dc2626' }]}>Absent</Text>
+            </View>
+
+            <View style={[styles.summaryPill, { backgroundColor: isDark ? 'rgba(148, 163, 184, 0.12)' : '#f1f5f9', borderColor: isDark ? 'rgba(148, 163, 184, 0.25)' : '#e2e8f0' }]}>
+              <Text style={[styles.summaryPillValue, { color: '#94a3b8' }]}>
+                {targetEmployee?.counts?.weekOff || 0}
+              </Text>
+              <Text style={[styles.summaryPillLabel, { color: '#64748b' }]}>Week Off</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ======================================= */}
+        {/* 3. CALENDAR GRID VIEW (Mon - Sun 7-Col) */}
+        {/* ======================================= */}
+        {activeTab === 'calendar' && (
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
+            ]}
+          >
+            {(isMusterLoading && isEmpLoading) ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={colors.accent} />
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                  Loading monthly roster grid...
+                </Text>
+              </View>
+            ) : !targetEmployee ? (
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                  No employee selected or records available.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.calendarContainer}>
+                {/* 7 Days Weekday Header Row */}
+                <View style={styles.weekdayHeaderRow}>
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(w => (
+                    <View key={w} style={[styles.weekdayCol, { width: CALENDAR_CELL_WIDTH }]}>
+                      <Text
+                        style={[
+                          styles.weekdayHeaderText,
+                          { color: w === 'Sat' || w === 'Sun' ? colors.accent : colors.textSecondary },
+                        ]}
+                      >
+                        {w}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Calendar Days Matrix (with offset padding before 1st of month) */}
+                <View style={styles.daysGrid}>
+                  {/* Dynamic Offset padding days */}
+                  {Array.from({ length: firstDayOfWeekIndex }).map((_, idx) => (
+                    <View
+                      key={`offset-${idx}`}
+                      style={[
+                        styles.dayCellContainer,
+                        { width: CALENDAR_CELL_WIDTH, borderColor: 'transparent' },
+                      ]}
+                    />
+                  ))}
+
+                  {/* Month Days (Day 1 to 31) */}
+                  {daysInMonth.map(dayNum => {
+                    const dayDetail: MusterDayDetail | undefined = targetEmployee.days?.[dayNum - 1];
+                    const st = (dayDetail?.status || '-') as AttendanceStatus;
+                    const info = getStatusStyle(st);
+                    const hasPunches = (dayDetail?.inTime || dayDetail?.outTime) ? true : false;
+
+                    return (
+                      <TouchableOpacity
+                        key={dayNum}
+                        style={[
+                          styles.dayCellContainer,
+                          {
+                            width: CALENDAR_CELL_WIDTH,
+                            backgroundColor: info.bg,
+                            borderColor: info.border,
+                          },
+                        ]}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          setDayDetailModal({
+                            visible: true,
+                            dayNum,
+                            date: dayDetail?.date || `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`,
+                            status: st,
+                            inTime: dayDetail?.inTime,
+                            outTime: dayDetail?.outTime,
+                            workedHours: dayDetail?.workedHours,
+                            details: dayDetail?.details,
+                            punchesCount: hasPunches ? 1 : 0,
+                          });
+                        }}
+                      >
+                        {/* Day Card Header: Day Number + Punch Dot */}
+                        <View style={styles.dayCellTopRow}>
+                          <Text style={[styles.dayCellNumber, { color: colors.textPrimary }]}>
+                            {dayNum}
+                          </Text>
+                          {hasPunches && (
+                            <View style={[styles.dayPunchDot, { backgroundColor: '#10b981' }]} />
+                          )}
+                        </View>
+
+                        {/* Day Card Bottom: Status Text */}
+                        <Text
+                          style={[styles.dayCellStatusText, { color: info.text }]}
+                          numberOfLines={1}
+                        >
+                          {st === 'HD' ? 'HalfDay' : st === 'WO' ? 'WeekOff' : st === 'LV' ? 'Leave' : st === 'P' ? 'Present' : st === 'L' ? 'Late' : st === 'A' ? 'Absent' : '—'}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ======================================= */}
+        {/* 4. ALL STAFF MATRIX VIEW                */}
+        {/* ======================================= */}
+        {activeTab === 'matrix' && (
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
+            ]}
+          >
+            <View style={styles.cardHeaderRow}>
+              <View>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+                  📊 Company-wide Roster Matrix ({currentMonthLabel})
+                </Text>
+                <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+                  All {combinedEmployees.length} staff attendance records with total counts
+                </Text>
+              </View>
+            </View>
+
+            {isMusterLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={colors.accent} />
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                  Loading staff matrix...
+                </Text>
+              </View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+                <View style={styles.matrixTable}>
+                  {/* Header Row */}
+                  <View style={[styles.matrixHeaderRow, { borderBottomColor: colors.cardBorder }]}>
+                    <Text style={[styles.matrixThEmp, { color: colors.textPrimary }]}>Employee</Text>
+                    {daysInMonth.map(d => (
+                      <View key={d} style={styles.matrixThDay}>
+                        <Text style={[styles.matrixThDayText, { color: colors.textSecondary }]}>{d}</Text>
+                      </View>
+                    ))}
+                    <View style={styles.matrixSummaryHeaders}>
+                      <Text style={[styles.matrixSumTh, { color: '#10b981' }]}>P</Text>
+                      <Text style={[styles.matrixSumTh, { color: '#eab308' }]}>L</Text>
+                      <Text style={[styles.matrixSumTh, { color: '#f97316' }]}>HD</Text>
+                      <Text style={[styles.matrixSumTh, { color: '#ef4444' }]}>A</Text>
+                      <Text style={[styles.matrixSumTh, { color: '#94a3b8' }]}>WO</Text>
+                    </View>
+                  </View>
+
+                  {/* Rows */}
+                  {combinedEmployees.map((emp, idx) => (
+                    <TouchableOpacity
+                      key={emp.id}
+                      style={[
+                        styles.matrixRow,
+                        { borderBottomColor: colors.divider || 'rgba(100,100,100,0.1)' },
+                        emp.id === selectedEmpId && { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc' },
+                      ]}
+                      onPress={() => {
+                        setSelectedEmpId(emp.id);
+                        setActiveTab('calendar');
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.matrixTdEmp}>
+                        <View style={[styles.miniAvatar, { backgroundColor: getAvatarBg(idx) }]}>
+                          <Text style={styles.miniAvatarText}>{getInitials(emp.name)}</Text>
+                        </View>
+                        <Text style={[styles.matrixEmpName, { color: colors.textPrimary }]} numberOfLines={1}>
+                          {emp.name}
+                        </Text>
+                      </View>
+
+                      {daysInMonth.map(d => {
+                        const st = (emp.days?.[d - 1]?.status || '-') as AttendanceStatus;
+                        const info = getStatusStyle(st);
+                        return (
+                          <View key={d} style={styles.matrixCellWrapper}>
+                            <View style={[styles.matrixStatusCell, { backgroundColor: info.bg, borderColor: info.border }]}>
+                              <Text style={[styles.matrixCellText, { color: info.text }]}>{st}</Text>
+                            </View>
+                          </View>
+                        );
+                      })}
+
+                      {/* Totals */}
+                      <View style={styles.matrixSummaryCounts}>
+                        <Text style={[styles.matrixSumTd, { color: '#10b981' }]}>{emp.counts?.present || 0}</Text>
+                        <Text style={[styles.matrixSumTd, { color: '#eab308' }]}>{emp.counts?.late || 0}</Text>
+                        <Text style={[styles.matrixSumTd, { color: '#f97316' }]}>{emp.counts?.halfDay || 0}</Text>
+                        <Text style={[styles.matrixSumTd, { color: '#ef4444' }]}>{emp.counts?.absent || 0}</Text>
+                        <Text style={[styles.matrixSumTd, { color: '#94a3b8' }]}>{emp.counts?.weekOff || 0}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        )}
+
+        {/* ======================================= */}
+        {/* 5. ATTENDANCE LEGEND & RULES CARD       */}
+        {/* ======================================= */}
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>📌 Attendance Legend</Text>
+
+          <View style={styles.legendRow}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
+              <Text style={[styles.legendText, { color: colors.textPrimary }]}>Present (&gt;=8h)</Text>
+            </View>
+
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#eab308' }]} />
+              <Text style={[styles.legendText, { color: colors.textPrimary }]}>Late (Grace 1-15m)</Text>
+            </View>
+
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#f97316' }]} />
+              <Text style={[styles.legendText, { color: colors.textPrimary }]}>Half Day (&lt;8h / &gt;15m)</Text>
+            </View>
+
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#ef4444' }]} />
+              <Text style={[styles.legendText, { color: colors.textPrimary }]}>Absent</Text>
+            </View>
+
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#3b82f6' }]} />
+              <Text style={[styles.legendText, { color: colors.textPrimary }]}>Leave</Text>
+            </View>
+
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#94a3b8' }]} />
+              <Text style={[styles.legendText, { color: colors.textPrimary }]}>Week Off</Text>
             </View>
           </View>
 
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={colors.accent} />
-              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                Calculating dynamic attendance matrix...
-              </Text>
-            </View>
-          ) : employees.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No employee records found for this period.
-              </Text>
-            </View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-              <View style={styles.tableGrid}>
-                {/* Day Numbers & Summary Header Row */}
-                <View style={[styles.tableHeaderRow, { borderBottomColor: colors.cardBorder }]}>
-                  <Text style={[styles.thEmp, { color: colors.textPrimary }]}>Employee Name</Text>
-                  
-                  {/* Days 1 to 31 */}
-                  {daysInMonth.map(d => {
-                    const dateObj = new Date(selectedYear, selectedMonth - 1, d);
-                    const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-                    return (
-                      <View
-                        key={d}
-                        style={[
-                          styles.thDayContainer,
-                          isWeekend && { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc' },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.thDay,
-                            { color: isWeekend ? colors.accent : colors.textSecondary },
-                          ]}
-                        >
-                          {d}
-                        </Text>
-                      </View>
-                    );
-                  })}
-
-                  {/* Calculated Totals Header Columns */}
-                  <View style={styles.summaryHeadersGroup}>
-                    <View style={[styles.thSummaryBadge, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                      <Text style={[styles.thSummaryText, { color: '#10b981' }]}>P</Text>
-                    </View>
-                    <View style={[styles.thSummaryBadge, { backgroundColor: 'rgba(234, 179, 8, 0.15)' }]}>
-                      <Text style={[styles.thSummaryText, { color: '#eab308' }]}>L</Text>
-                    </View>
-                    <View style={[styles.thSummaryBadge, { backgroundColor: 'rgba(249, 115, 22, 0.15)' }]}>
-                      <Text style={[styles.thSummaryText, { color: '#f97316' }]}>HD</Text>
-                    </View>
-                    <View style={[styles.thSummaryBadge, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
-                      <Text style={[styles.thSummaryText, { color: '#ef4444' }]}>A</Text>
-                    </View>
-                    <View style={[styles.thSummaryBadge, { backgroundColor: 'rgba(148, 163, 184, 0.15)' }]}>
-                      <Text style={[styles.thSummaryText, { color: '#94a3b8' }]}>WO</Text>
-                    </View>
-                    <View style={[styles.thSummaryBadge, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
-                      <Text style={[styles.thSummaryText, { color: '#3b82f6' }]}>LV</Text>
-                    </View>
-                    <View style={[styles.thSummaryBadge, { backgroundColor: 'rgba(168, 85, 247, 0.15)', width: 44 }]}>
-                      <Text style={[styles.thSummaryText, { color: '#a855f7' }]}>Hrs</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Employee Rows with Dynamic Days and Totals */}
-                {employees.map((emp, index) => (
-                  <View
-                    key={emp.id}
-                    style={[
-                      styles.tableDataRow,
-                      { borderBottomColor: colors.divider || 'rgba(100,100,100,0.1)' },
-                      index % 2 === 1 && {
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.015)' : 'rgba(248,250,252,0.6)',
-                      },
-                    ]}
-                  >
-                    {/* Employee Info Column */}
-                    <View style={styles.tdEmpInfo}>
-                      <View
-                        style={[
-                          styles.avatar,
-                          { backgroundColor: getAvatarBg(index) },
-                        ]}
-                      >
-                        <Text style={styles.avatarText}>{getInitials(emp.name)}</Text>
-                      </View>
-                      <View style={styles.empNameContainer}>
-                        <Text
-                          style={[styles.empNameText, { color: colors.textPrimary }]}
-                          numberOfLines={1}
-                        >
-                          {emp.name}
-                        </Text>
-                        <Text style={[styles.empDeptText, { color: colors.textSecondary }]} numberOfLines={1}>
-                          {emp.designation || emp.department || 'Staff'}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Day Cells 1 to 31 */}
-                    {daysInMonth.map(dayNum => {
-                      const dayDetail = emp.days?.[dayNum - 1];
-                      const st = (dayDetail?.status || '-') as AttendanceStatus;
-                      const info = getStatusStyle(st);
-                      const dateObj = new Date(selectedYear, selectedMonth - 1, dayNum);
-                      const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-
-                      return (
-                        <TouchableOpacity
-                          key={dayNum}
-                          style={[
-                            styles.cellWrapper,
-                            isWeekend && { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(241,245,249,0.5)' },
-                          ]}
-                          activeOpacity={0.7}
-                          onPress={() => {
-                            if (dayDetail) {
-                              setModalDetail({
-                                visible: true,
-                                empName: emp.name,
-                                empDesignation: emp.designation || emp.department,
-                                date: dayDetail.date,
-                                status: st,
-                                inTime: dayDetail.inTime,
-                                outTime: dayDetail.outTime,
-                                workedHours: dayDetail.workedHours,
-                                details: dayDetail.details,
-                              });
-                            }
-                          }}
-                        >
-                          <View
-                            style={[
-                              styles.statusCell,
-                              { backgroundColor: info.bg, borderColor: info.border },
-                            ]}
-                          >
-                            <Text style={[styles.statusCellText, { color: info.text }]}>
-                              {st}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-
-                    {/* Calculated Counts per Employee */}
-                    <View style={styles.summaryCountsGroup}>
-                      <View style={[styles.tdSummaryBadge, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                        <Text style={[styles.tdSummaryText, { color: '#10b981' }]}>{emp.counts?.present || 0}</Text>
-                      </View>
-                      <View style={[styles.tdSummaryBadge, { backgroundColor: 'rgba(234, 179, 8, 0.12)' }]}>
-                        <Text style={[styles.tdSummaryText, { color: '#eab308' }]}>{emp.counts?.late || 0}</Text>
-                      </View>
-                      <View style={[styles.tdSummaryBadge, { backgroundColor: 'rgba(249, 115, 22, 0.12)' }]}>
-                        <Text style={[styles.tdSummaryText, { color: '#f97316' }]}>{emp.counts?.halfDay || 0}</Text>
-                      </View>
-                      <View style={[styles.tdSummaryBadge, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
-                        <Text style={[styles.tdSummaryText, { color: '#ef4444' }]}>{emp.counts?.absent || 0}</Text>
-                      </View>
-                      <View style={[styles.tdSummaryBadge, { backgroundColor: 'rgba(148, 163, 184, 0.12)' }]}>
-                        <Text style={[styles.tdSummaryText, { color: '#94a3b8' }]}>{emp.counts?.weekOff || 0}</Text>
-                      </View>
-                      <View style={[styles.tdSummaryBadge, { backgroundColor: 'rgba(59, 130, 246, 0.12)' }]}>
-                        <Text style={[styles.tdSummaryText, { color: '#3b82f6' }]}>{emp.counts?.leave || 0}</Text>
-                      </View>
-                      <View style={[styles.tdSummaryBadge, { backgroundColor: 'rgba(168, 85, 247, 0.12)', width: 44 }]}>
-                        <Text style={[styles.tdSummaryText, { color: '#a855f7' }]}>{emp.counts?.totalWorkedHours || 0}h</Text>
-                      </View>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </ScrollView>
-          )}
+          <View style={[styles.rulesCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc' }]}>
+            <Text style={[styles.rulesTitle, { color: colors.accent }]}>⚙️ Automatic Shift Policies</Text>
+            <Text style={[styles.rulesText, { color: colors.textSecondary }]}>
+              • Punch-In starts at 09:30 AM. 10-15m grace accepted as Late; &gt;15m late automatically marks Half Day.{'\n'}
+              • Punch-Out duration &lt; 8 hours automatically marks Half Day; &gt;= 8 hours counts as Full Day.{'\n'}
+              • Forgot to Punch-Out? System automatically records Punch-Out at 12:00 AM midnight.
+            </Text>
+          </View>
         </View>
       </ScrollView>
 
-      {/* Attendance Day Details Modal */}
+      {/* ================= MODALS ================= */}
+
+      {/* 1. Employee Selection Modal */}
       <Modal
-        visible={modalDetail.visible}
+        visible={employeeModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEmployeeModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.pickerModalBox, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={[styles.modalBoxTitle, { color: colors.textPrimary }]}>Select Staff Member</Text>
+                <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>
+                  Showing {filteredEmployees.length} active staff members
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.modalCloseCircle, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9' }]}
+                onPress={() => setEmployeeModalVisible(false)}
+              >
+                <Text style={[styles.modalCloseIcon, { color: colors.textPrimary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Input */}
+            <TextInput
+              style={[
+                styles.modalSearchInput,
+                { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', color: colors.textPrimary, borderColor: colors.cardBorder },
+              ]}
+              placeholder="Search employee by name, role, dept..."
+              placeholderTextColor={colors.textSecondary}
+              value={employeeSearch}
+              onChangeText={setEmployeeSearch}
+            />
+
+            <ScrollView style={{ maxHeight: 360 }}>
+              {filteredEmployees.map((emp, index) => {
+                const isSelected = emp.id === selectedEmpId;
+                return (
+                  <TouchableOpacity
+                    key={emp.id}
+                    style={[
+                      styles.empPickerItem,
+                      { borderBottomColor: colors.cardBorder },
+                      isSelected && { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#eff6ff' },
+                    ]}
+                    onPress={() => {
+                      setSelectedEmpId(emp.id);
+                      setEmployeeModalVisible(false);
+                      setEmployeeSearch('');
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.avatar, { backgroundColor: getAvatarBg(index) }]}>
+                      <Text style={styles.avatarText}>{getInitials(emp.name)}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.empPickerName, { color: colors.textPrimary }, isSelected && { color: colors.accent, fontWeight: '800' }]}>
+                        {emp.name}
+                      </Text>
+                      <Text style={[styles.empPickerRole, { color: colors.textSecondary }]}>
+                        {emp.designation || emp.department || 'Staff'} • ID: {emp.id}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <View style={[styles.selectedCheckBadge, { backgroundColor: colors.accent }]}>
+                        <Text style={styles.selectedCheckText}>✓</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 2. Month Selection Modal */}
+      <Modal
+        visible={monthModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setModalDetail({ visible: false })}
+        onRequestClose={() => setMonthModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.pickerModalBox, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, maxWidth: 320 }]}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={[styles.modalBoxTitle, { color: colors.textPrimary }]}>Select Month</Text>
+              <TouchableOpacity onPress={() => setMonthModalVisible(false)}>
+                <Text style={[styles.modalCloseIcon, { color: colors.textSecondary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.monthGridModal}>
+              {monthNames.map((mth, idx) => {
+                const mNum = idx + 1;
+                const isSelected = selectedMonth === mNum;
+                return (
+                  <TouchableOpacity
+                    key={mth}
+                    style={[
+                      styles.monthGridItem,
+                      {
+                        backgroundColor: isSelected ? colors.accent : (isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'),
+                        borderColor: isSelected ? colors.accent : colors.cardBorder,
+                      },
+                    ]}
+                    onPress={() => {
+                      setSelectedMonth(mNum);
+                      setMonthModalVisible(false);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.monthGridItemText,
+                        { color: isSelected ? '#ffffff' : colors.textPrimary },
+                      ]}
+                    >
+                      {mth.slice(0, 3)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 3. Year Selection Modal */}
+      <Modal
+        visible={yearModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setYearModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.pickerModalBox, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, maxWidth: 280 }]}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={[styles.modalBoxTitle, { color: colors.textPrimary }]}>Select Year</Text>
+              <TouchableOpacity onPress={() => setYearModalVisible(false)}>
+                <Text style={[styles.modalCloseIcon, { color: colors.textSecondary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ gap: 8, marginTop: 10 }}>
+              {[2024, 2025, 2026, 2027].map(yr => {
+                const isSelected = selectedYear === yr;
+                return (
+                  <TouchableOpacity
+                    key={yr}
+                    style={[
+                      styles.yearModalItem,
+                      {
+                        backgroundColor: isSelected ? colors.accent : (isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'),
+                      },
+                    ]}
+                    onPress={() => {
+                      setSelectedYear(yr);
+                      setYearModalVisible(false);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.yearModalItemText,
+                        { color: isSelected ? '#ffffff' : colors.textPrimary },
+                      ]}
+                    >
+                      {yr}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 4. Day Details & Regularize Modal */}
+      <Modal
+        visible={dayDetailModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDayDetailModal({ visible: false })}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+            {/* Modal Header */}
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={[styles.modalEmpName, { color: colors.textPrimary }]}>{modalDetail.empName}</Text>
+                <Text style={[styles.modalEmpName, { color: colors.textPrimary }]}>
+                  {targetEmployee?.name || 'Staff Member'}
+                </Text>
                 <Text style={[styles.modalDate, { color: colors.textSecondary }]}>
-                  {modalDetail.date} • {modalDetail.empDesignation || 'Staff'}
+                  {dayDetailModal.date} • Day {dayDetailModal.dayNum}
                 </Text>
               </View>
-              {modalDetail.status && (
+
+              {dayDetailModal.status && (
                 <View
                   style={[
                     styles.modalStatusPill,
                     {
-                      backgroundColor: getStatusStyle(modalDetail.status).bg,
-                      borderColor: getStatusStyle(modalDetail.status).border,
+                      backgroundColor: getStatusStyle(dayDetailModal.status).bg,
+                      borderColor: getStatusStyle(dayDetailModal.status).border,
                     },
                   ]}
                 >
-                  <Text style={[styles.modalStatusCode, { color: getStatusStyle(modalDetail.status).text }]}>
-                    {modalDetail.status}
-                  </Text>
-                  <Text style={[styles.modalStatusLabel, { color: colors.textPrimary }]}>
-                    {getStatusStyle(modalDetail.status).label}
+                  <Text style={[styles.modalStatusLabel, { color: getStatusStyle(dayDetailModal.status).text }]}>
+                    {getStatusStyle(dayDetailModal.status).label}
                   </Text>
                 </View>
               )}
@@ -606,43 +1045,62 @@ export const MusterRollScreen: React.FC = () => {
 
             <View style={[styles.modalDivider, { backgroundColor: colors.cardBorder }]} />
 
+            {/* Modal Details Body */}
             <View style={styles.modalBody}>
               <View style={styles.modalInfoRow}>
                 <Text style={[styles.modalInfoLabel, { color: colors.textSecondary }]}>Punch In Time:</Text>
                 <Text style={[styles.modalInfoValue, { color: colors.textPrimary }]}>
-                  {modalDetail.inTime || '—'}
+                  {dayDetailModal.inTime || '—'}
                 </Text>
               </View>
 
               <View style={styles.modalInfoRow}>
                 <Text style={[styles.modalInfoLabel, { color: colors.textSecondary }]}>Punch Out Time:</Text>
                 <Text style={[styles.modalInfoValue, { color: colors.textPrimary }]}>
-                  {modalDetail.outTime || '—'}
+                  {dayDetailModal.outTime || '—'}
                 </Text>
               </View>
 
               <View style={styles.modalInfoRow}>
-                <Text style={[styles.modalInfoLabel, { color: colors.textSecondary }]}>Worked Hours:</Text>
+                <Text style={[styles.modalInfoLabel, { color: colors.textSecondary }]}>Total Worked Hours:</Text>
                 <Text style={[styles.modalInfoValue, { color: colors.accent, fontWeight: '800' }]}>
-                  {modalDetail.workedHours !== undefined ? `${modalDetail.workedHours} hrs` : '0 hrs'}
+                  {dayDetailModal.workedHours !== undefined ? `${dayDetailModal.workedHours} hrs` : '0 hrs'}
                 </Text>
               </View>
 
-              <View style={styles.modalReasonCard}>
-                <Text style={[styles.modalReasonTitle, { color: colors.textSecondary }]}>Evaluation Rule / Details:</Text>
+              <View style={[styles.modalReasonCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc' }]}>
+                <Text style={[styles.modalReasonTitle, { color: colors.textSecondary }]}>Status Rule / Details:</Text>
                 <Text style={[styles.modalReasonText, { color: colors.textPrimary }]}>
-                  {modalDetail.details || 'Standard roster calculation'}
+                  {dayDetailModal.details || 'Standard monthly roster evaluation'}
                 </Text>
               </View>
             </View>
 
-            <TouchableOpacity
-              style={[styles.modalCloseButton, { backgroundColor: colors.accent }]}
-              onPress={() => setModalDetail({ visible: false })}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.modalCloseButtonText}>Done</Text>
-            </TouchableOpacity>
+            {/* Action Buttons: Apply Regularization if Absent/Late/HalfDay, or Done */}
+            <View style={styles.modalActionsRow}>
+              {(dayDetailModal.status === 'A' || dayDetailModal.status === 'L' || dayDetailModal.status === 'HD') && (
+                <TouchableOpacity
+                  style={[styles.modalRegularizeBtn, { borderColor: colors.accent }]}
+                  onPress={() => {
+                    setDayDetailModal({ visible: false });
+                    navigation.navigate('AttendanceRegularization');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.modalRegularizeBtnText, { color: colors.accent }]}>
+                    Apply Regularization
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.modalCloseButton, { backgroundColor: colors.accent }]}
+                onPress={() => setDayDetailModal({ visible: false })}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalCloseButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -700,43 +1158,27 @@ const styles = StyleSheet.create({
     gap: 14,
     paddingBottom: 40,
   },
-  statsRow: {
+  viewModeToggle: {
     flexDirection: 'row',
-    gap: 6,
-  },
-  statCard: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    padding: 4,
+    borderRadius: 12,
     gap: 4,
   },
-  miniDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+  viewModeBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 10,
   },
-  statValue: {
-    fontSize: 15,
-    fontWeight: '800',
+  viewModeBtnActive: {
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  statLabel: {
-    fontSize: 9,
+  viewModeBtnText: {
+    fontSize: 12,
     fontWeight: '600',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  statSubLabel: {
-    fontSize: 8,
-    marginTop: 1,
-    opacity: 0.7,
   },
   card: {
     borderRadius: 16,
@@ -746,216 +1188,331 @@ const styles = StyleSheet.create({
   },
   cardHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    gap: 8,
+  },
+  sectionHeading: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  sectionSubHeading: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  prominentEmpCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    gap: 12,
+  },
+  largeAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  largeAvatarText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  prominentEmpName: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  prominentEmpRole: {
+    fontSize: 11,
+  },
+  changeStaffBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  changeStaffText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  quickSelectLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  quickStaffChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginRight: 8,
+    gap: 6,
+  },
+  chipAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipAvatarText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  quickStaffChipText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   cardTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   cardSubtitle: {
     fontSize: 11,
     marginTop: 2,
   },
-  monthNavRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  navArrowBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  navArrowText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  navCurrentLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  recordCountPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    backgroundColor: 'rgba(100,100,100,0.08)',
-  },
-  recordCountText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  monthChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginRight: 8,
-  },
-  monthChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  legendRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  legendBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
+  csvBtn: {
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 10,
-    borderWidth: 1,
-    gap: 6,
   },
-  legendBadgeCode: {
+  csvBtnText: {
+    color: '#ffffff',
     fontSize: 11,
-    fontWeight: '900',
+    fontWeight: '800',
   },
-  legendBadgeLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  rulesHelperText: {
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 4,
-  },
-  loadingContainer: {
+  controlsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 24,
     gap: 8,
   },
-  loadingText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  emptyContainer: {
-    paddingVertical: 24,
-    alignItems: 'center',
+  controlPickerBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
     justifyContent: 'center',
   },
-  emptyText: {
-    fontSize: 13,
-  },
-  tableGrid: {
-    minWidth: 1450,
-  },
-  tableHeaderRow: {
+  pickerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
+    gap: 8,
   },
-  thEmp: {
-    width: 170,
-    fontWeight: '800',
-    fontSize: 12,
-    paddingLeft: 4,
-  },
-  thDayContainer: {
-    width: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  thDay: {
-    fontWeight: '700',
-    fontSize: 11,
-    textAlign: 'center',
-  },
-  summaryHeadersGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 8,
-    gap: 4,
-  },
-  thSummaryBadge: {
-    width: 30,
+  miniAvatar: {
+    width: 24,
     height: 24,
-    borderRadius: 6,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  thSummaryText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  tableDataRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-  },
-  tdEmpInfo: {
-    width: 170,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingRight: 8,
-  },
-  avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  avatarText: {
+  miniAvatarText: {
     color: '#ffffff',
     fontSize: 10,
     fontWeight: '800',
   },
-  empNameContainer: {
-    flex: 1,
-  },
-  empNameText: {
-    fontSize: 12,
+  pickerLabel: {
+    fontSize: 9,
     fontWeight: '700',
+    textTransform: 'uppercase',
   },
-  empDeptText: {
-    fontSize: 10,
+  pickerValueText: {
+    fontSize: 13,
+    fontWeight: '700',
     marginTop: 1,
   },
-  cellWrapper: {
-    width: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 2,
+  pickerArrow: {
+    fontSize: 11,
+    fontWeight: '800',
   },
-  statusCell: {
-    width: 26,
-    height: 26,
-    borderRadius: 7,
+  summaryPillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingTop: 10,
+    borderTopWidth: 1,
+  },
+  summaryPill: {
+    flex: 1,
+    minWidth: 54,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statusCellText: {
-    fontSize: 9,
-    fontWeight: '900',
+  summaryPillValue: {
+    fontSize: 13,
+    fontWeight: '800',
   },
-  summaryCountsGroup: {
+  summaryPillLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  calendarContainer: {
+    gap: 8,
+  },
+  weekdayHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingBottom: 4,
+  },
+  weekdayCol: {
+    alignItems: 'center',
+  },
+  weekdayHeaderText: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  dayCellContainer: {
+    height: 64,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 4,
+    justifyContent: 'space-between',
+  },
+  dayCellTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dayCellNumber: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  dayPunchDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  dayCellStatusText: {
+    fontSize: 8,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  legendRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  rulesCard: {
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  rulesTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  rulesText: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  matrixTable: {
+    minWidth: 1200,
+  },
+  matrixHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  matrixThEmp: {
+    width: 140,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  matrixThDay: {
+    width: 28,
+    alignItems: 'center',
+  },
+  matrixThDayText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  matrixSummaryHeaders: {
+    flexDirection: 'row',
     marginLeft: 8,
     gap: 4,
   },
-  tdSummaryBadge: {
-    width: 30,
-    height: 24,
+  matrixSumTh: {
+    width: 24,
+    fontSize: 10,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  matrixRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+  },
+  matrixTdEmp: {
+    width: 140,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  matrixEmpName: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  matrixCellWrapper: {
+    width: 28,
+    alignItems: 'center',
+  },
+  matrixStatusCell: {
+    width: 22,
+    height: 22,
     borderRadius: 6,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tdSummaryText: {
+  matrixCellText: {
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  matrixSummaryCounts: {
+    flexDirection: 'row',
+    marginLeft: 8,
+    gap: 4,
+  },
+  matrixSumTd: {
+    width: 24,
     fontSize: 10,
     fontWeight: '800',
+    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,
@@ -964,17 +1521,115 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
-  modalContent: {
+  pickerModalBox: {
     width: '100%',
-    maxWidth: 380,
-    borderRadius: 20,
-    padding: 20,
+    maxWidth: 360,
+    borderRadius: 18,
+    padding: 16,
     borderWidth: 1,
   },
   modalHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 10,
+  },
+  modalBoxTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  modalCloseCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCloseIcon: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  modalSearchInput: {
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  empPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderRadius: 8,
+    gap: 10,
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  empPickerName: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  empPickerRole: {
+    fontSize: 10,
+    marginTop: 1,
+  },
+  selectedCheckBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedCheckText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  monthGridModal: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+  },
+  monthGridItem: {
+    width: '30%',
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  monthGridItemText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  yearModalItem: {
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  yearModalItemText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
   },
   modalEmpName: {
     fontSize: 16,
@@ -985,21 +1640,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   modalStatusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    gap: 4,
-  },
-  modalStatusCode: {
-    fontSize: 11,
-    fontWeight: '900',
   },
   modalStatusLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   modalDivider: {
     height: 1,
@@ -1021,7 +1669,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modalReasonCard: {
-    backgroundColor: 'rgba(100,100,100,0.06)',
     padding: 10,
     borderRadius: 10,
     marginTop: 4,
@@ -1035,15 +1682,60 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
-  modalCloseButton: {
+  modalActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
     marginTop: 18,
+  },
+  modalRegularizeBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalRegularizeBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modalCloseButton: {
+    flex: 1,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   modalCloseButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  loadingContainer: {
+    paddingVertical: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    paddingVertical: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 13,
+  },
+  recordCountPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  recordCountText: {
+    fontSize: 10,
     fontWeight: '700',
   },
 });

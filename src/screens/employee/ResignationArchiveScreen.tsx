@@ -41,7 +41,7 @@ export const ResignationArchiveScreen: React.FC = () => {
           <View style={styles.headerLeft}>
             <Text style={[styles.empName, { color: colors.textPrimary }]}>{item.name}</Text>
             <Text style={[styles.empRole, { color: colors.textSecondary }]}>
-              {item.designation || 'Former Employee'} • {item.department?.name || 'Department'}
+              {item.department?.name || 'Department'} • {item.designation || 'Former Employee'}
             </Text>
           </View>
           <View

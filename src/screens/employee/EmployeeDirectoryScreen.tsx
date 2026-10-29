@@ -594,7 +594,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                     </View>
 
                     <Text style={[styles.profileRoleText, { color: isDark ? '#cbd5e1' : '#475569' }]}>
-                      {selectedEmployee.designation || (getRoleName(selectedEmployee.role) !== 'N/A' ? getRoleName(selectedEmployee.role) : '') || 'N/A'}{getDepartmentName(selectedEmployee.department, selectedEmployee.departmentId) !== 'N/A' ? ` • ${getDepartmentName(selectedEmployee.department, selectedEmployee.departmentId)}` : (selectedEmployee.location ? ` • ${selectedEmployee.location}` : '')}
+                      {getDepartmentName(selectedEmployee.department, selectedEmployee.departmentId) !== 'N/A' ? `${getDepartmentName(selectedEmployee.department, selectedEmployee.departmentId)} • ` : ''}{selectedEmployee.designation || (getRoleName(selectedEmployee.role) !== 'N/A' ? getRoleName(selectedEmployee.role) : '') || 'Staff'}
                     </Text>
 
                     <View style={{ marginTop: 4, gap: 2 }}>

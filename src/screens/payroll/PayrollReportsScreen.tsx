@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -28,6 +29,8 @@ export const PayrollReportsScreen: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState('July');
   const [selectedYear, setSelectedYear] = useState(2026);
   const [searchQuery, setSearchQuery] = useState('');
+  const [ecrModalOpen, setEcrModalOpen] = useState(false);
+  const [selectedDetailEmp, setSelectedDetailEmp] = useState<any | null>(null);
 
   // TanStack Queries
   const { data: cycleRes } = usePayrollCycle(selectedMonth, selectedYear);
@@ -36,16 +39,59 @@ export const PayrollReportsScreen: React.FC = () => {
   const cycleDetails = cycleRes?.data;
   const employees = empRes?.data || [];
 
+  // Dynamic statutory totals
+  const totalEpfWages = useMemo(() => {
+    if (cycleDetails?.stats?.totalEpfWages) return cycleDetails.stats.totalEpfWages;
+    return employees.reduce((acc, e) => acc + Math.min(e.basic || 15000, 15000), 0);
+  }, [cycleDetails, employees]);
+
+  const totalPfContribution = useMemo(() => {
+    if (cycleDetails?.stats?.totalPfContribution) return cycleDetails.stats.totalPfContribution;
+    return Math.round(totalEpfWages * 0.12);
+  }, [cycleDetails, totalEpfWages]);
+
+  // Compute official EPFO ECR lines: UAN#MemberName#EPFWages#EPSWages#EDLIWages#EPFCont#EPSCont#EmployerDiff#NCPDays#RefundOfAdvances
+  const ecrLines = useMemo(() => {
+    const runs = cycleDetails?.runs || [];
+    if (runs.length > 0) {
+      return runs.map((run: any) => {
+        const emp = run.employee;
+        const uan = emp?.uan || '100293049102';
+        const epfWages = Math.min(run.basic, 15000);
+        const epsWages = Math.min(run.basic, 15000);
+        const edliWages = Math.min(run.basic, 15000);
+        const epfCont = Math.round(epfWages * 0.12);
+        const epsCont = Math.round(epsWages * 0.0833);
+        const diffCont = epfCont - epsCont;
+        return `${uan}#${emp?.name || 'Staff'}#${epfWages}#${epsWages}#${edliWages}#${epfCont}#${epsCont}#${diffCont}#0#0`;
+      });
+    }
+    if (employees.length === 0) return [];
+    return employees.map(emp => {
+      const uan = emp.uan || '100293049102';
+      const basic = emp.basic || 15000;
+      const epfWages = Math.min(basic, 15000);
+      const epsWages = Math.min(basic, 15000);
+      const edliWages = Math.min(basic, 15000);
+      const epfCont = Math.round(epfWages * 0.12);
+      const epsCont = Math.round(epsWages * 0.0833);
+      const diffCont = epfCont - epsCont;
+      return `${uan}#${emp.name}#${epfWages}#${epsWages}#${edliWages}#${epfCont}#${epsCont}#${diffCont}#0#0`;
+    });
+  }, [cycleDetails?.runs, employees]);
+
   // Filter employees by search query
   const filteredEmployees = employees.filter(emp => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
+    const deptName = emp.department?.name || (typeof emp.department === 'string' ? emp.department : '') || '';
     return (
-      emp.name?.toLowerCase().includes(q) ||
-      emp.email?.toLowerCase().includes(q) ||
-      emp.id?.toLowerCase().includes(q) ||
-      emp.designation?.toLowerCase().includes(q) ||
-      emp.department?.name?.toLowerCase().includes(q)
+      (emp.name || '').toLowerCase().includes(q) ||
+      (emp.email || '').toLowerCase().includes(q) ||
+      (emp.id || '').toLowerCase().includes(q) ||
+      (emp.designation || '').toLowerCase().includes(q) ||
+      deptName.toLowerCase().includes(q) ||
+      (emp.uan || '').toLowerCase().includes(q)
     );
   });
 
@@ -64,31 +110,7 @@ export const PayrollReportsScreen: React.FC = () => {
   };
 
   const handleExportEcr = () => {
-    Alert.alert(
-      'EPF ECR Text File Generated 📥',
-      `EPF Electronic Challan Return text file for ${selectedMonth} ${selectedYear} saved to Downloads as .txt.`
-    );
-  };
-
-  const handleExportEsic = () => {
-    Alert.alert(
-      'ESIC Return Generated 📊',
-      `ESIC monthly return data for ${selectedMonth} ${selectedYear} saved to Downloads as CSV.`
-    );
-  };
-
-  const handleExportPt = () => {
-    Alert.alert(
-      'PT Challan Exported 📑',
-      `State Professional Tax (PT) summary for ${selectedMonth} ${selectedYear} saved to Downloads.`
-    );
-  };
-
-  const handleExportForm16 = () => {
-    Alert.alert(
-      'Form 16 Bundle Exported 📜',
-      `Annual TDS & Income Tax Form 16 bundle for FY ${selectedYear - 1}-${selectedYear} saved to Downloads as ZIP.`
-    );
+    setEcrModalOpen(true);
   };
 
   return (
@@ -127,11 +149,60 @@ export const PayrollReportsScreen: React.FC = () => {
             { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
           ]}
         >
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-            🗓️ Select Month & Year
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
-            {['May', 'June', 'July', 'August'].map(mth => {
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+              🗓️ Select Month & Year
+            </Text>
+            {/* Year Switcher */}
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {[2025, 2026, 2027].map(yr => {
+                const isSelected = selectedYear === yr;
+                return (
+                  <TouchableOpacity
+                    key={yr}
+                    onPress={() => setSelectedYear(yr)}
+                    style={[
+                      styles.mthChip,
+                      {
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        marginRight: 0,
+                        backgroundColor: isSelected ? colors.accent : colors.background,
+                        borderColor: isSelected ? colors.accent : colors.cardBorder,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: isSelected ? '#ffffff' : colors.textPrimary,
+                        fontWeight: '700',
+                        fontSize: 11,
+                      }}
+                    >
+                      {yr}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* All 12 Months Horizontal Scroll */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+            {[
+              'January',
+              'February',
+              'March',
+              'April',
+              'May',
+              'June',
+              'July',
+              'August',
+              'September',
+              'October',
+              'November',
+              'December',
+            ].map(mth => {
               const isSelected = selectedMonth === mth;
               return (
                 <TouchableOpacity
@@ -152,7 +223,7 @@ export const PayrollReportsScreen: React.FC = () => {
                       fontSize: 12,
                     }}
                   >
-                    {mth} {selectedYear}
+                    {mth}
                   </Text>
                 </TouchableOpacity>
               );
@@ -160,297 +231,444 @@ export const PayrollReportsScreen: React.FC = () => {
           </ScrollView>
         </View>
 
-        {/* 2. SEARCH EMPLOYEE INPUT */}
+        {/* 2. MONTHLY PAYROLL REGISTER & STATUTORY DEDUCTIONS (1-TO-1 MATCH WITH WEB) */}
         <View
           style={[
             styles.card,
             { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
           ]}
         >
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-            🔍 Search Employee Payroll Register
-          </Text>
-          <TextInput
-            style={[
-              styles.searchInput,
-              {
-                backgroundColor: colors.inputBackground,
-                borderColor: colors.inputBorder,
-                color: colors.inputText,
-              },
-            ]}
-            placeholder="Search employee by name, code, designation or department..."
-            placeholderTextColor={colors.inputPlaceholder}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-
-        {/* 3. MASTER EXPORT ALL EMPLOYEE DATA ACTION CARD */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
-          ]}
-        >
-          <View style={styles.masterExportRow}>
+          {/* Card Header matching Web */}
+          <View style={[styles.registerHeader, { borderBottomColor: colors.cardBorder }]}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-                📊 Master Monthly Payroll Register ({selectedMonth} {selectedYear})
+                Monthly Payroll Register & Statutory Deductions
               </Text>
               <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-                Export complete monthly earnings and statutory deductions register for {filteredEmployees.length} employee(s).
+                {selectedMonth} {selectedYear} • {filteredEmployees.length} Employee Record(s)
               </Text>
             </View>
-            <TouchableOpacity
-              style={[styles.exportAllBtn, { backgroundColor: colors.accent }]}
-              onPress={handleExportAllPayrollRegister}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.exportAllBtnText}>📥 Export All (CSV)</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
-        {/* 4. MONTHLY PAYROLL REGISTER & STATUTORY DEDUCTIONS LIST PER EMPLOYEE */}
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-          Monthly Payroll & Statutory Deductions Roster ({filteredEmployees.length})
-        </Text>
-
-        {isLoadingEmployees ? (
-          <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 20 }} />
-        ) : (
-          filteredEmployees.map((emp, index) => {
-            // Simulated / Calculated Salary Breakdown per employee
-            const baseGross = 50000 + (index % 5) * 5000;
-            const basic = Math.round(baseGross * 0.5);
-            const hra = Math.round(baseGross * 0.2);
-            const special = baseGross - basic - hra;
-
-            // Statutory Deductions
-            const epf = Math.min(1800, Math.round(basic * 0.12));
-            const esic = baseGross <= 21000 ? Math.round(baseGross * 0.0075) : 0;
-            const pt = 200;
-            const tds = baseGross > 60000 ? 2500 : 0;
-            const totalDeductions = epf + esic + pt + tds;
-            const netPayable = baseGross - totalDeductions;
-
-            return (
+            {/* Inline Search & Export Controls matching Web */}
+            <View style={styles.registerFilterRow}>
               <View
-                key={emp.id}
                 style={[
-                  styles.card,
-                  { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
+                  styles.registerSearchBox,
+                  {
+                    backgroundColor: colors.inputBackground,
+                    borderColor: colors.inputBorder,
+                  },
                 ]}
               >
-                {/* Employee Header */}
-                <View style={styles.empHeaderRow}>
-                  <View style={styles.avatarMini}>
-                    <Text style={styles.avatarMiniText}>
-                      {emp.name
-                        ? emp.name
-                            .split(' ')
-                            .map(n => n[0])
-                            .join('')
-                            .slice(0, 2)
-                        : 'EMP'}
+                <Text style={styles.searchIconText}>🔍</Text>
+                <TextInput
+                  style={[styles.registerSearchInput, { color: colors.inputText }]}
+                  placeholder="Search Employee..."
+                  placeholderTextColor={colors.inputPlaceholder}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setSearchQuery('')}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, paddingHorizontal: 4 }}>✕</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.registerExportBtn,
+                  { backgroundColor: colors.background, borderColor: colors.cardBorder },
+                ]}
+                onPress={handleExportAllPayrollRegister}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 13 }}>📊</Text>
+                <Text style={[styles.registerExportBtnText, { color: colors.textPrimary }]}>Export</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Horizontally Scrollable 9-Column Register Table matching Web */}
+          <View
+            style={[
+              styles.tableContainer,
+              {
+                backgroundColor: colors.cardBackground,
+                borderColor: colors.cardBorder,
+              },
+            ]}
+          >
+            <ScrollView horizontal showsHorizontalScrollIndicator={true} nestedScrollEnabled={true}>
+              <View>
+                {/* Thead matching Web exactly */}
+                <View
+                  style={[
+                    styles.tableHeadRow,
+                    {
+                      backgroundColor: colors.background,
+                      borderBottomColor: colors.cardBorder,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.thCell, styles.colUan, { color: colors.textSecondary }]}>
+                    UAN / Emp ID
+                  </Text>
+                  <Text style={[styles.thCell, styles.colEmp, { color: colors.textSecondary }]}>
+                    Employee Name
+                  </Text>
+                  <Text style={[styles.thCell, styles.colBasic, { color: colors.textSecondary }]}>
+                    Basic Salary
+                  </Text>
+                  <Text style={[styles.thCell, styles.colWages, { color: colors.textSecondary }]}>
+                    EPF Wages
+                  </Text>
+                  <Text style={[styles.thCell, styles.colWages, { color: colors.textSecondary }]}>
+                    EPS Wages
+                  </Text>
+                  <Text style={[styles.thCell, styles.colNumRight, { color: colors.textSecondary, textAlign: 'right' }]}>
+                    EE PF (12%)
+                  </Text>
+                  <Text style={[styles.thCell, styles.colNumRight, { color: colors.textSecondary, textAlign: 'right' }]}>
+                    ER EPS (8.33%)
+                  </Text>
+                  <Text style={[styles.thCell, styles.colDiffRight, { color: colors.textSecondary, textAlign: 'right' }]}>
+                    ER EPF Diff (3.67%)
+                  </Text>
+                  <Text style={[styles.thCell, styles.colDeductRight, { color: colors.textSecondary, textAlign: 'right' }]}>
+                    Gross Deductions
+                  </Text>
+                </View>
+
+                {/* Tbody matching Web */}
+                {isLoadingEmployees ? (
+                  <View style={{ padding: 24, alignItems: 'center', width: 990 }}>
+                    <ActivityIndicator size="small" color={colors.accent} />
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 8 }}>
+                      Loading payroll records...
                     </Text>
                   </View>
+                ) : filteredEmployees.length === 0 ? (
+                  <View style={{ padding: 28, alignItems: 'center', width: 990 }}>
+                    <Text style={[styles.emptyTableText, { color: colors.textSecondary }]}>
+                      No employee records found
+                    </Text>
+                  </View>
+                ) : (
+                  filteredEmployees.map((emp, idx) => {
+                    const run = (cycleDetails?.runs || []).find((r: any) => r.employeeId === emp.id);
 
+                    const basic = run ? run.basic : (emp.basic || 15000);
+                    const hra = run ? run.hra : (emp.hra || Math.round(basic * 0.4));
+                    const special = run ? run.allowance : (emp.allowance || Math.round(basic * 0.2));
+                    const baseGross = basic + hra + special;
+
+                    const epfWages = Math.min(basic, 15000);
+                    const epsWages = Math.min(basic, 15000);
+                    const epfCont = run ? run.pf : Math.round(epfWages * 0.12);
+                    const epsCont = Math.round(epsWages * 0.0833);
+                    const diffCont = epfCont - epsCont;
+
+                    const esic = baseGross <= 21000 ? Math.round(baseGross * 0.0075) : 0;
+                    const pt = run ? run.pt : 200;
+                    const tds = run ? run.tds : (basic > 30000 ? Math.round(basic * 0.05) : 0);
+                    const totalDeductions = run ? run.deductions : (emp.deductions || (epfCont + esic + pt + tds));
+                    const netPayable = run ? run.netSalary : (baseGross - totalDeductions);
+
+                    const deptName = emp.department?.name || (typeof emp.department === 'string' ? emp.department : '') || 'IT';
+                    const designation = emp.designation || 'Staff';
+                    const uan = emp.uan || '100293049102';
+
+                    return (
+                      <TouchableOpacity
+                        key={emp.id}
+                        activeOpacity={0.7}
+                        onPress={() =>
+                          setSelectedDetailEmp({
+                            emp,
+                            basic,
+                            hra,
+                            special,
+                            baseGross,
+                            epfWages,
+                            epsWages,
+                            epfCont,
+                            epsCont,
+                            diffCont,
+                            esic,
+                            pt,
+                            tds,
+                            totalDeductions,
+                            netPayable,
+                            deptName,
+                            designation,
+                            uan,
+                          })
+                        }
+                        style={[
+                          styles.tableRow,
+                          {
+                            backgroundColor: idx % 2 === 0 ? colors.cardBackground : colors.background,
+                            borderBottomColor: colors.cardBorder,
+                          },
+                        ]}
+                      >
+                        {/* 1. UAN / Emp ID */}
+                        <View style={[styles.colUan, styles.tdCell]}>
+                          <Text style={[styles.cellTextBold, { color: colors.textPrimary }]}>
+                            {uan}
+                          </Text>
+                          <Text style={[styles.cellSubtext, { color: colors.textSecondary }]}>
+                            {emp.id}
+                          </Text>
+                        </View>
+
+                        {/* 2. Employee Name */}
+                        <View style={[styles.colEmp, styles.tdCell]}>
+                          <Text style={[styles.cellTextBold, { color: colors.textPrimary }]}>
+                            {emp.name || 'Staff'}
+                          </Text>
+                          <Text style={[styles.cellSubtext, { color: colors.textSecondary }]} numberOfLines={1}>
+                            {deptName} • {designation}
+                          </Text>
+                        </View>
+
+                        {/* 3. Basic Salary */}
+                        <View style={[styles.colBasic, styles.tdCell]}>
+                          <Text style={[styles.cellText, { color: colors.textPrimary }]}>
+                            ₹{basic.toLocaleString()}
+                          </Text>
+                        </View>
+
+                        {/* 4. EPF Wages */}
+                        <View style={[styles.colWages, styles.tdCell]}>
+                          <Text style={[styles.cellText, { color: colors.textPrimary }]}>
+                            ₹{epfWages.toLocaleString()}
+                          </Text>
+                        </View>
+
+                        {/* 5. EPS Wages */}
+                        <View style={[styles.colWages, styles.tdCell]}>
+                          <Text style={[styles.cellText, { color: colors.textPrimary }]}>
+                            ₹{epsWages.toLocaleString()}
+                          </Text>
+                        </View>
+
+                        {/* 6. EE PF (12%) */}
+                        <View style={[styles.colNumRight, styles.tdCell]}>
+                          <Text style={[styles.cellTextBold, { color: colors.textPrimary, textAlign: 'right' }]}>
+                            ₹{epfCont.toLocaleString()}
+                          </Text>
+                        </View>
+
+                        {/* 7. ER EPS (8.33%) */}
+                        <View style={[styles.colNumRight, styles.tdCell]}>
+                          <Text style={[styles.cellText, { color: colors.textPrimary, textAlign: 'right' }]}>
+                            ₹{epsCont.toLocaleString()}
+                          </Text>
+                        </View>
+
+                        {/* 8. ER EPF Diff (3.67%) */}
+                        <View style={[styles.colDiffRight, styles.tdCell]}>
+                          <Text style={[styles.cellText, { color: colors.textPrimary, textAlign: 'right' }]}>
+                            ₹{diffCont.toLocaleString()}
+                          </Text>
+                        </View>
+
+                        {/* 9. Gross Deductions */}
+                        <View style={[styles.colDeductRight, styles.tdCell]}>
+                          <Text style={[styles.cellTextBold, { color: '#ef4444', textAlign: 'right' }]}>
+                            ₹{totalDeductions.toLocaleString()}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            </ScrollView>
+          </View>
+
+          <Text style={[styles.tableScrollHint, { color: colors.textSecondary }]}>
+            👉 Swipe horizontally to view EPF/EPS statutory columns • Tap row for full employee breakdown & slip
+          </Text>
+        </View>
+      </ScrollView>
+
+      {/* Employee Detail & Statutory Breakdown Modal on Row Tap */}
+      <Modal visible={!!selectedDetailEmp} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.detailModalCard, { backgroundColor: colors.cardBackground }]}>
+            {selectedDetailEmp && (
+              <>
+                <View style={styles.ecrModalHeader}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.empName, { color: colors.textPrimary }]}>
-                      {emp.name}
+                    <Text style={[styles.ecrModalTitle, { color: colors.textPrimary }]}>
+                      {selectedDetailEmp.emp.name}
                     </Text>
-                    <Text style={[styles.empSubInfo, { color: colors.textSecondary }]}>
-                      Code: EMP-{emp.id.slice(0, 6).toUpperCase()} • {emp.designation || 'Staff'} • {emp.department?.name || 'General'}
+                    <Text style={[styles.ecrModalSubtitle, { color: colors.textSecondary }]}>
+                      {selectedDetailEmp.deptName} • {selectedDetailEmp.designation} • UAN: {selectedDetailEmp.uan}
                     </Text>
                   </View>
+                  <TouchableOpacity
+                    onPress={() => setSelectedDetailEmp(null)}
+                    style={[styles.closeModalBtn, { backgroundColor: colors.background }]}
+                  >
+                    <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>✕</Text>
+                  </TouchableOpacity>
                 </View>
 
-                {/* Earnings & Statutory Deductions Grid */}
-                <View style={[styles.breakdownGrid, { backgroundColor: colors.background }]}>
-                  {/* Earnings Side */}
-                  <View style={styles.breakSection}>
-                    <Text style={[styles.breakTitle, { color: colors.textPrimary }]}>💵 Monthly Gross Earnings</Text>
-                    <View style={styles.breakRow}>
-                      <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>Basic (50%):</Text>
-                      <Text style={[styles.breakVal, { color: colors.textPrimary }]}>₹{basic.toLocaleString()}</Text>
+                <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+                  {/* Earnings & Statutory Deductions Grid */}
+                  <View style={[styles.breakdownGrid, { backgroundColor: colors.background, marginTop: 8 }]}>
+                    {/* Earnings Side */}
+                    <View style={styles.breakSection}>
+                      <Text style={[styles.breakTitle, { color: colors.textPrimary }]}>💵 Monthly Gross Earnings</Text>
+                      <View style={styles.breakRow}>
+                        <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>Basic Salary:</Text>
+                        <Text style={[styles.breakVal, { color: colors.textPrimary }]}>₹{selectedDetailEmp.basic.toLocaleString()}</Text>
+                      </View>
+                      <View style={styles.breakRow}>
+                        <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>HRA Allowance:</Text>
+                        <Text style={[styles.breakVal, { color: colors.textPrimary }]}>₹{selectedDetailEmp.hra.toLocaleString()}</Text>
+                      </View>
+                      <View style={styles.breakRow}>
+                        <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>Special Allowance:</Text>
+                        <Text style={[styles.breakVal, { color: colors.textPrimary }]}>₹{selectedDetailEmp.special.toLocaleString()}</Text>
+                      </View>
+                      <View style={[styles.breakRow, styles.totalSubRow]}>
+                        <Text style={[styles.breakLabelBold, { color: colors.textPrimary }]}>Total Gross:</Text>
+                        <Text style={[styles.breakValBold, { color: colors.textPrimary }]}>₹{selectedDetailEmp.baseGross.toLocaleString()}</Text>
+                      </View>
                     </View>
-                    <View style={styles.breakRow}>
-                      <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>HRA (20%):</Text>
-                      <Text style={[styles.breakVal, { color: colors.textPrimary }]}>₹{hra.toLocaleString()}</Text>
-                    </View>
-                    <View style={styles.breakRow}>
-                      <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>Special Allow:</Text>
-                      <Text style={[styles.breakVal, { color: colors.textPrimary }]}>₹{special.toLocaleString()}</Text>
-                    </View>
-                    <View style={[styles.breakRow, styles.totalSubRow]}>
-                      <Text style={[styles.breakLabelBold, { color: colors.textPrimary }]}>Total Gross:</Text>
-                      <Text style={[styles.breakValBold, { color: colors.textPrimary }]}>₹{baseGross.toLocaleString()}</Text>
+
+                    {/* Statutory Deductions Side */}
+                    <View style={styles.breakSection}>
+                      <Text style={[styles.breakTitle, { color: '#ef4444' }]}>🛡️ Statutory Deductions</Text>
+                      <View style={styles.breakRow}>
+                        <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>EPF Employee (12%):</Text>
+                        <Text style={[styles.breakVal, { color: '#ef4444' }]}>- ₹{selectedDetailEmp.epfCont.toLocaleString()}</Text>
+                      </View>
+                      <View style={styles.breakRow}>
+                        <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>EPS Employer (8.33%):</Text>
+                        <Text style={[styles.breakVal, { color: colors.textSecondary }]}>₹{selectedDetailEmp.epsCont.toLocaleString()}</Text>
+                      </View>
+                      <View style={styles.breakRow}>
+                        <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>ER EPF Diff (3.67%):</Text>
+                        <Text style={[styles.breakVal, { color: colors.textSecondary }]}>₹{selectedDetailEmp.diffCont.toLocaleString()}</Text>
+                      </View>
+                      <View style={styles.breakRow}>
+                        <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>ESIC:</Text>
+                        <Text style={[styles.breakVal, { color: '#ef4444' }]}>- ₹{selectedDetailEmp.esic.toLocaleString()}</Text>
+                      </View>
+                      <View style={styles.breakRow}>
+                        <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>PT (State):</Text>
+                        <Text style={[styles.breakVal, { color: '#ef4444' }]}>- ₹{selectedDetailEmp.pt.toLocaleString()}</Text>
+                      </View>
+                      <View style={styles.breakRow}>
+                        <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>TDS (IT):</Text>
+                        <Text style={[styles.breakVal, { color: '#ef4444' }]}>- ₹{selectedDetailEmp.tds.toLocaleString()}</Text>
+                      </View>
+                      <View style={[styles.breakRow, styles.totalSubRow]}>
+                        <Text style={[styles.breakLabelBold, { color: '#ef4444' }]}>Total Deductions:</Text>
+                        <Text style={[styles.breakValBold, { color: '#ef4444' }]}>- ₹{selectedDetailEmp.totalDeductions.toLocaleString()}</Text>
+                      </View>
                     </View>
                   </View>
 
-                  {/* Statutory Deductions Side */}
-                  <View style={styles.breakSection}>
-                    <Text style={[styles.breakTitle, { color: '#ef4444' }]}>🛡️ Statutory Deductions</Text>
-                    <View style={styles.breakRow}>
-                      <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>EPF (12%):</Text>
-                      <Text style={[styles.breakVal, { color: '#ef4444' }]}>- ₹{epf.toLocaleString()}</Text>
-                    </View>
-                    <View style={styles.breakRow}>
-                      <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>ESIC:</Text>
-                      <Text style={[styles.breakVal, { color: '#ef4444' }]}>- ₹{esic.toLocaleString()}</Text>
-                    </View>
-                    <View style={styles.breakRow}>
-                      <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>PT (State):</Text>
-                      <Text style={[styles.breakVal, { color: '#ef4444' }]}>- ₹{pt.toLocaleString()}</Text>
-                    </View>
-                    <View style={styles.breakRow}>
-                      <Text style={[styles.breakLabel, { color: colors.textSecondary }]}>TDS (IT):</Text>
-                      <Text style={[styles.breakVal, { color: '#ef4444' }]}>- ₹{tds.toLocaleString()}</Text>
-                    </View>
-                    <View style={[styles.breakRow, styles.totalSubRow]}>
-                      <Text style={[styles.breakLabelBold, { color: '#ef4444' }]}>Total Deductions:</Text>
-                      <Text style={[styles.breakValBold, { color: '#ef4444' }]}>- ₹{totalDeductions.toLocaleString()}</Text>
-                    </View>
+                  {/* Net Take Home Banner */}
+                  <View style={[styles.netTakeHomeRow, { marginVertical: 10 }]}>
+                    <Text style={[styles.netTakeHomeLabel, { color: colors.textSecondary }]}>Net Payable Take Home:</Text>
+                    <Text style={[styles.netTakeHomeVal, { color: '#10b981' }]}>₹ {selectedDetailEmp.netPayable.toLocaleString()} / mo</Text>
                   </View>
-                </View>
-
-                {/* Net Take Home Banner */}
-                <View style={styles.netTakeHomeRow}>
-                  <Text style={[styles.netTakeHomeLabel, { color: colors.textSecondary }]}>Net Payable Take Home:</Text>
-                  <Text style={[styles.netTakeHomeVal, { color: '#10b981' }]}>₹ {netPayable.toLocaleString()} / mo</Text>
-                </View>
+                </ScrollView>
 
                 {/* Single Employee Export Button */}
                 <TouchableOpacity
-                  style={[styles.downloadSingleBtn, { backgroundColor: colors.accent }]}
-                  onPress={() => handleExportSingleReport(emp)}
+                  style={[styles.downloadSingleBtn, { backgroundColor: colors.accent, marginTop: 4 }]}
+                  onPress={() => {
+                    handleExportSingleReport(selectedDetailEmp.emp);
+                    setSelectedDetailEmp(null);
+                  }}
                   activeOpacity={0.8}
                 >
                   <Text style={styles.downloadSingleBtnText}>
-                    ⬇️ Export {emp.name}'s Payroll Report (PDF / CSV)
+                    ⬇️ Export {selectedDetailEmp.emp.name}'s Payroll Report (PDF / CSV)
                   </Text>
                 </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* EPFO ECR Live Preview Modal */}
+      <Modal visible={ecrModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.ecrModalCard, { backgroundColor: colors.cardBackground }]}>
+            <View style={styles.ecrModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.ecrModalTitle, { color: colors.textPrimary }]}>
+                  EPFO ECR File Preview ({selectedMonth} {selectedYear})
+                </Text>
+                <Text style={[styles.ecrModalSubtitle, { color: colors.textSecondary }]}>
+                  Unified Portal Upload Format • {ecrLines.length} Employee Records
+                </Text>
               </View>
-            );
-          })
-        )}
+              <TouchableOpacity
+                onPress={() => setEcrModalOpen(false)}
+                style={[styles.closeModalBtn, { backgroundColor: colors.background }]}
+              >
+                <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
 
-        {filteredEmployees.length === 0 && !isLoadingEmployees && (
-          <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-            No employee payroll records match your search filter.
-          </Text>
-        )}
+            <ScrollView horizontal style={styles.ecrBoxScroll}>
+              <ScrollView style={styles.ecrBoxContent}>
+                {ecrLines.length === 0 ? (
+                  <Text style={styles.ecrEmptyText}>No active employee records to generate ECR lines.</Text>
+                ) : (
+                  ecrLines.map((line, idx) => (
+                    <Text key={idx} style={styles.ecrLineText}>
+                      {line}
+                    </Text>
+                  ))
+                )}
+              </ScrollView>
+            </ScrollView>
 
-        {/* 5. STATUTORY COMPLIANCE CARDS (EPF ECR, ESIC, PT, FORM 16) */}
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-          Statutory Compliance & Regulatory Filing Exports
-        </Text>
+            <Text style={[styles.ecrFormatHint, { color: colors.textSecondary }]}>
+              Format: UAN#MemberName#EPFWages#EPSWages#EDLIWages#EPFCont#EPSCont#EmployerDiff#NCPDays#RefundOfAdvances
+            </Text>
 
-        {/* EPF ECR */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
-          ]}
-        >
-          <View style={styles.cardHeaderRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.reportTitle, { color: colors.textPrimary }]}>
-                🏛️ EPF Electronic Challan Return (ECR)
-              </Text>
-              <Text style={[styles.reportSub, { color: colors.textSecondary }]}>
-                Generate EPFO compliant text file for monthly PF return upload on Unified Portal.
-              </Text>
+            <View style={styles.ecrActionRow}>
+              <TouchableOpacity
+                style={[styles.ecrCloseBtn, { borderColor: colors.cardBorder }]}
+                onPress={() => setEcrModalOpen(false)}
+              >
+                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.ecrDownloadBtn, { backgroundColor: colors.accent }]}
+                onPress={() => {
+                  setEcrModalOpen(false);
+                  Alert.alert(
+                    'ECR File Saved 📥',
+                    `EPFO ECR text file for ${selectedMonth} ${selectedYear} (${ecrLines.length} members) saved to Downloads as .txt.`
+                  );
+                }}
+              >
+                <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 13 }}>
+                  📥 Download ECR .txt File
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
-
-          <View style={[styles.statRow, { backgroundColor: colors.background }]}>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total EPF Wages:</Text>
-            <Text style={[styles.statValue, { color: colors.textPrimary }]}>
-              ₹ {cycleDetails?.stats?.totalEpfWages ? cycleDetails.stats.totalEpfWages.toLocaleString() : '8,90,000'}
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: colors.accent }]}
-            onPress={handleExportEcr}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.exportBtnText}>📥 Export EPF ECR File (.txt)</Text>
-          </TouchableOpacity>
         </View>
-
-        {/* ESIC RETURN */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
-          ]}
-        >
-          <Text style={[styles.reportTitle, { color: colors.textPrimary }]}>
-            🏥 ESIC Monthly Contribution Return
-          </Text>
-          <Text style={[styles.reportSub, { color: colors.textSecondary }]}>
-            Export ESIC contribution details for employees drawing gross pay ≤ ₹21,000.
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: '#10b981' }]}
-            onPress={handleExportEsic}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.exportBtnText}>📊 Export ESIC Return (CSV)</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* PT CHALLAN */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
-          ]}
-        >
-          <Text style={[styles.reportTitle, { color: colors.textPrimary }]}>
-            💼 Professional Tax (PT) State Challan
-          </Text>
-          <Text style={[styles.reportSub, { color: colors.textSecondary }]}>
-            State-wise Professional Tax deduction summary for Maharashtra, Karnataka & Gujarat.
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: '#8b5cf6' }]}
-            onPress={handleExportPt}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.exportBtnText}>📑 Export PT Challan Summary</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* FORM 16 */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
-          ]}
-        >
-          <Text style={[styles.reportTitle, { color: colors.textPrimary }]}>
-            📜 Income Tax Form 16 & TDS Summary
-          </Text>
-          <Text style={[styles.reportSub, { color: colors.textSecondary }]}>
-            Annual Part A & Part B TDS certificates for all employees.
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: colors.accent }]}
-            onPress={handleExportForm16}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.exportBtnText}>📦 Download Form 16 Bundle (ZIP)</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -675,5 +893,202 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  ecrModalCard: {
+    borderRadius: 18,
+    padding: 18,
+    maxHeight: '85%',
+    gap: 12,
+  },
+  ecrModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(128,128,128,0.2)',
+    paddingBottom: 10,
+  },
+  ecrModalTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  ecrModalSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  closeModalBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ecrBoxScroll: {
+    maxHeight: 220,
+    backgroundColor: '#020617',
+    borderRadius: 12,
+    padding: 12,
+  },
+  ecrBoxContent: {
+    paddingRight: 16,
+  },
+  ecrLineText: {
+    fontFamily: 'monospace',
+    fontSize: 10,
+    color: '#94a3b8',
+    lineHeight: 18,
+  },
+  ecrEmptyText: {
+    color: '#64748b',
+    fontSize: 11,
+    fontStyle: 'italic',
+  },
+  ecrFormatHint: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    lineHeight: 14,
+  },
+  ecrActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 4,
+  },
+  ecrCloseBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  ecrDownloadBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Monthly Register Web-Matched Table Styles
+  registerHeader: {
+    gap: 8,
+    borderBottomWidth: 1,
+    paddingBottom: 10,
+  },
+  registerFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  registerSearchBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    height: 36,
+  },
+  searchIconText: {
+    fontSize: 12,
+    marginRight: 4,
+  },
+  registerSearchInput: {
+    flex: 1,
+    fontSize: 12,
+    paddingVertical: 0,
+  },
+  registerExportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    height: 36,
+  },
+  registerExportBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  tableContainer: {
+    borderWidth: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginTop: 6,
+  },
+  tableHeadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    paddingVertical: 10,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    paddingVertical: 9,
+  },
+  thCell: {
+    fontSize: 11,
+    fontWeight: '700',
+    paddingHorizontal: 8,
+  },
+  tdCell: {
+    paddingHorizontal: 8,
+    justifyContent: 'center',
+  },
+  cellTextBold: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  cellText: {
+    fontSize: 11,
+  },
+  cellSubtext: {
+    fontSize: 9.5,
+    marginTop: 1,
+  },
+  colUan: {
+    width: 130,
+  },
+  colEmp: {
+    width: 160,
+  },
+  colBasic: {
+    width: 95,
+  },
+  colWages: {
+    width: 90,
+  },
+  colNumRight: {
+    width: 100,
+  },
+  colDiffRight: {
+    width: 115,
+  },
+  colDeductRight: {
+    width: 110,
+  },
+  emptyTableText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  tableScrollHint: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  detailModalCard: {
+    borderRadius: 18,
+    padding: 16,
+    maxHeight: '85%',
+    gap: 8,
   },
 });

@@ -1134,7 +1134,7 @@ export const SalaryProcessingScreen: React.FC = () => {
                       {run.employee?.name || 'Employee'}
                     </Text>
                     <Text style={[styles.empSub, { color: colors.textSecondary }]}>
-                      {run.employee?.designation || 'Staff'} • {run.employee?.department?.name || 'General'}
+                      {run.employee?.department?.name || 'General'} • {run.employee?.designation || 'Staff'}
                     </Text>
                   </View>
 

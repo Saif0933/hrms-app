@@ -192,7 +192,14 @@ export const useEmployees = (filters?: EmployeeFilters) => {
         }
 
         if (list.length > 0) {
-          const mapped = list.map(emp => ({
+          const filtered = list.filter(emp => {
+            const roleName = String((emp as any).user?.role?.name || emp.role || '').toUpperCase();
+            if (roleName.includes('ADMIN') || roleName.includes('SUPER')) return false;
+            if (emp.name?.startsWith('Admin -')) return false;
+            if (emp.email?.toLowerCase().includes('symbosys.com') || emp.email?.toLowerCase().includes('symbosys2.com') || emp.email?.toLowerCase().includes('technova.com')) return false;
+            return true;
+          });
+          const mapped = filtered.map(emp => ({
             ...emp,
             designation: emp.designation || (typeof emp.role === 'string' ? emp.role : (emp.role as any)?.name) || 'Employee',
           }));

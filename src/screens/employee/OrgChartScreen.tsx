@@ -79,7 +79,7 @@ export const OrgChartScreen: React.FC = () => {
                     </View>
                   </View>
                   <Text style={[styles.managerRole, { color: colors.textSecondary }]}>
-                    {m.designation || 'Engineering Lead'} • {m.department?.name || 'Technology'}
+                    {m.department?.name || 'Technology'} • {m.designation || 'Engineering Lead'}
                   </Text>
                 </TouchableOpacity>
 

@@ -31,7 +31,9 @@ const MONTH_LIST = [
 const TEMPLATES = [
   { id: 'classic', name: 'Corporate Classic', headerBg: '#0f172a', pillBg: '#2563eb', borderAccent: '#2563eb' },
   { id: 'modern', name: 'Modern Slate', headerBg: '#1e293b', pillBg: '#7c3aed', borderAccent: '#7c3aed' },
-  { id: 'emerald', name: 'Emerald Executive', headerBg: '#064e3b', pillBg: '#10b981', borderAccent: '#10b981' },
+  { id: 'minimalist', name: 'Minimalist Clean', headerBg: '#334155', pillBg: '#0ea5e9', borderAccent: '#0ea5e9' },
+  { id: 'grid', name: 'Compact Grid', headerBg: '#1e1b4b', pillBg: '#6366f1', borderAccent: '#6366f1' },
+  { id: 'fluid', name: 'Executive Fluid', headerBg: '#064e3b', pillBg: '#10b981', borderAccent: '#10b981' },
 ];
 
 function numberToWords(num: number): string {
@@ -75,6 +77,12 @@ export const PayslipTemplatesScreen: React.FC = () => {
   // Dynamic TanStack Queries
   const { data: empRes, isLoading: isEmpLoading } = useEmployees();
   const employees = empRes?.data || [];
+
+  React.useEffect(() => {
+    if (employees.length > 0 && (!selectedEmpId || !employees.some(e => e.id === selectedEmpId))) {
+      setSelectedEmpId(employees[0].id);
+    }
+  }, [employees, selectedEmpId]);
 
   const selectedEmployee = useMemo(() => {
     return employees.find(e => e.id === selectedEmpId) || employees[0];
@@ -275,7 +283,7 @@ export const PayslipTemplatesScreen: React.FC = () => {
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
             🎨 Select Payslip Template Theme
           </Text>
-          <View style={styles.templateRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.templateScroll}>
             {TEMPLATES.map(tmpl => {
               const isSelected = selectedTemplateId === tmpl.id;
               return (
@@ -303,7 +311,7 @@ export const PayslipTemplatesScreen: React.FC = () => {
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </ScrollView>
         </View>
 
         {/* DIGITAL PAYSLIP DOCUMENT PREVIEW */}
@@ -484,18 +492,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginRight: 8,
   },
-  templateRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
+  templateScroll: {
+    marginTop: 6,
   },
   templateChip: {
-    flex: 1,
     paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 8,
   },
   payslipDocCard: {
     backgroundColor: '#ffffff',

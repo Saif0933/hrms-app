@@ -612,6 +612,8 @@ export interface MusterEmployeeRecord {
   id: string;
   name: string;
   email: string;
+  userId?: string;
+  role?: string;
   department?: string;
   designation?: string;
   avatar?: string | null;

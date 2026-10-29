@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useDepartments } from '../../api/hook/useDepartment';
 import { useEmployees, useUpdateEmployeeSalary } from '../../api/hook/useEmployee';
 import { useApplyBulkRevision } from '../../api/hook/usePayroll';
 import { useTheme } from '../../context/ThemeContext';
@@ -31,7 +32,7 @@ export const SalaryRevisionsScreen: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('MANUAL');
 
   // Manual Employee Selection State
-  const [selectedEmpId, setSelectedEmpId] = useState<string>('EMP31723');
+  const [selectedEmpId, setSelectedEmpId] = useState<string>('');
 
   // Individual Salary Revision Config State
   const [indivActionType, setIndivActionType] = useState<RevisionType>('INCREMENT');
@@ -53,6 +54,32 @@ export const SalaryRevisionsScreen: React.FC = () => {
   // Default Editable Roster State (populates dynamically from API)
   const [empListState, setEmpListState] = useState<any[]>([]);
 
+  const { data: deptRes } = useDepartments();
+
+  // Dynamic department options from backend + current employee roster
+  const deptOptions = React.useMemo(() => {
+    const list: string[] = ['ALL'];
+    (deptRes?.data || []).forEach((d: any) => {
+      if (d?.name && !list.includes(d.name)) {
+        list.push(d.name);
+      }
+    });
+    empListState.forEach(emp => {
+      if (emp.dept && !list.includes(emp.dept)) {
+        list.push(emp.dept);
+      }
+    });
+    return list;
+  }, [deptRes?.data, empListState]);
+
+  // Filtered employees for Preview Table
+  const filteredAffectedEmployees = React.useMemo(() => {
+    return empListState.filter(emp => {
+      if (selectedDept === 'ALL') return true;
+      return (emp.dept || '').toLowerCase() === selectedDept.toLowerCase();
+    });
+  }, [empListState, selectedDept]);
+
   // Sync state with fetched organization employees dynamically
   React.useEffect(() => {
     if (apiEmployees.length > 0) {
@@ -72,7 +99,8 @@ export const SalaryRevisionsScreen: React.FC = () => {
           code: emp.id,
           status: emp.status || 'CONFIRMED',
           designation: emp.designation || 'Staff',
-          dept: emp.department?.name || 'General',
+          dept: emp.department?.name || (typeof emp.department === 'string' ? emp.department : '') || 'IT',
+          departmentId: emp.departmentId || emp.department?.id,
           joiningDate: emp.joiningDate ? emp.joiningDate.split('T')[0] : '2025-01-01',
           annualCtc,
           monthlyGross,
@@ -89,6 +117,13 @@ export const SalaryRevisionsScreen: React.FC = () => {
         };
       });
       setEmpListState(mapped);
+
+      setSelectedEmpId(prev => {
+        if (!prev || !mapped.some(e => e.id === prev)) {
+          return mapped[0]?.id || '';
+        }
+        return prev;
+      });
     } else {
       setEmpListState([]);
     }
@@ -183,12 +218,16 @@ export const SalaryRevisionsScreen: React.FC = () => {
     }
 
     const finalPct = revisionType === 'INCREMENT' ? pctVal : -pctVal;
+    const matchedDept = (deptRes?.data || []).find(
+      (d: any) => (d.name || '').toLowerCase() === selectedDept.toLowerCase()
+    );
+    const targetDeptId = selectedDept === 'ALL' ? null : (matchedDept?.id || null);
 
     // Execute TanStack Mutation
     bulkRevisionMutation.mutate(
       {
         incrementPercentage: finalPct,
-        departmentId: selectedDept === 'ALL' ? null : selectedDept,
+        departmentId: targetDeptId,
       },
       {
         onSuccess: res => {
@@ -335,7 +374,7 @@ export const SalaryRevisionsScreen: React.FC = () => {
                           fontSize: 12,
                         }}
                       >
-                        {emp.name} ({emp.code})
+                        {emp.name} • {emp.dept} ({emp.designation})
                       </Text>
                     </TouchableOpacity>
                   );
@@ -356,7 +395,7 @@ export const SalaryRevisionsScreen: React.FC = () => {
                     {activeEmp.name}
                   </Text>
                   <Text style={[styles.empSubDetail, { color: colors.textSecondary }]}>
-                    Emp ID: <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{activeEmp.code}</Text> • Designation: <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{activeEmp.designation}</Text> • Joining: <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{activeEmp.joiningDate}</Text>
+                    Emp ID: <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{activeEmp.code}</Text> • Dept: <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{activeEmp.dept}</Text> • Designation: <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{activeEmp.designation}</Text> • Joining: <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{activeEmp.joiningDate}</Text>
                   </Text>
                 </View>
 
@@ -760,7 +799,7 @@ export const SalaryRevisionsScreen: React.FC = () => {
               {/* Department Filter */}
               <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>FILTER BY DEPARTMENT *</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {['ALL', 'Hshdhdjssj', 'UI/UX designer', 'Engineering', 'Human Resources'].map(dept => {
+                {deptOptions.map(dept => {
                   const isSelected = selectedDept === dept;
                   return (
                     <TouchableOpacity
@@ -817,7 +856,7 @@ export const SalaryRevisionsScreen: React.FC = () => {
               ]}
             >
               <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-                Affected Employees Preview ({empListState.length} Records)
+                Affected Employees Preview ({filteredAffectedEmployees.length} {filteredAffectedEmployees.length === 1 ? 'Record' : 'Records'})
               </Text>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -832,52 +871,65 @@ export const SalaryRevisionsScreen: React.FC = () => {
                   </View>
 
                   {/* Table Rows */}
-                  {empListState.map(emp => {
-                    const pctVal = parseFloat(percentage) || 0;
-                    const factor = revisionType === 'INCREMENT' ? (1 + pctVal / 100) : (1 - pctVal / 100);
-                    const revisedGross = Math.round(emp.monthlyGross * factor);
-                    const diff = Math.abs(revisedGross - emp.monthlyGross);
-                    const isInc = revisionType === 'INCREMENT';
+                  {filteredAffectedEmployees.length === 0 ? (
+                    <View style={{ paddingVertical: 24, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 13, fontStyle: 'italic' }}>
+                        No employees found in "{selectedDept}" department.
+                      </Text>
+                    </View>
+                  ) : (
+                    filteredAffectedEmployees.map(emp => {
+                      const pctVal = parseFloat(percentage) || 0;
+                      const factor = revisionType === 'INCREMENT' ? (1 + pctVal / 100) : (1 - pctVal / 100);
+                      const revisedGross = Math.round(emp.monthlyGross * factor);
+                      const diff = Math.abs(revisedGross - emp.monthlyGross);
+                      const isInc = revisionType === 'INCREMENT';
 
-                    return (
-                      <View key={emp.id} style={styles.tableDataRow}>
-                        <View style={styles.tdCellEmp}>
-                          <Text style={[styles.tableEmpName, { color: colors.textPrimary }]}>
-                            {emp.name}
+                      return (
+                        <View key={emp.id} style={styles.tableDataRow}>
+                          <View style={styles.tdCellEmp}>
+                            <Text style={[styles.tableEmpName, { color: colors.textPrimary }]}>
+                              {emp.name}
+                            </Text>
+                            <Text style={[styles.tableEmpCode, { color: colors.textSecondary }]}>
+                              {emp.code}
+                            </Text>
+                          </View>
+
+                          <View style={styles.tdCellDept}>
+                            <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 12 }}>
+                              {emp.dept}
+                            </Text>
+                            <Text style={{ color: colors.textSecondary, fontSize: 10, marginTop: 1 }}>
+                              {emp.designation}
+                            </Text>
+                          </View>
+
+                          <Text style={[styles.tdCellGross, { color: colors.textPrimary }]}>
+                            ₹{emp.monthlyGross.toLocaleString()}
                           </Text>
-                          <Text style={[styles.tableEmpCode, { color: colors.textSecondary }]}>
-                            {emp.code}
+
+                          <Text
+                            style={[
+                              styles.tdCellGross,
+                              { color: isInc ? '#10b981' : '#ef4444', fontWeight: '800' },
+                            ]}
+                          >
+                            ₹{revisedGross.toLocaleString()}
+                          </Text>
+
+                          <Text
+                            style={[
+                              styles.tdCellDiff,
+                              { color: isInc ? '#10b981' : '#ef4444', fontWeight: '900' },
+                            ]}
+                          >
+                            {isInc ? '+' : '-'}₹{diff.toLocaleString()} / mo
                           </Text>
                         </View>
-
-                        <Text style={[styles.tdCellDept, { color: colors.textPrimary }]}>
-                          {emp.dept}
-                        </Text>
-
-                        <Text style={[styles.tdCellGross, { color: colors.textPrimary }]}>
-                          ₹{emp.monthlyGross.toLocaleString()}
-                        </Text>
-
-                        <Text
-                          style={[
-                            styles.tdCellGross,
-                            { color: isInc ? '#10b981' : '#ef4444', fontWeight: '800' },
-                          ]}
-                        >
-                          ₹{revisedGross.toLocaleString()}
-                        </Text>
-
-                        <Text
-                          style={[
-                            styles.tdCellDiff,
-                            { color: isInc ? '#10b981' : '#ef4444', fontWeight: '900' },
-                          ]}
-                        >
-                          {isInc ? '+' : '-'}₹{diff.toLocaleString()} / mo
-                        </Text>
-                      </View>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </View>
               </ScrollView>
             </View>

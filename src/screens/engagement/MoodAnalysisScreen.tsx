@@ -156,7 +156,7 @@ export const MoodAnalysisScreen: React.FC = () => {
                   {selectedEmp?.name || 'Select Employee'}
                 </Text>
                 <Text style={[styles.dropdownEmpRole, { color: colors.textSecondary }]}>
-                  {selectedEmp?.designation || selectedEmp?.role || 'Staff Member'}
+                  {selectedEmp?.department?.name ? `${selectedEmp.department.name} • ` : ''}{selectedEmp?.designation || selectedEmp?.role || 'Staff Member'}
                 </Text>
               </View>
             </View>
@@ -207,7 +207,7 @@ export const MoodAnalysisScreen: React.FC = () => {
                             {emp.name}
                           </Text>
                           <Text style={[styles.dropdownItemRole, { color: colors.textSecondary }]}>
-                            {emp.designation || emp.role || 'Employee'}
+                            {emp.department?.name ? `${emp.department.name} • ` : ''}{emp.designation || emp.role || 'Employee'}
                           </Text>
                         </View>
                         {isSelected && (

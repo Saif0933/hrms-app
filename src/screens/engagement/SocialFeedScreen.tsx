@@ -442,7 +442,7 @@ export const SocialFeedScreen: React.FC = () => {
                               {emp.name}
                             </Text>
                             <Text style={[styles.dropdownItemRole, { color: colors.textSecondary }]}>
-                              {emp.designation || emp.role || 'Employee'}
+                              {emp.department?.name ? `${emp.department.name} • ` : ''}{emp.designation || emp.role || 'Employee'}
                             </Text>
                           </View>
                           {isSelected && (

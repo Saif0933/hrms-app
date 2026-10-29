@@ -69,12 +69,12 @@ export const LoansAdvancesScreen: React.FC = () => {
   const employees = empRes?.data || [];
 
   const handleApplyLoan = () => {
-    const empId = selectedEmpId || employees[0]?.id || 'EMP001';
+    const empId = selectedEmpId || employees[0]?.id;
     const p = parseFloat(principal);
     const e = parseFloat(emi);
 
     if (!empId || isNaN(p) || isNaN(e) || p <= 0) {
-      Alert.alert('Validation Error', 'Please complete Principal and EMI amounts.');
+      Alert.alert('Validation Error', 'Please select an employee and complete Principal and EMI amounts.');
       return;
     }
 

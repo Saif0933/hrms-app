@@ -42,7 +42,6 @@ export const ApplyLeaveScreen: React.FC = () => {
   const [isHalfDay, setIsHalfDay] = useState(false);
   const [halfDaySession, setHalfDaySession] = useState<HalfDaySession>('FIRST_HALF');
   const [reason, setReason] = useState('Personal work & family occasion');
-  const [attachmentUrl, setAttachmentUrl] = useState('');
 
   // TanStack Queries & Mutations
   const { data: typesRes } = useLeaveTypes(true);
@@ -96,26 +95,6 @@ export const ApplyLeaveScreen: React.FC = () => {
       return;
     }
 
-    let finalReason = reason.trim();
-    let validAttachmentUrl: string | null = null;
-    const trimmedAttachment = attachmentUrl.trim();
-
-    if (trimmedAttachment) {
-      let formattedUrl = trimmedAttachment;
-      if (!/^https?:\/\//i.test(formattedUrl) && (formattedUrl.includes('.') || formattedUrl.startsWith('localhost'))) {
-        formattedUrl = `https://${formattedUrl}`;
-      }
-      try {
-        new URL(formattedUrl);
-        validAttachmentUrl = formattedUrl;
-      } catch {
-        validAttachmentUrl = null;
-        if (!finalReason.includes(trimmedAttachment)) {
-          finalReason = `${finalReason} (Attachment: ${trimmedAttachment})`;
-        }
-      }
-    }
-
     submitLeaveMutation.mutate(
       {
         employeeId: currentEmployeeId,
@@ -124,8 +103,8 @@ export const ApplyLeaveScreen: React.FC = () => {
         endDate: new Date(endDate).toISOString(),
         halfDay: isHalfDay,
         halfDaySession: isHalfDay ? halfDaySession : null,
-        reason: finalReason,
-        attachmentUrl: validAttachmentUrl,
+        reason: reason.trim(),
+        attachmentUrl: null,
       },
       {
         onSuccess: () => {
@@ -134,7 +113,6 @@ export const ApplyLeaveScreen: React.FC = () => {
             'Your leave application has been submitted for manager approval.'
           );
           setReason('');
-          setAttachmentUrl('');
         },
         onError: err => Alert.alert('Error', err.message),
       }
@@ -434,18 +412,6 @@ export const ApplyLeaveScreen: React.FC = () => {
             multiline
             numberOfLines={3}
             placeholder="Specify reasons for leave request..."
-            placeholderTextColor={colors.inputPlaceholder}
-          />
-
-          {/* Attachment URL */}
-          <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
-            📎 MEDICAL CERTIFICATE / ATTACHMENT URL
-          </Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
-            value={attachmentUrl}
-            onChangeText={setAttachmentUrl}
-            placeholder="https://..."
             placeholderTextColor={colors.inputPlaceholder}
           />
 

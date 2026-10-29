@@ -25,7 +25,7 @@ export const InvestmentDeclarationsScreen: React.FC = () => {
   const { colors } = useTheme();
 
   const [financialYear, setFinancialYear] = useState('2026-2027');
-  const [selectedEmpId, setSelectedEmpId] = useState('EMP001');
+  const [selectedEmpId, setSelectedEmpId] = useState('');
 
   // Form Fields
   const [sec80C, setSec80C] = useState('150000');
@@ -34,15 +34,40 @@ export const InvestmentDeclarationsScreen: React.FC = () => {
 
   // TanStack Queries & Mutations
   const { data: empRes } = useEmployees();
-  const { data: taxRes, isLoading } = useTaxDeclaration(selectedEmpId, financialYear);
-  const saveTaxMutation = useSaveTaxDeclaration();
-
   const employees = empRes?.data || [];
 
+  const activeEmployeeId = selectedEmpId || employees[0]?.id || '';
+  const { data: taxRes, isLoading } = useTaxDeclaration(activeEmployeeId, financialYear);
+  const saveTaxMutation = useSaveTaxDeclaration();
+
+  // Sync selected employee when employees list loads
+  React.useEffect(() => {
+    if (employees.length > 0) {
+      if (!selectedEmpId || !employees.some(e => e.id === selectedEmpId)) {
+        setSelectedEmpId(employees[0].id);
+      }
+    }
+  }, [employees, selectedEmpId]);
+
+  // Sync declaration values when fetched from backend
+  React.useEffect(() => {
+    if (taxRes?.data) {
+      setSec80C(String(taxRes.data.sec80C ?? 150000));
+      setSec80D(String(taxRes.data.sec80D ?? 25000));
+      setDeclaredHra(String(taxRes.data.declaredHra ?? 180000));
+    }
+  }, [taxRes?.data]);
+
   const handleSaveTaxDeclaration = () => {
+    const targetEmpId = selectedEmpId || employees[0]?.id;
+    if (!targetEmpId) {
+      Alert.alert('Validation Error', 'Please select an employee.');
+      return;
+    }
+
     saveTaxMutation.mutate(
       {
-        employeeId: selectedEmpId,
+        employeeId: targetEmpId,
         financialYear,
         sec80C: parseFloat(sec80C) || 0,
         sec80D: parseFloat(sec80D) || 0,
