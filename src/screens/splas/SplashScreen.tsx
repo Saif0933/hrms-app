@@ -3,7 +3,6 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect } from 'react';
 import {
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
@@ -15,6 +14,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack';
 import { useResponsive } from '../../utils/responsive';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 

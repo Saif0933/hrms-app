@@ -2,7 +2,6 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -17,6 +16,7 @@ import { Candidate, useCandidates, useUpdateCandidateChecklist } from '../../api
 import { useTheme } from '../../context/ThemeContext';
 import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'PreOnboardingChecklist'>;
 
