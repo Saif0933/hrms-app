@@ -18,6 +18,7 @@ import { useEmployees } from '../../api/hook/useEmployee';
 import { useDepartments, useCreateDepartment, Department } from '../../api/hook/useDepartment';
 import { useProfile } from '../../api/hook/useAuth';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Departments'>;
@@ -25,6 +26,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Departments
 export const DepartmentsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   const { data: profileRes } = useProfile();
   const organizationId = profileRes?.data?.user?.organizationId;
@@ -159,7 +161,9 @@ export const DepartmentsScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Departments</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 18) }]}>
+            Departments
+          </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             {departments.length} Active Departments
           </Text>
@@ -210,8 +214,8 @@ export const DepartmentsScreen: React.FC = () => {
         animationType="fade"
         onRequestClose={() => setModalOpen(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Add New Department</Text>
 
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DEPARTMENT NAME *</Text>

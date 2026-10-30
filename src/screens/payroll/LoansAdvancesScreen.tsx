@@ -17,13 +17,15 @@ import {
 import { useEmployees } from '../../api/hook/useEmployee';
 import { useApplyLoan, useLoans } from '../../api/hook/usePayroll';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'LoansAdvances'>;
 
 export const LoansAdvancesScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   // Apply Loan Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -127,7 +129,7 @@ export const LoansAdvancesScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 18) }]}>
             Loans & Salary Advances
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
@@ -212,8 +214,8 @@ export const LoansAdvancesScreen: React.FC = () => {
 
       {/* Apply Loan Modal */}
       <Modal visible={modalOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
               Apply Loan / Salary Advance
             </Text>

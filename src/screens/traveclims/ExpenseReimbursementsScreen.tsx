@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { TravelClaim, useClaims } from '../../api/hook/useTravelClaims';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ExpenseReimbursements'>;
@@ -22,6 +23,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ExpenseReim
 export const ExpenseReimbursementsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
@@ -141,7 +143,7 @@ export const ExpenseReimbursementsScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Expense Reimbursements Ledger
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
@@ -312,8 +314,8 @@ export const ExpenseReimbursementsScreen: React.FC = () => {
 
       {/* Receipt Viewer Modal */}
       <Modal visible={!!selectedReceipt} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.modalBackground, borderColor: colors.cardBorder, borderWidth: 1 }]}>
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
               Attached Expense Receipt / Invoice
             </Text>

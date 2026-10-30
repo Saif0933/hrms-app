@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HelpTicket, useResolveTicket, useTickets } from '../../api/hook/useHelpdesk';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'SupportTickets'>;
@@ -24,6 +25,7 @@ type PriorityType = 'High' | 'Medium' | 'Low';
 export const SupportTicketsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -162,7 +164,7 @@ export const SupportTicketsScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             HR Support Tickets Queue
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

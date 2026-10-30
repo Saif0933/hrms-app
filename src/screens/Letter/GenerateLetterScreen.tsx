@@ -16,6 +16,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEmployees } from '../../api/hook/useEmployee';
 import { useIssueLetter } from '../../api/hook/useLetters';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'GenerateLetter'>;
@@ -25,6 +26,7 @@ type TemplateType = 'offer' | 'warning' | 'experience';
 export const GenerateLetterScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [templateType, setTemplateType] = useState<TemplateType>('offer');
   const [recipientName, setRecipientName] = useState('Aarav Sharma');
@@ -88,7 +90,7 @@ export const GenerateLetterScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Generate Corporate Letter
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

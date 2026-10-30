@@ -16,6 +16,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEmployees } from '../../api/hook/useEmployee';
 import { useCreateTicket } from '../../api/hook/useHelpdesk';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'RaiseTicket'>;
@@ -26,6 +27,7 @@ type PriorityType = 'High' | 'Medium' | 'Low';
 export const RaiseTicketScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [selectedEmpId, setSelectedEmpId] = useState('EMP001');
   const [category, setCategory] = useState<CategoryType>('IT');
@@ -100,7 +102,7 @@ export const RaiseTicketScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Raise Support Ticket
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AssetRecord, useAssets, useAssignAsset } from '../../api/hook/useAssets';
 import { useEmployees } from '../../api/hook/useEmployee';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'AssetInventory'>;
@@ -24,6 +25,7 @@ type CategoryType = 'Hardware' | 'Mobile' | 'Keycard' | 'Other';
 export const AssetInventoryScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -158,7 +160,7 @@ export const AssetInventoryScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Company Asset Inventory
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

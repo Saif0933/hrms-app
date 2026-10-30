@@ -16,6 +16,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEmployees } from '../../api/hook/useEmployee';
 import { useApplyClaim } from '../../api/hook/useTravelClaims';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'NewTravelRequest'>;
@@ -25,6 +26,7 @@ type ClaimType = 'Travel' | 'Mileage' | 'Food' | 'Accommodation' | 'Other';
 export const NewTravelRequestScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [selectedEmpId, setSelectedEmpId] = useState<string>('EMP001');
   const [claimType, setClaimType] = useState<ClaimType>('Travel');
@@ -95,7 +97,7 @@ export const NewTravelRequestScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             New Travel & Expense Claim
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

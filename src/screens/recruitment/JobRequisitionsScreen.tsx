@@ -16,13 +16,15 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { JobRequisition, useCreateJob, useJobs } from '../../api/hook/useRecruitment';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'JobRequisitions'>;
 
 export const JobRequisitionsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   const [departmentFilter, setDepartmentFilter] = useState('ALL');
 
@@ -137,7 +139,7 @@ export const JobRequisitionsScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Job Requisitions & Hiring Openings
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
@@ -259,8 +261,8 @@ export const JobRequisitionsScreen: React.FC = () => {
 
       {/* Create Job Requisition Modal */}
       <Modal visible={modalOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.modalBackground, borderColor: colors.cardBorder, borderWidth: 1 }]}>
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
               Create Job Requisition
             </Text>

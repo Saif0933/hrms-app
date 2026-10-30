@@ -15,6 +15,7 @@ import {
 import { useEmployees } from '../../api/hook/useEmployee';
 import { usePayslip } from '../../api/hook/usePayroll';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'PayslipTemplates'>;
@@ -60,7 +61,8 @@ function numberToWords(num: number): string {
 
 export const PayslipTemplatesScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   const [selectedMonthYear, setSelectedMonthYear] = useState('August 2026');
   const [selectedEmpId, setSelectedEmpId] = useState('');
@@ -179,7 +181,7 @@ export const PayslipTemplatesScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 18) }]}>
             Payslip Templates & Generator
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

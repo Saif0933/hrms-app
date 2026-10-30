@@ -19,6 +19,7 @@ import {
   useSubmitMood,
 } from '../../api/hook/useEngagement';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'MoodAnalysis'>;
@@ -26,6 +27,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'MoodAnalysi
 export const MoodAnalysisScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [selectedMood, setSelectedMood] = useState<string>('thrilled');
   const [currentEmpId, setCurrentEmpId] = useState('EMP001');
@@ -106,7 +108,7 @@ export const MoodAnalysisScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Mood Analysis & Pulse
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

@@ -13,13 +13,15 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLeaveRequests } from '../../api/hook/useLeave';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'LeaveCalendar'>;
 
 export const LeaveCalendarScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   const [selectedMonth, setSelectedMonth] = useState('August 2026');
 
@@ -95,7 +97,7 @@ export const LeaveCalendarScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]}>
             Team Leave Calendar
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

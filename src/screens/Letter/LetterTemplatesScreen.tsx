@@ -14,6 +14,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'LetterTemplates'>;
@@ -21,6 +22,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'LetterTempl
 export const LetterTemplatesScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [companyName, setCompanyName] = useState('Symbosys Technologies Pvt Ltd');
   const [address, setAddress] = useState('Plot 42, Tech Park, Cyber City, Hyderabad 500081');
@@ -56,7 +58,7 @@ export const LetterTemplatesScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Letter Templates & Branding
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

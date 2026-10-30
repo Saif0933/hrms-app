@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLeaveTypes } from '../../api/hook/useLeave';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'LeavePolicies'>;
@@ -20,6 +21,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'LeavePolici
 export const LeavePoliciesScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   const { data: typesRes, isLoading } = useLeaveTypes();
 
@@ -98,7 +100,7 @@ export const LeavePoliciesScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]}>
             Company Leave Policies
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

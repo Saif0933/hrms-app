@@ -23,13 +23,15 @@ import {
   useLeaveTypes
 } from '../../api/hook/useLeave';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'LeaveConfigurations'>;
 
 export const LeaveConfigurationsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   // Create Type Modal State
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -151,7 +153,7 @@ export const LeaveConfigurationsScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]}>
             Leave Configurations
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
@@ -234,8 +236,8 @@ export const LeaveConfigurationsScreen: React.FC = () => {
 
       {/* Create Leave Type Modal */}
       <Modal visible={createModalOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
               Create New Leave Category
             </Text>
@@ -324,8 +326,8 @@ export const LeaveConfigurationsScreen: React.FC = () => {
 
       {/* Allocate Quota Modal */}
       <Modal visible={allocModalOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
               Allocate Leave Quota to Employee
             </Text>

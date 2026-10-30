@@ -21,6 +21,7 @@ import {
   useUpdateTimesheetStatus,
 } from '../../api/hook/useTimesheets';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'TimesheetEntry'>;
@@ -28,6 +29,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'TimesheetEn
 export const TimesheetEntryScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [selectedEmpId, setSelectedEmpId] = useState('EMP001');
   const [selectedWeek, setSelectedWeek] = useState('2026-W31');
@@ -186,7 +188,7 @@ export const TimesheetEntryScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Weekly Timesheet Entry
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

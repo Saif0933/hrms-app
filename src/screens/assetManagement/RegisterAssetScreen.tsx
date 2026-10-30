@@ -16,6 +16,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCreateAsset } from '../../api/hook/useAssets';
 import { useEmployees } from '../../api/hook/useEmployee';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'RegisterAsset'>;
@@ -25,6 +26,7 @@ type CategoryType = 'Hardware' | 'Mobile' | 'Keycard' | 'Other';
 export const RegisterAssetScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [assetName, setAssetName] = useState('MacBook Pro M3 Max 16"');
   const [category, setCategory] = useState<CategoryType>('Hardware');
@@ -89,7 +91,7 @@ export const RegisterAssetScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Register New Asset
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

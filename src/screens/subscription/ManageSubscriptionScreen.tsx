@@ -21,6 +21,7 @@ import {
   useUpdateSubscriptionPlan,
 } from '../../api/hook/useSubscription';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ManageSubscription'>;
@@ -37,6 +38,7 @@ interface InvoiceRecord {
 export const ManageSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   // Queries & Mutations
   const { data: currentSubRes, isLoading: subLoading } = useCurrentSubscription();
@@ -164,7 +166,7 @@ export const ManageSubscriptionScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Manage Subscription
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
@@ -319,8 +321,8 @@ export const ManageSubscriptionScreen: React.FC = () => {
 
       {/* Admin Plan Creation Modal */}
       <Modal visible={isAdminModalOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.modalBackground, borderColor: colors.cardBorder, borderWidth: 1 }]}>
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
               Create New Subscription Plan
             </Text>

@@ -17,13 +17,15 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Employee, useEmployees } from '../../api/hook/useEmployee';
 import { usePayrollCycle } from '../../api/hook/usePayroll';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'PayrollReports'>;
 
 export const PayrollReportsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   // Filters State
   const [selectedMonth, setSelectedMonth] = useState('July');
@@ -132,7 +134,7 @@ export const PayrollReportsScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 18) }]}>
             Payroll Reports & Statutory Deductions
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

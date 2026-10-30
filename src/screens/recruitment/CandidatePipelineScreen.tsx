@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Candidate, useAdvanceCandidate, useCandidates, useRejectCandidate } from '../../api/hook/useRecruitment';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'CandidatePipeline'>;
@@ -23,6 +24,7 @@ type StageType = 'Applied' | 'Interview' | 'Offer' | 'Onboarding';
 export const CandidatePipelineScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [stageFilter, setStageFilter] = useState('ALL');
 
@@ -169,7 +171,7 @@ export const CandidatePipelineScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Candidate Hiring Pipeline
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

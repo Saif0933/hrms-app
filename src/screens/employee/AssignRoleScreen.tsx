@@ -17,6 +17,7 @@ import { useProfile } from '../../api/hook/useAuth';
 import { Employee, useEmployees } from '../../api/hook/useEmployee';
 import { Role, useAssignRole, useRoles } from '../../api/hook/useRole';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'AssignRole'>;
@@ -25,7 +26,8 @@ type ScreenRouteProp = RouteProp<RootStackParamList, 'AssignRole'>;
 export const AssignRoleScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ScreenRouteProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   // Route Params
   const initialEmpId = route.params?.employeeId || '';
@@ -140,7 +142,9 @@ export const AssignRoleScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Assign Role to Employee</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 18) }]}>
+            Assign Role to Employee
+          </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             Map System Access Profiles to Individual Employees
           </Text>

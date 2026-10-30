@@ -22,6 +22,7 @@ import {
   useUpdateGoalProgress,
 } from '../../api/hook/usePerformance';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'KraGoalSetting'>;
@@ -29,6 +30,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'KraGoalSett
 export const KraGoalSettingScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [selectedEmpId, setSelectedEmpId] = useState<string>('EMP001');
 
@@ -147,7 +149,7 @@ export const KraGoalSettingScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             KRA & Goal Setting
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
@@ -340,8 +342,8 @@ export const KraGoalSettingScreen: React.FC = () => {
 
       {/* Assign / Create KRA Goal Modal */}
       <Modal visible={modalOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.modalBackground, borderColor: colors.cardBorder, borderWidth: 1 }]}>
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
               Assign Performance KRA Goal
             </Text>

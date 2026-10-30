@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -30,6 +30,9 @@ import {
 } from '../../api/hook/useAttendance';
 import { Department, useDepartments } from '../../api/hook/useDepartment';
 import { Employee, useEmployees } from '../../api/hook/useEmployee';
+import { ThemeColors } from '../../constants/theme';
+import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 declare const navigator: any;
@@ -38,24 +41,26 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'GeofencingC
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Color Palette matching reference screenshots (Warm Mocha & Amber Orange Theme)
-const COLORS = {
-  bgDark: '#23140E',
-  cardBg: '#341E16',
-  headerBg: '#2D1A12',
-  inputBg: '#281710',
-  borderColor: '#4A2C20',
-  orangePrimary: '#E25A00',
-  orangeButton: '#E0620D',
-  orangeDark: '#C84C00',
-  greenAccent: '#4ADE80',
-  textPrimary: '#FFFFFF',
-  textSecondary: '#D3C3B9',
-  textMuted: '#9B887D',
-  mapBg: '#E4DFD7',
-  mapCircleFill: 'rgba(226, 90, 0, 0.18)',
-  mapCircleBorder: '#E25A00',
-};
+// Dynamic Theme Colors Generator (Adapts to Light / Dark Mode & App Theme)
+const getThemeColors = (colors: ThemeColors, isDark: boolean) => ({
+  bgDark: colors.background,
+  cardBg: colors.cardBackground,
+  headerBg: colors.headerBackground,
+  inputBg: isDark ? '#0f172a' : '#f1f5f9',
+  borderColor: colors.cardBorder,
+  orangePrimary: colors.accent,
+  orangeButton: colors.accent,
+  orangeDark: colors.primary,
+  greenAccent: colors.success,
+  textPrimary: colors.textPrimary,
+  textSecondary: colors.textSecondary,
+  textMuted: colors.textMuted,
+  mapBg: isDark ? '#1e293b' : '#E4DFD7',
+  mapCircleFill: isDark ? 'rgba(59, 130, 246, 0.22)' : 'rgba(37, 99, 235, 0.18)',
+  mapCircleBorder: colors.accent,
+  accentTint: isDark ? 'rgba(59, 130, 246, 0.18)' : 'rgba(37, 99, 235, 0.12)',
+  modalBackdrop: colors.modalOverlay,
+});
 
 // Web Mercator Tile Calculation Helpers
 function latLngToPixel(lat: number, lng: number, zoom: number) {
@@ -260,6 +265,10 @@ const MovableTileMap: React.FC<TileMapProps> = ({
   onZoomChange,
   showPin = true,
 }) => {
+  const { colors, isDark } = useTheme();
+  const COLORS = useMemo(() => getThemeColors(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(COLORS, isDark), [COLORS, isDark]);
+
   const [mapCenter, setMapCenter] = useState({ lat: centerLat, lng: centerLng });
   const [mapZoom, setMapZoom] = useState(zoom);
 
@@ -489,6 +498,10 @@ const MovableTileMap: React.FC<TileMapProps> = ({
 
 export const GeofencingConfigScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const { colors, isDark } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
+  const COLORS = useMemo(() => getThemeColors(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(COLORS, isDark), [COLORS, isDark]);
 
   // Screen View Modes: 'LIST' | 'PICKER' | 'DETAILS_SHEET' | 'SEARCH'
   const [viewMode, setViewMode] = useState<'LIST' | 'PICKER' | 'DETAILS_SHEET' | 'SEARCH'>('LIST');
@@ -712,7 +725,7 @@ export const GeofencingConfigScreen: React.FC = () => {
   if (viewMode === 'SEARCH') {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor={COLORS.headerBg} />
+        <StatusBar barStyle={colors.statusBar} backgroundColor={colors.statusBarBg} />
         <View style={styles.searchHeaderRow}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -721,7 +734,7 @@ export const GeofencingConfigScreen: React.FC = () => {
           >
             <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.searchHeaderTitle}>Map</Text>
+          <Text style={[styles.searchHeaderTitle, { fontSize: moderateScale(isSmallDevice ? 16 : 18) }]}>Map</Text>
         </View>
 
         <View style={styles.searchBarWrapper}>
@@ -799,7 +812,7 @@ export const GeofencingConfigScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.headerBg} />
+      <StatusBar barStyle={colors.statusBar} backgroundColor={colors.statusBarBg} />
 
       {/* --- RENDER 2: MAIN Saved Geofences List View --- */}
       {viewMode === 'LIST' && (
@@ -812,7 +825,7 @@ export const GeofencingConfigScreen: React.FC = () => {
             >
               <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.textPrimary} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Geo Fencing Locations</Text>
+            <Text style={[styles.headerTitle, { fontSize: moderateScale(isSmallDevice ? 15 : 18) }]} numberOfLines={1}>Geo Fencing Locations</Text>
             <TouchableOpacity
               style={styles.addPlusBtn}
               onPress={handleOpenAddPicker}
@@ -1316,7 +1329,8 @@ export const GeofencingConfigScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: ReturnType<typeof getThemeColors>, isDark: boolean) =>
+  StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.bgDark,
@@ -1407,7 +1421,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 14,
     bottom: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.cardBg,
+    borderColor: COLORS.borderColor,
+    borderWidth: 1,
     borderRadius: 8,
     width: 34,
     shadowColor: '#000',
@@ -1420,7 +1436,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 14,
     bottom: 210,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.cardBg,
+    borderColor: COLORS.borderColor,
+    borderWidth: 1,
     borderRadius: 8,
     width: 34,
     shadowColor: '#000',
@@ -1437,11 +1455,11 @@ const styles = StyleSheet.create({
   zoomBtnText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#475569',
+    color: COLORS.textPrimary,
   },
   zoomDivider: {
     height: 1,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: COLORS.borderColor,
   },
 
   // Saved Geofences List
@@ -1662,7 +1680,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(226, 90, 0, 0.15)',
+    backgroundColor: COLORS.accentTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1701,7 +1719,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: COLORS.modalBackdrop,
   },
   sheetContentCard: {
     backgroundColor: COLORS.cardBg,
@@ -1816,7 +1834,7 @@ const styles = StyleSheet.create({
   // Modal Styles
   optionModalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: COLORS.modalBackdrop,
     justifyContent: 'center',
     padding: 24,
   },
@@ -1876,7 +1894,7 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.borderColor,
   },
   optionItemRowSelected: {
-    backgroundColor: 'rgba(226, 90, 0, 0.12)',
+    backgroundColor: COLORS.accentTint,
     borderRadius: 8,
   },
   optionItemText: {

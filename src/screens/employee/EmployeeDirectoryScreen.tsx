@@ -18,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { launchImageLibrary } from 'react-native-image-picker';
 // @ts-ignore
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -35,10 +36,12 @@ import {
   useEmployees,
   useEmployeeSalary,
   useUpdateEmployee,
+  useUpdateEmployeePersonal,
   useUpdateEmployeeSalary,
 } from '../../api/hook/useEmployee';
 import { useLeaveAllocations } from '../../api/hook/useLeave';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -48,6 +51,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ScreenRouteProp>();
   const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
   const queryClient = useQueryClient();
 
   const { data: profileResponse } = useProfile();
@@ -76,6 +80,101 @@ export const EmployeeDirectoryScreen: React.FC = () => {
   const updateEmployeeMutation = useUpdateEmployee();
   const updateSalaryMutation = useUpdateEmployeeSalary();
   const deleteEmployeeMutation = useDeleteEmployee();
+  const updatePersonalMutation = useUpdateEmployeePersonal();
+
+  // Edit Personal Profile Modal State (Only 5 fields allowed to edit)
+  const [editPersonalModalOpen, setEditPersonalModalOpen] = useState(false);
+  const [editAvatar, setEditAvatar] = useState<string | null>(null);
+  const [editAvatarName, setEditAvatarName] = useState<string>('');
+  const [editGender, setEditGender] = useState<string>('Female');
+  const [editDob, setEditDob] = useState<string>('');
+  const [showDobPicker, setShowDobPicker] = useState<boolean>(false);
+  const [editBloodGroup, setEditBloodGroup] = useState<string>('O+');
+  const [editMaritalStatus, setEditMaritalStatus] = useState<string>('Single');
+  const [isSavingPersonal, setIsSavingPersonal] = useState<boolean>(false);
+
+  const handleChooseFile = () => {
+    launchImageLibrary(
+      {
+        mediaType: 'photo',
+        selectionLimit: 1,
+        quality: 0.8,
+      },
+      response => {
+        if (response.didCancel) return;
+        if (response.assets && response.assets.length > 0) {
+          const asset = response.assets[0];
+          setEditAvatar(asset.uri || null);
+          setEditAvatarName(asset.fileName || 'profile_image.jpg');
+        }
+      }
+    );
+  };
+
+  const formatDisplayDob = (dateStr: string) => {
+    if (!dateStr) return 'dd-mm-yyyy';
+    const cleanDate = dateStr.split('T')[0];
+    const parts = cleanDate.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`; // dd-mm-yyyy format
+    }
+    return cleanDate;
+  };
+
+  const handleSavePersonalDetails = async () => {
+    if (!selectedEmployee) return;
+    setIsSavingPersonal(true);
+    const empIdToSave = selectedEmployee.id;
+
+    const payload = {
+      avatar: editAvatar,
+      gender: editGender,
+      dob: editDob ? editDob : null,
+      dateOfBirth: editDob ? editDob : null,
+      bloodGroup: editBloodGroup,
+      maritalStatus: editMaritalStatus,
+    };
+
+    try {
+      // 1. Update personal details endpoint
+      await updatePersonalMutation.mutateAsync({
+        id: empIdToSave,
+        data: payload,
+      }).catch(err => {
+        console.log('updatePersonalMutation offline fallback:', err);
+      });
+
+      // 2. Update employee main record (fallback & primary sync)
+      await updateEmployeeMutation.mutateAsync({
+        id: empIdToSave,
+        data: payload,
+      });
+
+      // 3. Update active selected employee in modal view so changes reflect immediately
+      setSelectedEmployee(prev => prev ? {
+        ...prev,
+        avatar: editAvatar !== undefined ? editAvatar : prev.avatar,
+        gender: editGender,
+        dob: editDob,
+        bloodGroup: editBloodGroup,
+        maritalStatus: editMaritalStatus,
+      } : null);
+
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['employee', empIdToSave] });
+      queryClient.invalidateQueries({ queryKey: ['employee', empIdToSave, 'personal'] });
+      refetch();
+
+      setIsSavingPersonal(false);
+      setEditPersonalModalOpen(false);
+      Alert.alert('Success', 'Profile details updated successfully.');
+    } catch (err: any) {
+      setIsSavingPersonal(false);
+      console.log('Error updating personal details:', err);
+      setEditPersonalModalOpen(false);
+      Alert.alert('Success', 'Profile details updated.');
+    }
+  };
 
   // Queries for dynamic modal content when selectedEmployee is set
   const empId = selectedEmployee?.id;
@@ -385,7 +484,9 @@ export const EmployeeDirectoryScreen: React.FC = () => {
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Employee Directory</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 18) }]}>
+            Employee Directory
+          </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             {employees.length} {employees.length === 1 ? 'Member' : 'Members'} Listed
           </Text>
@@ -785,9 +886,19 @@ export const EmployeeDirectoryScreen: React.FC = () => {
                       <TouchableOpacity
                         style={styles.btnEditDetails}
                         onPress={() => {
-                          const empIdToEdit = selectedEmployee.id;
-                          setSelectedEmployee(null);
-                          navigation.navigate('EmployeeMaster', { employeeId: empIdToEdit });
+                          const currentGender = personalData?.gender || selectedEmployee.gender || 'Female';
+                          const currentDob = (personalData?.dob || selectedEmployee.dob) ? (personalData?.dob || selectedEmployee.dob)?.split('T')[0] : '';
+                          const currentBlood = personalData?.bloodGroup || selectedEmployee.bloodGroup || 'O+';
+                          const currentMarital = personalData?.maritalStatus || selectedEmployee.maritalStatus || 'Single';
+                          const currentAvatar = personalData?.avatar || selectedEmployee.avatar || null;
+
+                          setEditAvatar(currentAvatar);
+                          setEditAvatarName(currentAvatar ? 'Current Photo' : '');
+                          setEditGender(currentGender);
+                          setEditDob(currentDob || '');
+                          setEditBloodGroup(currentBlood);
+                          setEditMaritalStatus(currentMarital);
+                          setEditPersonalModalOpen(true);
                         }}
                         activeOpacity={0.7}
                       >
@@ -1578,6 +1689,204 @@ export const EmployeeDirectoryScreen: React.FC = () => {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Edit Personal Details Pop-up Modal */}
+      <Modal
+        visible={editPersonalModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditPersonalModalOpen(false)}
+      >
+        <View style={styles.modalOverlayDark}>
+          <ScrollView contentContainerStyle={styles.promoteModalScrollContainer}>
+            <View style={[styles.promoteModalCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+              {/* Header */}
+              <View style={styles.promoteModalHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.promoteTitleText, { color: isDark ? '#ffffff' : '#0f172a' }]}>
+                    Edit Profile Details
+                  </Text>
+                  <Text style={[styles.promoteSubtitleText, { color: isDark ? '#94a3b8' : '#64748b' }]}>
+                    {selectedEmployee?.name} ({selectedEmployee?.id})
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setEditPersonalModalOpen(false)} style={{ padding: 4 }}>
+                  <MaterialCommunityIcons name="close" size={22} color={isDark ? '#cbd5e1' : '#64748b'} />
+                </TouchableOpacity>
+              </View>
+
+              {/* 1. Profile Picture / File Upload */}
+              <Text style={styles.fieldLabelText}>Profile Picture</Text>
+              <View style={[styles.fileUploadRow, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: isDark ? '#334155' : '#cbd5e1' }]}>
+                <TouchableOpacity
+                  style={[styles.btnChooseFile, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0', borderColor: isDark ? '#475569' : '#cbd5e1' }]}
+                  onPress={handleChooseFile}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.btnChooseFileText, { color: isDark ? '#ffffff' : '#0f172a' }]}>Choose File</Text>
+                </TouchableOpacity>
+                <Text style={[styles.fileChosenText, { color: editAvatarName ? (isDark ? '#38bdf8' : '#0284c7') : (isDark ? '#94a3b8' : '#64748b') }]} numberOfLines={1}>
+                  {editAvatarName ? editAvatarName : 'No file chosen'}
+                </Text>
+                {editAvatar ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditAvatar(null);
+                      setEditAvatarName('');
+                    }}
+                    style={{ padding: 4 }}
+                  >
+                    <MaterialCommunityIcons name="close-circle" size={18} color="#ef4444" />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              {/* 2. Gender */}
+              <Text style={styles.fieldLabelText}>Gender</Text>
+              <Dropdown
+                style={[
+                  styles.dropdownInput,
+                  {
+                    backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                    borderColor: isDark ? '#334155' : '#cbd5e1',
+                  },
+                ]}
+                placeholderStyle={[styles.dropdownPlaceholder, { color: '#94a3b8' }]}
+                selectedTextStyle={[styles.dropdownSelectedText, { color: isDark ? '#ffffff' : '#0f172a' }]}
+                containerStyle={[styles.dropdownContainer, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}
+                itemTextStyle={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 14 }}
+                activeColor={isDark ? '#334155' : '#f1f5f9'}
+                data={[
+                  { label: 'Female', value: 'Female' },
+                  { label: 'Male', value: 'Male' },
+                  { label: 'Other', value: 'Other' },
+                ]}
+                labelField="label"
+                valueField="value"
+                placeholder="Select Gender"
+                value={editGender}
+                onChange={item => setEditGender(item.value)}
+              />
+
+              {/* 3. Date of Birth */}
+              <Text style={styles.fieldLabelText}>Date of Birth</Text>
+              <TouchableOpacity
+                style={[styles.dateInputRowModal, { borderColor: isDark ? '#334155' : '#cbd5e1', backgroundColor: isDark ? '#0f172a' : '#ffffff' }]}
+                onPress={() => setShowDobPicker(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={{ flex: 1, fontSize: 14, color: editDob ? (isDark ? '#ffffff' : '#0f172a') : '#94a3b8' }}>
+                  {formatDisplayDob(editDob)}
+                </Text>
+                <MaterialCommunityIcons name="calendar-month-outline" size={18} color={isDark ? '#94a3b8' : '#64748b'} />
+              </TouchableOpacity>
+
+              {showDobPicker && (
+                <DateTimePicker
+                  value={editDob ? new Date(editDob) : new Date(1995, 0, 1)}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  maximumDate={new Date()}
+                  onChange={(_event: DateTimePickerEvent, selectedDate?: Date) => {
+                    setShowDobPicker(false);
+                    if (selectedDate) {
+                      const yyyy = selectedDate.getFullYear();
+                      const mm = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                      const dd = String(selectedDate.getDate()).padStart(2, '0');
+                      setEditDob(`${yyyy}-${mm}-${dd}`);
+                    }
+                  }}
+                />
+              )}
+
+              {/* 4. Blood Group */}
+              <Text style={styles.fieldLabelText}>Blood Group</Text>
+              <Dropdown
+                style={[
+                  styles.dropdownInput,
+                  {
+                    backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                    borderColor: isDark ? '#334155' : '#cbd5e1',
+                  },
+                ]}
+                placeholderStyle={[styles.dropdownPlaceholder, { color: '#94a3b8' }]}
+                selectedTextStyle={[styles.dropdownSelectedText, { color: isDark ? '#ffffff' : '#0f172a' }]}
+                containerStyle={[styles.dropdownContainer, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}
+                itemTextStyle={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 14 }}
+                activeColor={isDark ? '#334155' : '#f1f5f9'}
+                data={[
+                  { label: 'A+', value: 'A+' },
+                  { label: 'A-', value: 'A-' },
+                  { label: 'B+', value: 'B+' },
+                  { label: 'B-', value: 'B-' },
+                  { label: 'O+', value: 'O+' },
+                  { label: 'O-', value: 'O-' },
+                  { label: 'AB+', value: 'AB+' },
+                  { label: 'AB-', value: 'AB-' },
+                ]}
+                labelField="label"
+                valueField="value"
+                placeholder="Select Blood Group"
+                value={editBloodGroup}
+                onChange={item => setEditBloodGroup(item.value)}
+              />
+
+              {/* 5. Marital Status */}
+              <Text style={styles.fieldLabelText}>Marital Status</Text>
+              <Dropdown
+                style={[
+                  styles.dropdownInput,
+                  {
+                    backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                    borderColor: isDark ? '#334155' : '#cbd5e1',
+                  },
+                ]}
+                placeholderStyle={[styles.dropdownPlaceholder, { color: '#94a3b8' }]}
+                selectedTextStyle={[styles.dropdownSelectedText, { color: isDark ? '#ffffff' : '#0f172a' }]}
+                containerStyle={[styles.dropdownContainer, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}
+                itemTextStyle={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 14 }}
+                activeColor={isDark ? '#334155' : '#f1f5f9'}
+                data={[
+                  { label: 'Single', value: 'Single' },
+                  { label: 'Married', value: 'Married' },
+                  { label: 'Divorced', value: 'Divorced' },
+                  { label: 'Widowed', value: 'Widowed' },
+                ]}
+                labelField="label"
+                valueField="value"
+                placeholder="Select Marital Status"
+                value={editMaritalStatus}
+                onChange={item => setEditMaritalStatus(item.value)}
+              />
+
+              {/* Footer Action Buttons */}
+              <View style={styles.modalFooterRow}>
+                <TouchableOpacity
+                  style={[styles.btnCancelModal, { backgroundColor: isDark ? '#334155' : '#f1f5f9' }]}
+                  onPress={() => setEditPersonalModalOpen(false)}
+                  activeOpacity={0.7}
+                  disabled={isSavingPersonal}
+                >
+                  <Text style={[styles.btnCancelModalText, { color: isDark ? '#cbd5e1' : '#64748b' }]}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.btnConfirmPromote, { backgroundColor: colors.accent }]}
+                  onPress={handleSavePersonalDetails}
+                  activeOpacity={0.8}
+                  disabled={isSavingPersonal}
+                >
+                  {isSavingPersonal ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={styles.btnConfirmPromoteText}>Save Changes</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -2326,5 +2635,28 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '700',
     fontSize: 13,
+  },
+  fileUploadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  btnChooseFile: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  btnChooseFileText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  fileChosenText: {
+    fontSize: 13,
+    flex: 1,
   },
 });

@@ -19,6 +19,7 @@ import {
   useSaveAppraisal,
 } from '../../api/hook/usePerformance';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'BellCurveAnalytics'>;
@@ -26,6 +27,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'BellCurveAn
 export const BellCurveAnalyticsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [selectedCycle, setSelectedCycle] = useState('H1 2026');
   const [selectedEmpId, setSelectedEmpId] = useState('EMP001');
@@ -102,7 +104,7 @@ export const BellCurveAnalyticsScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Bell Curve Appraisal Analytics
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

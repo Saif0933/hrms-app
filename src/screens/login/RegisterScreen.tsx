@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useRegister } from '../../api/hook/useAuth';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Register'>;
@@ -24,6 +25,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Register'>;
 export const RegisterScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark, toggleTheme } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -92,7 +94,7 @@ export const RegisterScreen: React.FC = () => {
 
           {/* Title Header */}
           <View style={styles.titleSection}>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>Create Employee Account</Text>
+            <Text style={[styles.title, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 20 : 24) }]}>Create Employee Account</Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
               Enter your official details to register on Symbosys HRMS
             </Text>

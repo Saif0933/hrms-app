@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { FeatureComparisonRow, useSubscriptionComparisons } from '../../api/hook/useSubscription';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlanComparison'>;
@@ -20,6 +21,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlanCompari
 export const PlanComparisonScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   // TanStack Query
   const { data: matrixRes, isLoading } = useSubscriptionComparisons();
@@ -94,7 +96,7 @@ export const PlanComparisonScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Feature Comparison Matrix
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

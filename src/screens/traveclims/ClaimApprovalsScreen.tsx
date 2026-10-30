@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { TravelClaim, useClaims, useUpdateClaimStatus } from '../../api/hook/useTravelClaims';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ClaimApprovals'>;
@@ -21,6 +22,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ClaimApprov
 export const ClaimApprovalsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   // TanStack Queries & Mutations
   const { data: claimsRes, isLoading } = useClaims({ status: 'Pending' });
@@ -102,7 +104,7 @@ export const ClaimApprovalsScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Claim Approvals Queue
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

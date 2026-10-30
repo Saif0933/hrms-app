@@ -7,7 +7,6 @@ import {
   Alert,
   Image,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -25,12 +24,15 @@ import {
 } from '../api/hook/useDashboard';
 import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../navigation/stack.tsx';
+import { useResponsive } from '../utils/responsive';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 
 export const DashboardScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark, toggleTheme } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
   const logout = useLogout();
 
   const { data: profileResponse } = useProfile();
@@ -200,8 +202,8 @@ export const DashboardScreen: React.FC = () => {
   ];
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={isDark ? '#0f172a' : '#f8fafc'} />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={colors.statusBar} backgroundColor={colors.statusBarBg} />
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
@@ -652,79 +654,227 @@ export const DashboardScreen: React.FC = () => {
             {!isEmployee && (
               <>
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={[styles.sectionHeading, { color: isDark ? '#ffffff' : '#0f172a' }]}>Pending Approvals</Text>
-                  <TouchableOpacity onPress={() => navigation.navigate('LeaveApprovals')}>
-                    <Text style={styles.viewDetailsLink}>View All →</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={[styles.sectionHeading, { color: isDark ? '#ffffff' : '#0f172a' }]}>Pending Approvals</Text>
+                    {pendingLeaves.length + pendingClaims.length > 0 && (
+                      <View style={[styles.headerCountBadge, { backgroundColor: isDark ? 'rgba(234, 88, 12, 0.22)' : '#ffedd5' }]}>
+                        <Text style={[styles.headerCountBadgeText, { color: isDark ? '#fb923c' : '#c2410c' }]}>
+                          {pendingLeaves.length + pendingClaims.length}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate(activeApprovalTab === 'leaves' ? 'LeaveApprovals' : 'ClaimApprovals')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.viewDetailsLink, { color: colors.accent }]}>View All →</Text>
                   </TouchableOpacity>
                 </View>
 
-                <View style={[styles.contentCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
+                <View style={[styles.contentCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderWidth: 1, borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
                   {/* Approval Tabs */}
-                  <View style={styles.pillTabsContainer}>
+                  <View style={[styles.pillTabsContainer, { backgroundColor: isDark ? '#0f172a' : '#f1f5f9' }]}>
                     <TouchableOpacity
-                      style={[styles.pillTab, activeApprovalTab === 'leaves' && styles.pillTabActive]}
+                      style={[
+                        styles.pillTab,
+                        activeApprovalTab === 'leaves' && [styles.pillTabActive, { backgroundColor: colors.accent }],
+                      ]}
                       onPress={() => setActiveApprovalTab('leaves')}
+                      activeOpacity={0.8}
                     >
-                      <Text style={[styles.pillTabText, activeApprovalTab === 'leaves' && styles.pillTabTextActive]}>
-                        Leave Requests ({pendingLeaves.length})
+                      <MaterialCommunityIcons
+                        name="calendar-clock"
+                        size={15}
+                        color={activeApprovalTab === 'leaves' ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b')}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text
+                        style={[
+                          styles.pillTabText,
+                          { color: isDark ? '#cbd5e1' : '#64748b' },
+                          activeApprovalTab === 'leaves' && styles.pillTabTextActive,
+                        ]}
+                      >
+                        Leave Requests
                       </Text>
+                      <View
+                        style={[
+                          styles.tabMiniBadge,
+                          {
+                            backgroundColor:
+                              activeApprovalTab === 'leaves'
+                                ? 'rgba(255, 255, 255, 0.25)'
+                                : (isDark ? '#1e293b' : '#e2e8f0'),
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.tabMiniBadgeText,
+                            {
+                              color:
+                                activeApprovalTab === 'leaves'
+                                  ? '#ffffff'
+                                  : (isDark ? '#cbd5e1' : '#475569'),
+                            },
+                          ]}
+                        >
+                          {pendingLeaves.length}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={[styles.pillTab, activeApprovalTab === 'claims' && styles.pillTabActive]}
+                      style={[
+                        styles.pillTab,
+                        activeApprovalTab === 'claims' && [styles.pillTabActive, { backgroundColor: colors.accent }],
+                      ]}
                       onPress={() => setActiveApprovalTab('claims')}
+                      activeOpacity={0.8}
                     >
-                      <Text style={[styles.pillTabText, activeApprovalTab === 'claims' && styles.pillTabTextActive]}>
-                        Travel Claims ({pendingClaims.length})
+                      <MaterialCommunityIcons
+                        name="receipt-text-outline"
+                        size={15}
+                        color={activeApprovalTab === 'claims' ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b')}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text
+                        style={[
+                          styles.pillTabText,
+                          { color: isDark ? '#cbd5e1' : '#64748b' },
+                          activeApprovalTab === 'claims' && styles.pillTabTextActive,
+                        ]}
+                      >
+                        Travel Claims
                       </Text>
+                      <View
+                        style={[
+                          styles.tabMiniBadge,
+                          {
+                            backgroundColor:
+                              activeApprovalTab === 'claims'
+                                ? 'rgba(255, 255, 255, 0.25)'
+                                : (isDark ? '#1e293b' : '#e2e8f0'),
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.tabMiniBadgeText,
+                            {
+                              color:
+                                activeApprovalTab === 'claims'
+                                  ? '#ffffff'
+                                  : (isDark ? '#cbd5e1' : '#475569'),
+                            },
+                          ]}
+                        >
+                          {pendingClaims.length}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   </View>
 
                   {activeApprovalTab === 'leaves' && (
-                    <View style={{ gap: 14, paddingTop: 6 }}>
+                    <View style={{ gap: 14, paddingTop: 4 }}>
                       {pendingLeaves.length === 0 ? (
-                        <Text style={{ textAlign: 'center', color: '#64748b', paddingVertical: 12 }}>
-                          🎉 All leave approvals completed!
-                        </Text>
+                        <View style={[styles.emptyApprovalsBox, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                          <MaterialCommunityIcons name="check-decagram-outline" size={40} color="#16a34a" />
+                          <Text style={[styles.emptyApprovalsTitle, { color: isDark ? '#ffffff' : '#0f172a' }]}>All Caught Up!</Text>
+                          <Text style={[styles.emptyApprovalsSubtitle, { color: isDark ? '#94a3b8' : '#64748b' }]}>
+                            No pending leave requests awaiting approval.
+                          </Text>
+                        </View>
                       ) : (
                         pendingLeaves.map(item => (
-                          <View key={item.id} style={styles.approvalItemCard}>
+                          <View
+                            key={item.id}
+                            style={[
+                              styles.approvalItemCard,
+                              {
+                                backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+                                borderWidth: 1,
+                                borderColor: isDark ? '#334155' : '#e2e8f0',
+                              },
+                            ]}
+                          >
+                            {/* Employee Header Row */}
                             <View style={styles.approvalItemTopRow}>
                               <View style={styles.approvalUserFlex}>
-                                <View style={[styles.avatarInitialsCircle, { backgroundColor: '#dcfce7' }]}>
-                                  <Text style={{ color: '#15803d', fontWeight: '700', fontSize: 13 }}>
+                                <View style={[styles.avatarInitialsCircle, { backgroundColor: isDark ? 'rgba(34, 197, 94, 0.2)' : '#dcfce7' }]}>
+                                  <Text style={{ color: isDark ? '#4ade80' : '#15803d', fontWeight: '800', fontSize: 13 }}>
                                     {item.employeeName.split(' ').map(n => n[0]).join('')}
                                   </Text>
                                 </View>
-                                <View>
-                                  <Text style={styles.approvalUserName}>{item.employeeName}</Text>
-                                  <Text style={styles.approvalSubtitle}>
-                                    {item.type} • {item.startDate} – {item.endDate}
+                                <View style={{ flex: 1 }}>
+                                  <Text style={[styles.approvalUserName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>
+                                    {item.employeeName}
+                                  </Text>
+                                  <Text style={[styles.approvalSubtitle, { color: isDark ? '#94a3b8' : '#64748b' }]} numberOfLines={1}>
+                                    {item.type}
                                   </Text>
                                 </View>
                               </View>
 
-                              <View style={styles.statusPendingBadge}>
-                                <Text style={styles.statusPendingText}>Pending</Text>
+                              <View style={[styles.statusPendingBadge, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.18)' : '#fef3c7', borderColor: isDark ? '#f59e0b40' : '#fde68a' }]}>
+                                <MaterialCommunityIcons name="clock-outline" size={12} color={isDark ? '#fbbf24' : '#d97706'} />
+                                <Text style={[styles.statusPendingText, { color: isDark ? '#fbbf24' : '#d97706' }]}>Pending</Text>
                               </View>
                             </View>
 
-                            <Text style={styles.approvalDetailLine}>
-                              📅 {item.days} {item.days === 1 ? 'day' : 'days'} • {item.reason}
-                            </Text>
+                            {/* Request Details Box */}
+                            <View style={[styles.approvalDetailsBox, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                              <View style={styles.approvalDetailRowItem}>
+                                <MaterialCommunityIcons name="calendar-range" size={15} color={colors.accent} />
+                                <Text style={[styles.approvalDetailDatesText, { color: isDark ? '#ffffff' : '#0f172a' }]}>
+                                  {item.startDate} – {item.endDate}
+                                </Text>
+                                <View style={[styles.daysDurationChip, { backgroundColor: isDark ? 'rgba(37, 99, 235, 0.2)' : '#eff6ff' }]}>
+                                  <Text style={[styles.daysDurationText, { color: colors.accent }]}>
+                                    {item.days} {item.days === 1 ? 'day' : 'days'}
+                                  </Text>
+                                </View>
+                              </View>
 
+                              {item.reason ? (
+                                <View style={styles.approvalReasonRow}>
+                                  <Text style={[styles.approvalReasonLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Reason: </Text>
+                                  <Text style={[styles.approvalReasonValue, { color: isDark ? '#cbd5e1' : '#334155' }]} numberOfLines={2}>
+                                    {item.reason}
+                                  </Text>
+                                </View>
+                              ) : null}
+                            </View>
+
+                            {/* Action Buttons Row */}
                             <View style={styles.approvalButtonsRow}>
                               <TouchableOpacity
-                                style={styles.btnOutlineReject}
+                                style={[
+                                  styles.btnOutlineReject,
+                                  {
+                                    borderColor: isDark ? '#f87171' : '#ef4444',
+                                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2',
+                                  },
+                                ]}
                                 onPress={() => handleRejectLeave(item.id, item.employeeName)}
+                                activeOpacity={0.7}
                               >
-                                <Text style={styles.btnRejectText}>Reject</Text>
+                                <MaterialCommunityIcons name="close" size={16} color={isDark ? '#f87171' : '#ef4444'} />
+                                <Text style={[styles.btnRejectText, { color: isDark ? '#f87171' : '#ef4444' }]}>Reject</Text>
                               </TouchableOpacity>
 
                               <TouchableOpacity
-                                style={styles.btnSolidApprove}
+                                style={[
+                                  styles.btnSolidApprove,
+                                  {
+                                    backgroundColor: isDark ? '#15803d' : '#16a34a',
+                                  },
+                                ]}
                                 onPress={() => handleApproveLeave(item.id, item.employeeName)}
+                                activeOpacity={0.7}
                               >
+                                <MaterialCommunityIcons name="check" size={16} color="#ffffff" />
                                 <Text style={styles.btnApproveText}>Approve</Text>
                               </TouchableOpacity>
                             </View>
@@ -735,50 +885,102 @@ export const DashboardScreen: React.FC = () => {
                   )}
 
                   {activeApprovalTab === 'claims' && (
-                    <View style={{ gap: 14, paddingTop: 6 }}>
+                    <View style={{ gap: 14, paddingTop: 4 }}>
                       {pendingClaims.length === 0 ? (
-                        <Text style={{ textAlign: 'center', color: '#64748b', paddingVertical: 12 }}>
-                          🎉 All claim approvals completed!
-                        </Text>
+                        <View style={[styles.emptyApprovalsBox, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                          <MaterialCommunityIcons name="check-decagram-outline" size={40} color="#16a34a" />
+                          <Text style={[styles.emptyApprovalsTitle, { color: isDark ? '#ffffff' : '#0f172a' }]}>All Caught Up!</Text>
+                          <Text style={[styles.emptyApprovalsSubtitle, { color: isDark ? '#94a3b8' : '#64748b' }]}>
+                            No pending travel claims awaiting approval.
+                          </Text>
+                        </View>
                       ) : (
                         pendingClaims.map(item => (
-                          <View key={item.id} style={styles.approvalItemCard}>
+                          <View
+                            key={item.id}
+                            style={[
+                              styles.approvalItemCard,
+                              {
+                                backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+                                borderWidth: 1,
+                                borderColor: isDark ? '#334155' : '#e2e8f0',
+                              },
+                            ]}
+                          >
+                            {/* Employee Header Row */}
                             <View style={styles.approvalItemTopRow}>
                               <View style={styles.approvalUserFlex}>
-                                <View style={[styles.avatarInitialsCircle, { backgroundColor: '#f3e8ff' }]}>
-                                  <Text style={{ color: '#7e22ce', fontWeight: '700', fontSize: 13 }}>
+                                <View style={[styles.avatarInitialsCircle, { backgroundColor: isDark ? 'rgba(168, 85, 247, 0.2)' : '#f3e8ff' }]}>
+                                  <Text style={{ color: isDark ? '#c084fc' : '#7e22ce', fontWeight: '800', fontSize: 13 }}>
                                     {item.employeeName.split(' ').map(n => n[0]).join('')}
                                   </Text>
                                 </View>
-                                <View>
-                                  <Text style={styles.approvalUserName}>{item.employeeName}</Text>
-                                  <Text style={styles.approvalSubtitle}>
-                                    {item.type} • ₹{item.amount.toLocaleString()}
+                                <View style={{ flex: 1 }}>
+                                  <Text style={[styles.approvalUserName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>
+                                    {item.employeeName}
+                                  </Text>
+                                  <Text style={[styles.approvalSubtitle, { color: isDark ? '#94a3b8' : '#64748b' }]} numberOfLines={1}>
+                                    {item.type}
                                   </Text>
                                 </View>
                               </View>
 
-                              <View style={styles.statusPendingBadge}>
-                                <Text style={styles.statusPendingText}>Pending</Text>
+                              <View style={[styles.statusPendingBadge, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.18)' : '#fef3c7', borderColor: isDark ? '#f59e0b40' : '#fde68a' }]}>
+                                <MaterialCommunityIcons name="clock-outline" size={12} color={isDark ? '#fbbf24' : '#d97706'} />
+                                <Text style={[styles.statusPendingText, { color: isDark ? '#fbbf24' : '#d97706' }]}>Pending</Text>
                               </View>
                             </View>
 
-                            <Text style={styles.approvalDetailLine}>
-                              📄 Applied {item.date} • {item.reason}
-                            </Text>
+                            {/* Claim Details Box */}
+                            <View style={[styles.approvalDetailsBox, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                              <View style={styles.approvalDetailRowItem}>
+                                <MaterialCommunityIcons name="cash-multiple" size={16} color={isDark ? '#4ade80' : '#16a34a'} />
+                                <Text style={[styles.approvalClaimAmount, { color: isDark ? '#4ade80' : '#16a34a' }]}>
+                                  ₹{item.amount.toLocaleString()}
+                                </Text>
+                                <Text style={[styles.approvalClaimDate, { color: isDark ? '#94a3b8' : '#64748b' }]}>
+                                  • Applied {item.date}
+                                </Text>
+                              </View>
 
+                              {item.reason ? (
+                                <View style={styles.approvalReasonRow}>
+                                  <Text style={[styles.approvalReasonLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Purpose: </Text>
+                                  <Text style={[styles.approvalReasonValue, { color: isDark ? '#cbd5e1' : '#334155' }]} numberOfLines={2}>
+                                    {item.reason}
+                                  </Text>
+                                </View>
+                              ) : null}
+                            </View>
+
+                            {/* Action Buttons Row */}
                             <View style={styles.approvalButtonsRow}>
                               <TouchableOpacity
-                                style={styles.btnOutlineReject}
+                                style={[
+                                  styles.btnOutlineReject,
+                                  {
+                                    borderColor: isDark ? '#f87171' : '#ef4444',
+                                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2',
+                                  },
+                                ]}
                                 onPress={() => handleRejectClaim(item.id, item.employeeName)}
+                                activeOpacity={0.7}
                               >
-                                <Text style={styles.btnRejectText}>Reject</Text>
+                                <MaterialCommunityIcons name="close" size={16} color={isDark ? '#f87171' : '#ef4444'} />
+                                <Text style={[styles.btnRejectText, { color: isDark ? '#f87171' : '#ef4444' }]}>Reject</Text>
                               </TouchableOpacity>
 
                               <TouchableOpacity
-                                style={styles.btnSolidApprove}
+                                style={[
+                                  styles.btnSolidApprove,
+                                  {
+                                    backgroundColor: isDark ? '#15803d' : '#16a34a',
+                                  },
+                                ]}
                                 onPress={() => handleApproveClaim(item.id, item.employeeName, item.amount)}
+                                activeOpacity={0.7}
                               >
+                                <MaterialCommunityIcons name="check" size={16} color="#ffffff" />
                                 <Text style={styles.btnApproveText}>Approve</Text>
                               </TouchableOpacity>
                             </View>
@@ -1117,9 +1319,10 @@ const styles = StyleSheet.create({
     flex: 1,
     height: '100%',
     borderRadius: 9,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 2,
+    paddingHorizontal: 4,
   },
   pillTabActive: {
     backgroundColor: '#2563eb',
@@ -1189,81 +1392,166 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginTop: 8,
   },
-  approvalItemCard: {
-    backgroundColor: '#f8fafc',
+  headerCountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  headerCountBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  tabMiniBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 8,
+    marginLeft: 6,
+  },
+  tabMiniBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  emptyApprovalsBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 16,
     borderRadius: 14,
-    padding: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    gap: 6,
+  },
+  emptyApprovalsTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  emptyApprovalsSubtitle: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  approvalItemCard: {
+    borderRadius: 16,
+    padding: 14,
+    gap: 12,
   },
   approvalItemTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   approvalUserFlex: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
+    marginRight: 8,
   },
   avatarInitialsCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
   },
   approvalUserName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
-    color: '#0f172a',
+    letterSpacing: -0.2,
   },
   approvalSubtitle: {
-    fontSize: 11,
-    color: '#64748b',
+    fontSize: 12,
     marginTop: 1,
   },
   statusPendingBadge: {
-    backgroundColor: '#ffedd5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
   },
   statusPendingText: {
-    color: '#c2410c',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
   },
-  approvalDetailLine: {
+  approvalDetailsBox: {
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    gap: 6,
+  },
+  approvalDetailRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  approvalDetailDatesText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  daysDurationChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 4,
+  },
+  daysDurationText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  approvalClaimAmount: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  approvalClaimDate: {
     fontSize: 12,
-    color: '#475569',
-    marginTop: 8,
-    marginBottom: 10,
+  },
+  approvalReasonRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 2,
+  },
+  approvalReasonLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  approvalReasonValue: {
+    fontSize: 12,
+    flex: 1,
   },
   approvalButtonsRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    alignItems: 'center',
     gap: 10,
   },
   btnOutlineReject: {
+    flex: 1,
+    height: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
     borderWidth: 1.5,
-    borderColor: '#ef4444',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   btnRejectText: {
-    color: '#ef4444',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   btnSolidApprove: {
-    backgroundColor: '#16a34a',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 8,
+    flex: 1,
+    height: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderRadius: 10,
   },
   btnApproveText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   recentActivityList: {

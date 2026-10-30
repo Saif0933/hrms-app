@@ -12,13 +12,15 @@ import {
 } from 'react-native';
 import { useEmployees } from '../../api/hook/useEmployee';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'OrgChart'>;
 
 export const OrgChartScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   const { data: response, isLoading } = useEmployees();
   const employees = response?.data || [];
@@ -45,7 +47,9 @@ export const OrgChartScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Organization Chart</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 18) }]}>
+            Organization Chart
+          </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             Team Structure & Hierarchy
           </Text>

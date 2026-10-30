@@ -18,7 +18,9 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { usePunches } from '../../api/hook/useAttendance';
 import { useProfile } from '../../api/hook/useAuth';
 import { useEmployees } from '../../api/hook/useEmployee';
+import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack.tsx';
+import { useResponsive } from '../../utils/responsive';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'AttendanceHistory'>;
 
@@ -34,6 +36,8 @@ const PAGE_SIZE = 10;
 
 export const AttendanceHistoryScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   // Filter States
   const [filterMode, setFilterMode] = useState<'month' | 'all'>('month');
@@ -210,11 +214,21 @@ export const AttendanceHistoryScreen: React.FC = () => {
     return (
       <View
         key={item.dateKey}
-        style={[styles.historyCard, { borderLeftColor: accentColor }]}
+        style={[
+          styles.historyCard,
+          {
+            backgroundColor: colors.cardBackground,
+            borderLeftColor: accentColor,
+            borderColor: colors.cardBorder,
+            borderWidth: isDark ? 1 : 0,
+          },
+        ]}
       >
         {/* Header Row: Date & Status Badge */}
         <View style={styles.cardHeaderRow}>
-          <Text style={styles.dateText}>{item.dateKey}</Text>
+          <Text style={[styles.dateText, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 13.5 : 15) }]}>
+            {item.dateKey}
+          </Text>
           <View style={[styles.statusBadge, { backgroundColor: badgeBg }]}>
             <Text style={[styles.statusBadgeText, { color: accentColor }]}>
               {item.status}
@@ -225,22 +239,22 @@ export const AttendanceHistoryScreen: React.FC = () => {
         {/* Card Body: Punch IN & Punch OUT / Absent Message */}
         {isAbsent ? (
           <View style={styles.absentContainer}>
-            <Text style={styles.absentText}>No punch data recorded for this day.</Text>
+            <Text style={[styles.absentText, { color: colors.textSecondary }]}>No punch data recorded for this day.</Text>
           </View>
         ) : (
           <View style={styles.punchDetailsRow}>
             {/* Punch IN */}
             <View style={styles.punchColumn}>
-              <View style={[styles.iconSquare, { backgroundColor: '#e0f2fe' }]}>
+              <View style={[styles.iconSquare, { backgroundColor: isDark ? '#1e3a8a' : '#e0f2fe' }]}>
                 <MaterialCommunityIcons
                   name="login-variant"
-                  size={22}
+                  size={20}
                   color={isLate ? '#ef4444' : '#10b981'}
                 />
               </View>
               <View>
-                <Text style={styles.punchLabel}>PUNCH IN</Text>
-                <Text style={[styles.punchTime, { color: isLate ? '#ef4444' : '#0f172a' }]}>
+                <Text style={[styles.punchLabel, { color: colors.textSecondary }]}>PUNCH IN</Text>
+                <Text style={[styles.punchTime, { color: isLate ? '#ef4444' : colors.textPrimary }]}>
                   {item.punchInTime || '--:--'}
                 </Text>
               </View>
@@ -248,12 +262,12 @@ export const AttendanceHistoryScreen: React.FC = () => {
 
             {/* Punch OUT */}
             <View style={styles.punchColumn}>
-              <View style={[styles.iconSquare, { backgroundColor: '#f1f5f9' }]}>
-                <MaterialCommunityIcons name="logout-variant" size={22} color="#475569" />
+              <View style={[styles.iconSquare, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}>
+                <MaterialCommunityIcons name="logout-variant" size={20} color={colors.textSecondary} />
               </View>
               <View>
-                <Text style={styles.punchLabel}>PUNCH OUT</Text>
-                <Text style={styles.punchTime}>
+                <Text style={[styles.punchLabel, { color: colors.textSecondary }]}>PUNCH OUT</Text>
+                <Text style={[styles.punchTime, { color: colors.textPrimary }]}>
                   {item.punchOutTime || '--:--'}
                 </Text>
               </View>
@@ -269,28 +283,55 @@ export const AttendanceHistoryScreen: React.FC = () => {
     <View>
       {/* Top Summary Cards (Total Days, Present, Late) */}
       <View style={styles.summaryRow}>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Total Days</Text>
-          <Text style={[styles.summaryValue, { color: '#064e3b' }]}>{stats.totalDays}</Text>
+        <View
+          style={[
+            styles.summaryCard,
+            {
+              backgroundColor: colors.cardBackground,
+              borderColor: colors.cardBorder,
+              borderWidth: isDark ? 1 : 0,
+            },
+          ]}
+        >
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total Days</Text>
+          <Text style={[styles.summaryValue, { color: isDark ? '#34d399' : '#064e3b' }]}>{stats.totalDays}</Text>
         </View>
 
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Present</Text>
+        <View
+          style={[
+            styles.summaryCard,
+            {
+              backgroundColor: colors.cardBackground,
+              borderColor: colors.cardBorder,
+              borderWidth: isDark ? 1 : 0,
+            },
+          ]}
+        >
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Present</Text>
           <Text style={[styles.summaryValue, { color: '#10b981' }]}>{stats.present}</Text>
         </View>
 
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Late</Text>
+        <View
+          style={[
+            styles.summaryCard,
+            {
+              backgroundColor: colors.cardBackground,
+              borderColor: colors.cardBorder,
+              borderWidth: isDark ? 1 : 0,
+            },
+          ]}
+        >
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Late</Text>
           <Text style={[styles.summaryValue, { color: '#ef4444' }]}>{stats.late}</Text>
         </View>
       </View>
 
       {/* Filter Mode Switcher (Monthly vs All Records) */}
-      <View style={styles.filterModeRow}>
+      <View style={[styles.filterModeRow, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0' }]}>
         <TouchableOpacity
           style={[
             styles.filterModeBtn,
-            filterMode === 'month' && styles.filterModeBtnActive,
+            filterMode === 'month' && [styles.filterModeBtnActive, { backgroundColor: colors.cardBackground }],
           ]}
           onPress={() => setFilterMode('month')}
           activeOpacity={0.8}
@@ -298,7 +339,8 @@ export const AttendanceHistoryScreen: React.FC = () => {
           <Text
             style={[
               styles.filterModeText,
-              filterMode === 'month' && styles.filterModeTextActive,
+              { color: colors.textSecondary },
+              filterMode === 'month' && { color: isDark ? '#34d399' : '#064e3b', fontWeight: '800' },
             ]}
           >
             By Month
@@ -308,7 +350,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
         <TouchableOpacity
           style={[
             styles.filterModeBtn,
-            filterMode === 'all' && styles.filterModeBtnActive,
+            filterMode === 'all' && [styles.filterModeBtnActive, { backgroundColor: colors.cardBackground }],
           ]}
           onPress={() => setFilterMode('all')}
           activeOpacity={0.8}
@@ -316,7 +358,8 @@ export const AttendanceHistoryScreen: React.FC = () => {
           <Text
             style={[
               styles.filterModeText,
-              filterMode === 'all' && styles.filterModeTextActive,
+              { color: colors.textSecondary },
+              filterMode === 'all' && { color: isDark ? '#34d399' : '#064e3b', fontWeight: '800' },
             ]}
           >
             All History
@@ -326,18 +369,18 @@ export const AttendanceHistoryScreen: React.FC = () => {
 
       {/* Month Selector Bar or All History Banner */}
       {filterMode === 'month' ? (
-        <View style={styles.monthSelectorBar}>
+        <View style={[styles.monthSelectorBar, { backgroundColor: isDark ? '#1e293b' : '#eef2ff' }]}>
           <TouchableOpacity
             onPress={() => setSelectedMonthOffset(prev => prev - 1)}
             style={styles.monthNavBtn}
             activeOpacity={0.7}
           >
-            <MaterialCommunityIcons name="chevron-left" size={24} color="#334155" />
+            <MaterialCommunityIcons name="chevron-left" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
 
           <View style={styles.monthTitleContainer}>
-            <MaterialCommunityIcons name="calendar-month-outline" size={22} color="#064e3b" />
-            <Text style={styles.monthTitleText}>{monthYearLabel}</Text>
+            <MaterialCommunityIcons name="calendar-month-outline" size={22} color={isDark ? '#34d399' : '#064e3b'} />
+            <Text style={[styles.monthTitleText, { color: colors.textPrimary }]}>{monthYearLabel}</Text>
           </View>
 
           <TouchableOpacity
@@ -345,13 +388,21 @@ export const AttendanceHistoryScreen: React.FC = () => {
             style={styles.monthNavBtn}
             activeOpacity={0.7}
           >
-            <MaterialCommunityIcons name="chevron-right" size={24} color="#334155" />
+            <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.allHistoryBanner}>
-          <MaterialCommunityIcons name="history" size={20} color="#065f46" />
-          <Text style={styles.allHistoryBannerText}>
+        <View
+          style={[
+            styles.allHistoryBanner,
+            {
+              backgroundColor: isDark ? 'rgba(6, 95, 70, 0.2)' : '#ecfdf5',
+              borderColor: isDark ? '#065f46' : '#a7f3d0',
+            },
+          ]}
+        >
+          <MaterialCommunityIcons name="history" size={20} color={isDark ? '#34d399' : '#065f46'} />
+          <Text style={[styles.allHistoryBannerText, { color: isDark ? '#34d399' : '#065f46' }]}>
             Showing all recorded attendance history
           </Text>
         </View>
@@ -362,7 +413,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
         <View style={styles.paginationCountBadge}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={styles.paginationLiveDot} />
-            <Text style={styles.paginationCountText}>
+            <Text style={[styles.paginationCountText, { color: colors.textSecondary }]}>
               Showing {displayedHistoryData.length} of {historyData.length} records
             </Text>
           </View>
@@ -407,18 +458,29 @@ export const AttendanceHistoryScreen: React.FC = () => {
       return (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#10b981" />
-          <Text style={styles.loadingText}>Loading attendance history...</Text>
+          <Text style={[styles.loadingText, { color: isDark ? '#34d399' : '#064e3b' }]}>
+            Loading attendance history...
+          </Text>
         </View>
       );
     }
 
     return (
-      <View style={styles.emptyContainer}>
-        <View style={styles.emptyIconCircle}>
-          <MaterialCommunityIcons name="clipboard-text-off-outline" size={44} color="#94a3b8" />
+      <View
+        style={[
+          styles.emptyContainer,
+          {
+            backgroundColor: colors.cardBackground,
+            borderColor: colors.cardBorder,
+            borderWidth: isDark ? 1 : 0,
+          },
+        ]}
+      >
+        <View style={[styles.emptyIconCircle, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}>
+          <MaterialCommunityIcons name="clipboard-text-off-outline" size={44} color={colors.textSecondary} />
         </View>
-        <Text style={styles.emptyTitle}>No Attendance Records</Text>
-        <Text style={styles.emptySubtitle}>
+        <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No Attendance Records</Text>
+        <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
           {filterMode === 'month'
             ? `No punch data recorded for ${monthYearLabel}.`
             : 'No punch data recorded in history.'}
@@ -428,11 +490,11 @@ export const AttendanceHistoryScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={colors.statusBar} backgroundColor={colors.statusBarBg} />
 
       {/* Top Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.background }]}>
         <View style={styles.headerLeft}>
           {navigation.canGoBack() && (
             <TouchableOpacity
@@ -440,16 +502,18 @@ export const AttendanceHistoryScreen: React.FC = () => {
               style={styles.backBtn}
               activeOpacity={0.7}
             >
-              <MaterialCommunityIcons name="arrow-left" size={24} color="#064e3b" />
+              <MaterialCommunityIcons name="arrow-left" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
           )}
-          <Text style={styles.headerTitle}>Attendance History</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 18 : 20) }]}>
+            Attendance History
+          </Text>
         </View>
         <TouchableOpacity onPress={handleRefresh} activeOpacity={0.7} style={styles.refreshBtn}>
           {isRefetching || refreshing ? (
-            <ActivityIndicator size="small" color="#064e3b" />
+            <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <MaterialCommunityIcons name="refresh" size={24} color="#064e3b" />
+            <MaterialCommunityIcons name="refresh" size={24} color={colors.textPrimary} />
           )}
         </TouchableOpacity>
       </View>

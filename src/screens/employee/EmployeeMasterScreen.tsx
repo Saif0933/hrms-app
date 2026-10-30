@@ -40,6 +40,7 @@ import { useProfile } from '../../api/hook/useAuth';
 import { Dropdown } from 'react-native-element-dropdown';
 import { useDepartments } from '../../api/hook/useDepartment';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'EmployeeMaster'>;
@@ -62,6 +63,7 @@ export const EmployeeMasterScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ScreenRouteProp>();
   const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   const employeeId = route.params?.employeeId;
   const isEditing = !!employeeId;
@@ -891,7 +893,7 @@ export const EmployeeMasterScreen: React.FC = () => {
           <MaterialCommunityIcons name="arrow-left" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 18) }]}>
             {isEditing ? 'Employee Master Setup' : 'New Employee Registration'}
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

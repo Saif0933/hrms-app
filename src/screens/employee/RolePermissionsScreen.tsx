@@ -24,6 +24,7 @@ import {
   useUpdateRole,
 } from '../../api/hook/useRole';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'RolePermissions'>;
@@ -187,7 +188,8 @@ const fallbackPermissions: PermissionItem[] = [
 
 export const RolePermissionsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   // API Hooks
   const { data: profileResponse } = useProfile();
@@ -452,7 +454,9 @@ export const RolePermissionsScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Role & Permissions</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 18) }]}>
+            Role & Permissions
+          </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             Role Creation & System Permission Matrix
           </Text>
@@ -658,11 +662,11 @@ export const RolePermissionsScreen: React.FC = () => {
 
       {/* CREATE NEW ROLE MODAL */}
       <Modal visible={isCreateRoleModalOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
           <View
             style={[
               styles.modalCard,
-              { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
+              { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 },
             ]}
           >
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>

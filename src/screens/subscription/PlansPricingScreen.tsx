@@ -20,6 +20,7 @@ import {
   useSubscriptionPlans,
 } from '../../api/hook/useSubscription';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlansPricing'>;
@@ -27,6 +28,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlansPricin
 export const PlansPricingScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [isAnnual, setIsAnnual] = useState(true);
 
@@ -140,7 +142,7 @@ export const PlansPricingScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Subscription Plans & Pricing
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

@@ -23,6 +23,7 @@ import {
   useUpdateCycleStatus,
 } from '../../api/hook/usePayroll';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'SalaryProcessing'>;
@@ -473,6 +474,7 @@ const styles = StyleSheet.create({
 export const SalaryProcessingScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   // Selected Month & Year State
   const [month, setMonth] = useState('July');
@@ -774,7 +776,7 @@ export const SalaryProcessingScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]}>
             Salary Processing Cycle
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

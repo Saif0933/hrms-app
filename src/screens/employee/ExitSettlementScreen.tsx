@@ -20,6 +20,7 @@ import {
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useEmployeeExit, useEmployees, useSaveEmployeeExit } from '../../api/hook/useEmployee';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ExitSettlement'>;
@@ -28,7 +29,8 @@ type ScreenRouteProp = RouteProp<RootStackParamList, 'ExitSettlement'>;
 export const ExitSettlementScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ScreenRouteProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   const { data: empRes } = useEmployees();
   const employees = empRes?.data || [];
@@ -144,7 +146,9 @@ export const ExitSettlementScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Exit & Settlement</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 18) }]}>
+            Exit & Settlement
+          </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             Clearance & Full & Final Settlement
           </Text>

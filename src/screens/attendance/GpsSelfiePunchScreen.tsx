@@ -25,6 +25,7 @@ import {
 import { useProfile } from '../../api/hook/useAuth';
 import { useEmployees } from '../../api/hook/useEmployee';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'GpsSelfiePunch'>;
@@ -165,7 +166,8 @@ const validateShiftTimeWindow = (
 
 export const GpsSelfiePunchScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   // Dynamic Auth User Profile & Employee matching
   const { data: profileResponse, refetch: refetchProfile } = useProfile();
@@ -542,61 +544,108 @@ export const GpsSelfiePunchScreen: React.FC = () => {
     );
   };
 
+  const circleSize = Math.min(wp(52), 200);
+  const innerCircleSize = circleSize - 24;
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
-
-
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={colors.statusBar} backgroundColor={colors.statusBarBg} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Greeting & Date Info Card */}
         <View style={styles.greetingContainer}>
-          <Text style={styles.greetingTitle}>Hello, {greetingName}</Text>
-          <Text style={styles.greetingSubtitle}>Mark your daily attendance</Text>
+          <Text style={[styles.greetingTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 20 : 22) }]}>
+            Hello, {greetingName}
+          </Text>
+          <Text style={[styles.greetingSubtitle, { color: colors.textSecondary }]}>Mark your daily attendance</Text>
         </View>
 
         {/* Assigned Shift & Geofence Location Status Card */}
-        <View style={styles.assignedShiftCard}>
+        <View
+          style={[
+            styles.assignedShiftCard,
+            {
+              backgroundColor: colors.cardBackground,
+              borderColor: colors.cardBorder,
+              borderWidth: isDark ? 1 : 1,
+            },
+          ]}
+        >
           <View style={styles.shiftCardHeaderRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.shiftCardLabel}>ASSIGNED SHIFT ({todayDayName.toUpperCase()})</Text>
-              <Text style={[styles.shiftCardTitleText, { color: assignedShiftDetail.color || '#064e3b' }]}>
+              <Text style={[styles.shiftCardLabel, { color: colors.textSecondary }]}>
+                ASSIGNED SHIFT ({todayDayName.toUpperCase()})
+              </Text>
+              <Text
+                style={[
+                  styles.shiftCardTitleText,
+                  { color: assignedShiftDetail.color || (isDark ? '#34d399' : '#064e3b') },
+                ]}
+              >
                 {assignedShiftDetail.name} ({assignedShiftDetail.startTime} - {assignedShiftDetail.endTime})
               </Text>
             </View>
-            <View style={[styles.shiftBadgePill, { backgroundColor: (assignedShiftDetail.color || '#064e3b') + '18', borderColor: assignedShiftDetail.color || '#064e3b' }]}>
-              <Text style={[styles.shiftBadgePillText, { color: assignedShiftDetail.color || '#064e3b' }]}>
+            <View
+              style={[
+                styles.shiftBadgePill,
+                {
+                  backgroundColor: (assignedShiftDetail.color || '#064e3b') + '18',
+                  borderColor: assignedShiftDetail.color || '#064e3b',
+                },
+              ]}
+            >
+              <Text style={[styles.shiftBadgePillText, { color: assignedShiftDetail.color || (isDark ? '#34d399' : '#064e3b') }]}>
                 {assignedShiftDetail.shortLabel || assignedShiftDetail.code}
               </Text>
             </View>
           </View>
 
-          <View style={styles.geofenceDivider} />
+          <View style={[styles.geofenceDivider, { backgroundColor: colors.divider }]} />
 
           <View style={styles.geofenceRow}>
             <MaterialCommunityIcons name="map-marker-radius" size={18} color="#10b981" />
-            <Text style={styles.geofenceText}>
+            <Text style={[styles.geofenceText, { color: colors.textSecondary }]}>
               Geofence Zone: {activeGeofences.length > 0 ? activeGeofences[0].name : 'Main Office Ranchi'} • Authorized Location 📍
             </Text>
           </View>
         </View>
 
         {/* Prominent Today's Date & Day Display Card */}
-        <View style={styles.todayDateCard}>
+        <View
+          style={[
+            styles.todayDateCard,
+            {
+              backgroundColor: colors.cardBackground,
+              borderColor: colors.cardBorder,
+            },
+          ]}
+        >
           <View style={styles.todayDateHeaderRow}>
-            <MaterialCommunityIcons name="calendar-month-outline" size={22} color="#064e3b" />
-            <Text style={styles.todayDateText}>{todayDayName}, {todayDateFormatted}</Text>
+            <MaterialCommunityIcons name="calendar-month-outline" size={22} color={isDark ? '#34d399' : '#064e3b'} />
+            <Text style={[styles.todayDateText, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 14 : 15) }]}>
+              {todayDayName}, {todayDateFormatted}
+            </Text>
           </View>
           <View style={styles.todayPunchStatusRow}>
-            <View style={[styles.punchStatusPill, { backgroundColor: todayPunchIn ? '#d1fae5' : '#f1f5f9' }]}>
-              <MaterialCommunityIcons name="login" size={16} color={todayPunchIn ? '#065f46' : '#64748b'} />
-              <Text style={[styles.punchStatusLabel, { color: todayPunchIn ? '#065f46' : '#64748b' }]}>
+            <View
+              style={[
+                styles.punchStatusPill,
+                { backgroundColor: todayPunchIn ? '#d1fae5' : isDark ? '#1e293b' : '#f1f5f9' },
+              ]}
+            >
+              <MaterialCommunityIcons name="login" size={16} color={todayPunchIn ? '#065f46' : colors.textSecondary} />
+              <Text style={[styles.punchStatusLabel, { color: todayPunchIn ? '#065f46' : colors.textSecondary }]}>
                 IN: {formatDisplayTime(todayPunchIn)}
               </Text>
             </View>
-            <View style={[styles.punchStatusPill, { backgroundColor: todayPunchOut ? '#fee2e2' : '#f1f5f9' }]}>
-              <MaterialCommunityIcons name="logout" size={16} color={todayPunchOut ? '#991b1b' : '#64748b'} />
-              <Text style={[styles.punchStatusLabel, { color: todayPunchOut ? '#991b1b' : '#64748b' }]}>
+            <View
+              style={[
+                styles.punchStatusPill,
+                { backgroundColor: todayPunchOut ? '#fee2e2' : isDark ? '#1e293b' : '#f1f5f9' },
+              ]}
+            >
+              <MaterialCommunityIcons name="logout" size={16} color={todayPunchOut ? '#991b1b' : colors.textSecondary} />
+              <Text style={[styles.punchStatusLabel, { color: todayPunchOut ? '#991b1b' : colors.textSecondary }]}>
                 OUT: {formatDisplayTime(todayPunchOut)}
               </Text>
             </View>
@@ -608,27 +657,55 @@ export const GpsSelfiePunchScreen: React.FC = () => {
           <TouchableOpacity
             style={[
               styles.dashedCircleTarget,
-              { borderColor: punchType === 'In' ? '#10b981' : '#ef4444' },
+              {
+                width: circleSize,
+                height: circleSize,
+                borderRadius: circleSize / 2,
+                borderColor: punchType === 'In' ? '#10b981' : '#ef4444',
+              },
             ]}
             onPress={handlePunchWithBiometrics}
             activeOpacity={0.8}
             disabled={isAuthenticating || createPunchMutation.isPending}
           >
-            <View style={[
-              styles.innerMintCircle,
-              { backgroundColor: punchType === 'In' ? '#e6f7f3' : '#fef2f2' },
-            ]}>
-              <View style={[styles.laserScanLine, { backgroundColor: punchType === 'In' ? '#a7f3d0' : '#fca5a5' }]} />
-              <MaterialCommunityIcons name="fingerprint" size={76} color={punchType === 'In' ? '#10b981' : '#ef4444'} />
+            <View
+              style={[
+                styles.innerMintCircle,
+                {
+                  width: innerCircleSize,
+                  height: innerCircleSize,
+                  borderRadius: innerCircleSize / 2,
+                  backgroundColor:
+                    punchType === 'In'
+                      ? isDark
+                        ? '#064e3b'
+                        : '#e6f7f3'
+                      : isDark
+                      ? '#7f1d1d'
+                      : '#fef2f2',
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.laserScanLine,
+                  { backgroundColor: punchType === 'In' ? '#a7f3d0' : '#fca5a5' },
+                ]}
+              />
+              <MaterialCommunityIcons
+                name="fingerprint"
+                size={moderateScale(isSmallDevice ? 64 : 76)}
+                color={punchType === 'In' ? '#10b981' : '#ef4444'}
+              />
             </View>
           </TouchableOpacity>
 
           {/* Status Label Below Circle */}
-          <Text style={styles.sensorTitle}>Touch Sensor</Text>
-          <Text style={styles.sensorSubtitle}>Use Fingerprint or Enter PIN</Text>
+          <Text style={[styles.sensorTitle, { color: colors.textPrimary }]}>Touch Sensor</Text>
+          <Text style={[styles.sensorSubtitle, { color: colors.textSecondary }]}>Use Fingerprint or Enter PIN</Text>
 
           {/* IN / OUT Pill Selector */}
-          <View style={styles.pillContainer}>
+          <View style={[styles.pillContainer, { backgroundColor: isDark ? '#1e293b' : '#eef2ff' }]}>
             <TouchableOpacity
               style={[
                 styles.pillTab,
@@ -640,7 +717,7 @@ export const GpsSelfiePunchScreen: React.FC = () => {
               <Text
                 style={[
                   styles.pillText,
-                  punchType === 'In' ? styles.activePillText : styles.inactivePillText,
+                  punchType === 'In' ? styles.activePillText : [styles.inactivePillText, { color: colors.textSecondary }],
                 ]}
               >
                 IN
@@ -658,7 +735,7 @@ export const GpsSelfiePunchScreen: React.FC = () => {
               <Text
                 style={[
                   styles.pillText,
-                  punchType === 'Out' ? styles.activePillText : styles.inactivePillText,
+                  punchType === 'Out' ? styles.activePillText : [styles.inactivePillText, { color: colors.textSecondary }],
                 ]}
               >
                 OUT
@@ -692,12 +769,20 @@ export const GpsSelfiePunchScreen: React.FC = () => {
 
         {/* View Attendance History Button */}
         <TouchableOpacity
-          style={styles.historyBtn}
+          style={[
+            styles.historyBtn,
+            {
+              backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#e6f7f3',
+              borderColor: isDark ? '#065f46' : '#a7f3d0',
+            },
+          ]}
           onPress={() => navigation.navigate('AttendanceHistory')}
           activeOpacity={0.8}
         >
-          <MaterialCommunityIcons name="history" size={22} color="#064e3b" />
-          <Text style={styles.historyBtnText}>View Attendance History</Text>
+          <MaterialCommunityIcons name="history" size={22} color={isDark ? '#34d399' : '#064e3b'} />
+          <Text style={[styles.historyBtnText, { color: isDark ? '#34d399' : '#064e3b' }]}>
+            View Attendance History
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

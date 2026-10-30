@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Candidate, useCandidates, useUpdateCandidateChecklist } from '../../api/hook/useRecruitment';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'PreOnboardingChecklist'>;
@@ -22,6 +23,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'PreOnboardi
 export const PreOnboardingChecklistScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   // TanStack Queries & Mutations
   const { data: candidatesRes, isLoading } = useCandidates();
@@ -109,7 +111,7 @@ export const PreOnboardingChecklistScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Pre-Onboarding Checklist
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

@@ -3,7 +3,6 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect } from 'react';
 import {
-  Dimensions,
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -13,14 +12,16 @@ import {
 } from 'react-native';
 // @ts-ignore
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../navigation/stack';
+import { useResponsive } from '../../utils/responsive';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const { width, height } = Dimensions.get('window');
-
 export const SplashScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const { colors, isDark } = useTheme();
+  const { width, height, wp, hp, moderateScale, isSmallDevice } = useResponsive();
 
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -52,13 +53,48 @@ export const SplashScreen: React.FC = () => {
     }
   };
 
+  // Dynamic responsive orbit dimension
+  const orbitSize = Math.min(wp(68), 260);
+  const badgeSize = isSmallDevice ? 36 : 42;
+  const badgeRadius = badgeSize / 2;
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f6fafe" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar
+        barStyle={colors.statusBar}
+        backgroundColor={colors.statusBarBg}
+        translucent={false}
+      />
 
       {/* Decorative Ambient Background Shapes */}
-      <View style={styles.topCircleShape} />
-      <View style={styles.rightCircleShape} />
+      <View
+        style={[
+          styles.topCircleShape,
+          {
+            top: -height * 0.1,
+            left: -width * 0.2,
+            width: width * 0.7,
+            height: width * 0.7,
+            borderRadius: (width * 0.7) / 2,
+            backgroundColor: isDark ? '#1e3a8a' : '#dbeafe',
+            opacity: isDark ? 0.35 : 0.6,
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.rightCircleShape,
+          {
+            top: height * 0.15,
+            right: -width * 0.3,
+            width: width * 0.6,
+            height: width * 0.6,
+            borderRadius: (width * 0.6) / 2,
+            backgroundColor: isDark ? '#1e293b' : '#e0f2fe',
+            opacity: isDark ? 0.4 : 0.5,
+          },
+        ]}
+      />
 
       {/* Main Content Body */}
       <TouchableOpacity
@@ -66,67 +102,187 @@ export const SplashScreen: React.FC = () => {
         activeOpacity={0.98}
         onPress={handleSkip}
       >
-        <View style={styles.centerSection}>
+        <View style={[styles.centerSection, { marginTop: isSmallDevice ? hp(6) : hp(10) }]}>
           {/* Circular Dotted Orbit Line */}
-          <View style={styles.orbitCircle}>
+          <View
+            style={[
+              styles.orbitCircle,
+              {
+                width: orbitSize,
+                height: orbitSize,
+                borderRadius: orbitSize / 2,
+                borderColor: isDark ? '#3b82f6' : '#93c5fd',
+              },
+            ]}
+          >
             {/* Top Orbit Badge */}
-            <View style={[styles.badgePill, styles.topBadge]}>
-              <MaterialCommunityIcons name="account-group-outline" size={18} color="#2563eb" />
+            <View
+              style={[
+                styles.badgePill,
+                styles.topBadge,
+                {
+                  width: badgeSize,
+                  height: badgeSize,
+                  borderRadius: badgeRadius,
+                  top: -badgeRadius,
+                  backgroundColor: colors.cardBackground,
+                  borderColor: colors.cardBorder,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons name="account-group-outline" size={isSmallDevice ? 15 : 18} color="#2563eb" />
             </View>
 
             {/* Right Orbit Badge */}
-            <View style={[styles.badgePill, styles.rightBadge]}>
-              <MaterialCommunityIcons name="briefcase-outline" size={18} color="#2563eb" />
+            <View
+              style={[
+                styles.badgePill,
+                styles.rightBadge,
+                {
+                  width: badgeSize,
+                  height: badgeSize,
+                  borderRadius: badgeRadius,
+                  right: -badgeRadius / 2,
+                  backgroundColor: colors.cardBackground,
+                  borderColor: colors.cardBorder,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons name="briefcase-outline" size={isSmallDevice ? 15 : 18} color="#2563eb" />
             </View>
 
             {/* Bottom Right Orbit Badge */}
-            <View style={[styles.badgePill, styles.bottomRightBadge]}>
-              <MaterialCommunityIcons name="chart-line" size={18} color="#2563eb" />
+            <View
+              style={[
+                styles.badgePill,
+                styles.bottomRightBadge,
+                {
+                  width: badgeSize,
+                  height: badgeSize,
+                  borderRadius: badgeRadius,
+                  backgroundColor: colors.cardBackground,
+                  borderColor: colors.cardBorder,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons name="chart-line" size={isSmallDevice ? 15 : 18} color="#2563eb" />
             </View>
 
             {/* Bottom Left Orbit Badge */}
-            <View style={[styles.badgePill, styles.bottomLeftBadge]}>
-              <MaterialCommunityIcons name="calendar-plus" size={18} color="#2563eb" />
+            <View
+              style={[
+                styles.badgePill,
+                styles.bottomLeftBadge,
+                {
+                  width: badgeSize,
+                  height: badgeSize,
+                  borderRadius: badgeRadius,
+                  backgroundColor: colors.cardBackground,
+                  borderColor: colors.cardBorder,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons name="calendar-plus" size={isSmallDevice ? 15 : 18} color="#2563eb" />
             </View>
 
             {/* Left Orbit Badge */}
-            <View style={[styles.badgePill, styles.leftBadge]}>
-              <MaterialCommunityIcons name="account-outline" size={18} color="#2563eb" />
+            <View
+              style={[
+                styles.badgePill,
+                styles.leftBadge,
+                {
+                  width: badgeSize,
+                  height: badgeSize,
+                  borderRadius: badgeRadius,
+                  left: -badgeRadius / 2,
+                  backgroundColor: colors.cardBackground,
+                  borderColor: colors.cardBorder,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons name="account-outline" size={isSmallDevice ? 15 : 18} color="#2563eb" />
             </View>
           </View>
 
           {/* Central Logo & Brand Header */}
           <View style={styles.brandCenterBlock}>
-            <MaterialCommunityIcons name="account-group" size={58} color="#1d4ed8" />
-            <Text style={styles.brandTitle}>HRMS</Text>
+            <MaterialCommunityIcons
+              name="account-group"
+              size={isSmallDevice ? 46 : 56}
+              color={isDark ? '#60a5fa' : '#1d4ed8'}
+            />
+            <Text style={[styles.brandTitle, { color: isDark ? '#60a5fa' : '#1d4ed8', fontSize: moderateScale(isSmallDevice ? 34 : 40) }]}>
+              HRMS
+            </Text>
             <View style={styles.brandPillLine} />
-            <Text style={styles.brandSubtitle}>Human Resource</Text>
-            <Text style={styles.brandSubtitle}>Management System</Text>
+            <Text style={[styles.brandSubtitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 13 : 15) }]}>
+              Human Resource
+            </Text>
+            <Text style={[styles.brandSubtitle, { color: colors.textSecondary, fontSize: moderateScale(isSmallDevice ? 13 : 15) }]}>
+              Management System
+            </Text>
           </View>
         </View>
 
         {/* Faint City Skyline & Illustration Layer */}
-        <View style={styles.skylineLayer}>
+        <View style={[styles.skylineLayer, { bottom: hp(24) }]}>
           <View style={styles.cloudRow}>
-            <MaterialCommunityIcons name="cloud-outline" size={26} color="#dbeafe" />
-            <MaterialCommunityIcons name="cloud-outline" size={18} color="#eff6ff" style={{ marginLeft: 60 }} />
-            <MaterialCommunityIcons name="cloud-outline" size={22} color="#dbeafe" style={{ marginLeft: 80 }} />
+            <MaterialCommunityIcons name="cloud-outline" size={24} color={isDark ? '#1e3a8a' : '#dbeafe'} />
+            <MaterialCommunityIcons name="cloud-outline" size={16} color={isDark ? '#1e293b' : '#eff6ff'} style={{ marginLeft: wp(16) }} />
+            <MaterialCommunityIcons name="cloud-outline" size={20} color={isDark ? '#1e3a8a' : '#dbeafe'} style={{ marginLeft: wp(20) }} />
           </View>
 
           <View style={styles.cityBuildingsRow}>
-            <MaterialCommunityIcons name="office-building" size={90} color="#bfdbfe" style={{ opacity: 0.5 }} />
-            <MaterialCommunityIcons name="city-variant-outline" size={130} color="#93c5fd" style={{ opacity: 0.6, marginLeft: -20 }} />
-            <MaterialCommunityIcons name="office-building-marker-outline" size={100} color="#bfdbfe" style={{ opacity: 0.5, marginLeft: -30 }} />
+            <MaterialCommunityIcons
+              name="office-building"
+              size={isSmallDevice ? 70 : 85}
+              color={isDark ? '#1e3a8a' : '#bfdbfe'}
+              style={{ opacity: isDark ? 0.35 : 0.5 }}
+            />
+            <MaterialCommunityIcons
+              name="city-variant-outline"
+              size={isSmallDevice ? 100 : 120}
+              color={isDark ? '#2563eb' : '#93c5fd'}
+              style={{ opacity: isDark ? 0.45 : 0.6, marginLeft: -16 }}
+            />
+            <MaterialCommunityIcons
+              name="office-building-marker-outline"
+              size={isSmallDevice ? 80 : 95}
+              color={isDark ? '#1e3a8a' : '#bfdbfe'}
+              style={{ opacity: isDark ? 0.35 : 0.5, marginLeft: -24 }}
+            />
           </View>
         </View>
 
         {/* Bottom Vibrant Blue Wave & Tagline Area */}
-        <View style={styles.bottomWaveSection}>
-          <View style={styles.waveCurveFill} />
-          
+        <View
+          style={[
+            styles.bottomWaveSection,
+            {
+              height: isSmallDevice ? hp(28) : hp(26),
+              borderTopLeftRadius: wp(40),
+              borderTopRightRadius: wp(15),
+              backgroundColor: isDark ? '#1d4ed8' : '#2563eb',
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.waveCurveFill,
+              {
+                borderTopLeftRadius: wp(45),
+                backgroundColor: isDark ? '#1d4ed8' : '#2563eb',
+              },
+            ]}
+          />
+
           <View style={styles.taglineBlock}>
-            <Text style={styles.taglineText}>Streamline HR Processes,</Text>
-            <Text style={styles.taglineText}>Empower People, Grow Together.</Text>
+            <Text style={[styles.taglineText, { fontSize: moderateScale(isSmallDevice ? 13 : 15) }]}>
+              Streamline HR Processes,
+            </Text>
+            <Text style={[styles.taglineText, { fontSize: moderateScale(isSmallDevice ? 13 : 15) }]}>
+              Empower People, Grow Together.
+            </Text>
 
             {/* Carousel Page Indicator Dots */}
             <View style={styles.indicatorContainer}>
@@ -144,7 +300,6 @@ export const SplashScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f6fafe',
   },
   touchableContainer: {
     flex: 1,
@@ -153,36 +308,17 @@ const styles = StyleSheet.create({
   // Ambient Soft Blur Circles
   topCircleShape: {
     position: 'absolute',
-    top: -height * 0.1,
-    left: -width * 0.2,
-    width: width * 0.7,
-    height: width * 0.7,
-    borderRadius: (width * 0.7) / 2,
-    backgroundColor: '#dbeafe',
-    opacity: 0.6,
   },
   rightCircleShape: {
     position: 'absolute',
-    top: height * 0.15,
-    right: -width * 0.3,
-    width: width * 0.6,
-    height: width * 0.6,
-    borderRadius: (width * 0.6) / 2,
-    backgroundColor: '#e0f2fe',
-    opacity: 0.5,
   },
   // Center Section & Orbit Ring
   centerSection: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: height * 0.12,
   },
   orbitCircle: {
-    width: 270,
-    height: 270,
-    borderRadius: 135,
     borderWidth: 1.5,
-    borderColor: '#93c5fd',
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
@@ -191,10 +327,6 @@ const styles = StyleSheet.create({
   // Circular Icon Badges
   badgePill: {
     position: 'absolute',
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 3,
@@ -203,26 +335,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 5,
     borderWidth: 1,
-    borderColor: '#eff6ff',
   },
   topBadge: {
-    top: -21,
     alignSelf: 'center',
   },
   rightBadge: {
-    right: -12,
     top: '38%',
   },
   bottomRightBadge: {
-    right: 25,
-    bottom: -5,
+    right: 20,
+    bottom: -6,
   },
   bottomLeftBadge: {
-    left: 25,
-    bottom: -5,
+    left: 20,
+    bottom: -6,
   },
   leftBadge: {
-    left: -12,
     top: '38%',
   },
   // Brand Content in Orbit Center
@@ -232,30 +360,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   brandTitle: {
-    fontSize: 42,
     fontWeight: '900',
-    color: '#1d4ed8',
     letterSpacing: 1.5,
     marginTop: 2,
   },
   brandPillLine: {
-    width: 34,
+    width: 32,
     height: 3.5,
     backgroundColor: '#3b82f6',
     borderRadius: 2,
-    marginVertical: 10,
+    marginVertical: 8,
   },
   brandSubtitle: {
-    fontSize: 16,
     fontWeight: '600',
-    color: '#334155',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
   },
   // Skyline & Illustration Layer
   skylineLayer: {
     position: 'absolute',
-    bottom: height * 0.22,
     width: '100%',
     alignItems: 'center',
   },
@@ -264,7 +387,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     paddingHorizontal: 20,
-    marginBottom: -20,
+    marginBottom: -16,
   },
   cityBuildingsRow: {
     flexDirection: 'row',
@@ -274,14 +397,10 @@ const styles = StyleSheet.create({
   },
   // Bottom Wave & Tagline Section
   bottomWaveSection: {
-    height: height * 0.28,
     width: '100%',
-    backgroundColor: '#2563eb',
-    borderTopLeftRadius: width * 0.45,
-    borderTopRightRadius: width * 0.15,
     justifyContent: 'flex-end',
-    paddingBottom: 36,
-    paddingHorizontal: 24,
+    paddingBottom: 28,
+    paddingHorizontal: 20,
     elevation: 8,
     shadowColor: '#1d4ed8',
     shadowOffset: { width: 0, height: -4 },
@@ -290,38 +409,35 @@ const styles = StyleSheet.create({
   },
   waveCurveFill: {
     position: 'absolute',
-    top: -40,
+    top: -36,
     left: 0,
     right: 0,
-    height: 60,
-    backgroundColor: '#2563eb',
-    borderTopLeftRadius: width * 0.5,
+    height: 50,
   },
   taglineBlock: {
     alignItems: 'center',
   },
   taglineText: {
     color: '#ffffff',
-    fontSize: 15,
     fontWeight: '700',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
   },
   indicatorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 22,
+    marginTop: 16,
   },
   indicatorDot: {
-    width: 12,
-    height: 6,
-    borderRadius: 3,
+    width: 10,
+    height: 5,
+    borderRadius: 2.5,
     backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    marginHorizontal: 4,
+    marginHorizontal: 3,
   },
   indicatorActive: {
-    width: 26,
+    width: 22,
     backgroundColor: '#ffffff',
   },
 });

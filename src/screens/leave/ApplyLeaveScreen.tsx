@@ -23,6 +23,7 @@ import {
   useSubmitLeaveRequest,
 } from '../../api/hook/useLeave';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ApplyLeave'>;
@@ -30,6 +31,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ApplyLeave'
 export const ApplyLeaveScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   const { data: profileRes } = useProfile();
   const loggedInUser = profileRes?.data?.user;

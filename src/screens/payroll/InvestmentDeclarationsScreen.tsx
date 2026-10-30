@@ -16,13 +16,15 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEmployees } from '../../api/hook/useEmployee';
 import { useSaveTaxDeclaration, useTaxDeclaration } from '../../api/hook/usePayroll';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'InvestmentDeclarations'>;
 
 export const InvestmentDeclarationsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   const [financialYear, setFinancialYear] = useState('2026-2027');
   const [selectedEmpId, setSelectedEmpId] = useState('');
@@ -103,7 +105,7 @@ export const InvestmentDeclarationsScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 18) }]}>
             Investment Declarations
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

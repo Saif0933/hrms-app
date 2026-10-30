@@ -17,6 +17,7 @@ import { Asset, launchImageLibrary } from 'react-native-image-picker';
 import { useUploadDocument } from '../../api/hook/useDocuments';
 import { useEmployees } from '../../api/hook/useEmployee';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'UploadDocument'>;
@@ -26,6 +27,7 @@ type CategoryType = 'Identity' | 'Contract' | 'Academic' | 'Tax';
 export const UploadDocumentScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const [selectedEmpId, setSelectedEmpId] = useState('EMP001');
   const [docName, setDocName] = useState('');
@@ -130,7 +132,7 @@ export const UploadDocumentScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 17) }]} numberOfLines={1}>
             Upload Vault Document
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

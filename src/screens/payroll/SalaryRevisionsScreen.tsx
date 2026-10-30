@@ -17,6 +17,7 @@ import { useDepartments } from '../../api/hook/useDepartment';
 import { useEmployees, useUpdateEmployeeSalary } from '../../api/hook/useEmployee';
 import { useApplyBulkRevision } from '../../api/hook/usePayroll';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'SalaryRevisions'>;
@@ -26,7 +27,8 @@ type RevisionType = 'INCREMENT' | 'DECREMENT';
 
 export const SalaryRevisionsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, wp, moderateScale, isSmallDevice } = useResponsive();
 
   // Screen View Mode Switcher
   const [viewMode, setViewMode] = useState<ViewMode>('MANUAL');
@@ -286,7 +288,7 @@ export const SalaryRevisionsScreen: React.FC = () => {
           <Text style={[styles.backIcon, { color: colors.textPrimary }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 15 : 18) }]}>
             Salary Structure & Revisions
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>

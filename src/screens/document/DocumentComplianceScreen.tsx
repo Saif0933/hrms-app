@@ -11,6 +11,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
+import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'DocumentCompliance'>;
@@ -57,6 +58,7 @@ const mockMetrics: ComplianceMetric[] = [
 export const DocumentComplianceScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { colors } = useTheme();
+  const { moderateScale, isSmallDevice } = useResponsive();
 
   const getStatusColor = (status: ComplianceMetric['status']) => {
     switch (status) {
@@ -77,7 +79,7 @@ export const DocumentComplianceScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Top Banner Card */}
         <View style={[styles.headerCard, { backgroundColor: colors.cardBackground }]}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Document Compliance Overview</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 17 : 20) }]}>Document Compliance Overview</Text>
           <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
             Real-time audit tracking for organization document verification and validity.
           </Text>
