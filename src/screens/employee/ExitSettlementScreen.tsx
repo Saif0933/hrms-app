@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -22,6 +21,7 @@ import { useEmployeeExit, useEmployees, useSaveEmployeeExit } from '../../api/ho
 import { useTheme } from '../../context/ThemeContext';
 import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ExitSettlement'>;
 type ScreenRouteProp = RouteProp<RootStackParamList, 'ExitSettlement'>;

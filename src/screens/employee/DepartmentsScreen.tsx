@@ -4,7 +4,6 @@ import {
   Alert,
   FlatList,
   Modal,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
@@ -20,6 +19,7 @@ import { useProfile } from '../../api/hook/useAuth';
 import { useTheme } from '../../context/ThemeContext';
 import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Departments'>;
 
