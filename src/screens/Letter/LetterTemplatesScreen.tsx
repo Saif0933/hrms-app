@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Alert,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -16,6 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
 import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'LetterTemplates'>;
 

@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -18,6 +17,7 @@ import { IssuedLetter, useIssuedLetters } from '../../api/hook/useLetters';
 import { useTheme } from '../../context/ThemeContext';
 import { useResponsive } from '../../utils/responsive';
 import { RootStackParamList } from '../../navigation/stack.tsx';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'IssuedLettersArchive'>;
 
