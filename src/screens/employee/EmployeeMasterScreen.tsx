@@ -919,10 +919,17 @@ export const EmployeeMasterScreen: React.FC = () => {
           {tabs.map((tab, idx) => {
             const isCompleted = completedSteps.includes(idx);
             const isActive = activeTab === tab;
+            const accessible = canAccessTab(idx);
 
             return (
               <React.Fragment key={tab}>
-                <View style={styles.stepItem}>
+                <TouchableOpacity
+                  style={[styles.stepItem, { opacity: accessible ? 1 : 0.45 }]}
+                  onPress={() => handleTabClick(tab, idx)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Step ${idx + 1}: ${tabLabels[tab]}`}
+                >
                   <View
                     style={[
                       styles.stepBadge,
@@ -952,13 +959,22 @@ export const EmployeeMasterScreen: React.FC = () => {
                   <Text
                     style={[
                       styles.stepLabelText,
-                      { color: isActive ? colors.accent : colors.textSecondary },
+                      {
+                        color: isActive
+                          ? colors.accent
+                          : isCompleted
+                          ? '#10b981'
+                          : colors.textSecondary,
+                        fontWeight: isActive ? '800' : '600',
+                      },
                     ]}
                     numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
                   >
                     {tabLabels[tab]}
                   </Text>
-                </View>
+                </TouchableOpacity>
 
                 {idx < tabs.length - 1 && (
                   <View
@@ -980,30 +996,33 @@ export const EmployeeMasterScreen: React.FC = () => {
           <Text style={{ color: colors.textSecondary, marginTop: 10 }}>Loading profile data...</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { padding: isSmallDevice ? 12 : 16 }]}
+          showsVerticalScrollIndicator={false}
+        >
           {/* STEP 1: OVERVIEW & ACCOUNT SETUP */}
           {activeTab === 'OVERVIEW' && (
-            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, padding: isSmallDevice ? 14 : 18 }]}>
               <View style={styles.stepTitleRow}>
                 <MaterialCommunityIcons name="account-details-outline" size={22} color={colors.accent} />
-                <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
+                <Text style={[styles.sectionHeading, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 13.5 : 15) }]}>
                   1. Basic Info & Account Credentials
                 </Text>
               </View>
 
               {/* Photo Upload Zone */}
-              <View style={[styles.photoCard, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder }]}>
-                <View style={styles.avatarPreviewBox}>
+              <View style={[styles.photoCard, { backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: colors.cardBorder, padding: isSmallDevice ? 10 : 12, gap: isSmallDevice ? 10 : 12 }]}>
+                <View style={[styles.avatarPreviewBox, { width: isSmallDevice ? 46 : 52, height: isSmallDevice ? 46 : 52, borderRadius: isSmallDevice ? 23 : 26 }]}>
                   {isUploadingPhoto ? (
                     <ActivityIndicator size="small" color={colors.accent} />
                   ) : photoUrl ? (
                     <Image
                       source={{ uri: photoUrl }}
-                      style={{ width: 52, height: 52, borderRadius: 26 }}
+                      style={{ width: isSmallDevice ? 46 : 52, height: isSmallDevice ? 46 : 52, borderRadius: isSmallDevice ? 23 : 26 }}
                       resizeMode="cover"
                     />
                   ) : (
-                    <Text style={{ fontSize: 32 }}>👤</Text>
+                    <Text style={{ fontSize: isSmallDevice ? 26 : 32 }}>👤</Text>
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
@@ -1017,7 +1036,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                     activeOpacity={0.8}
                     disabled={isUploadingPhoto}
                   >
-                    <Text style={styles.uploadPhotoBtnText}>
+                    <Text style={[styles.uploadPhotoBtnText, { fontSize: moderateScale(isSmallDevice ? 10 : 11) }]}>
                       {isUploadingPhoto ? '⏳ Uploading Photo...' : '📷 Select / Upload Photo'}
                     </Text>
                   </TouchableOpacity>
@@ -1202,10 +1221,10 @@ export const EmployeeMasterScreen: React.FC = () => {
 
           {/* STEP 2: SALARY & BANK DETAILS */}
           {activeTab === 'SALARY' && (
-            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, padding: isSmallDevice ? 14 : 18 }]}>
               <View style={styles.stepTitleRow}>
                 <MaterialCommunityIcons name="cash-multiple" size={22} color={colors.accent} />
-                <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
+                <Text style={[styles.sectionHeading, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 13.5 : 15) }]}>
                   2. Salary CTC & Bank Accounts
                 </Text>
               </View>
@@ -1257,6 +1276,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                   {
                     backgroundColor: isDark ? '#064e3b33' : '#ecfdf5',
                     borderColor: isDark ? '#059669' : '#a7f3d0',
+                    padding: isSmallDevice ? 10 : 12,
                   },
                 ]}
               >
@@ -1264,7 +1284,12 @@ export const EmployeeMasterScreen: React.FC = () => {
                   <Text style={[styles.netSalaryLabel, { color: isDark ? '#6ee7b7' : '#047857' }]}>
                     ESTIMATED NET MONTHLY SALARY
                   </Text>
-                  <Text style={[styles.netSalaryValue, { color: isDark ? '#ecfdf5' : '#065f46' }]}>
+                  <Text
+                    style={[styles.netSalaryValue, { color: isDark ? '#ecfdf5' : '#065f46', fontSize: moderateScale(isSmallDevice ? 15 : 18) }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
                     ₹{netSalary ? parseFloat(netSalary).toLocaleString('en-IN') : '0'} / month
                   </Text>
                 </View>
@@ -1322,10 +1347,10 @@ export const EmployeeMasterScreen: React.FC = () => {
 
           {/* STEP 3: LEAVE ALLOCATIONS */}
           {activeTab === 'LEAVE' && (
-            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, padding: isSmallDevice ? 14 : 18 }]}>
               <View style={styles.stepTitleRow}>
                 <MaterialCommunityIcons name="palm-tree" size={22} color={colors.accent} />
-                <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
+                <Text style={[styles.sectionHeading, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 13.5 : 15) }]}>
                   3. Annual Leave Allocation Quotas
                 </Text>
               </View>
@@ -1404,10 +1429,11 @@ export const EmployeeMasterScreen: React.FC = () => {
                   {
                     backgroundColor: isDark ? '#064e3b33' : '#ecfdf5',
                     borderColor: isDark ? '#059669' : '#a7f3d0',
+                    padding: isSmallDevice ? 10 : 12,
                   },
                 ]}
               >
-                <Text style={[styles.leaveTotalText, { color: isDark ? '#6ee7b7' : '#047857' }]}>
+                <Text style={[styles.leaveTotalText, { color: isDark ? '#6ee7b7' : '#047857', fontSize: moderateScale(isSmallDevice ? 11.5 : 13) }]}>
                   ✓ Total Annual Allocation:{' '}
                   <Text style={{ fontWeight: '800' }}>
                     {(parseInt(casualLeave) || 0) +
@@ -1426,10 +1452,10 @@ export const EmployeeMasterScreen: React.FC = () => {
 
           {/* STEP 4: PERSONAL DETAILS */}
           {activeTab === 'PERSONAL' && (
-            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, padding: isSmallDevice ? 14 : 18 }]}>
               <View style={styles.stepTitleRow}>
                 <MaterialCommunityIcons name="account-outline" size={22} color={colors.accent} />
-                <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
+                <Text style={[styles.sectionHeading, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 13.5 : 15) }]}>
                   4. Personal & Background Information
                 </Text>
               </View>
@@ -1549,20 +1575,23 @@ export const EmployeeMasterScreen: React.FC = () => {
 
           {/* STEP 5: FAMILY & DEPENDENTS */}
           {activeTab === 'FAMILY' && (
-            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, padding: isSmallDevice ? 14 : 18 }]}>
               <View style={styles.familyHeaderRow}>
-                <View style={styles.stepTitleRow}>
+                <View style={[styles.stepTitleRow, { flex: 1, marginRight: 8, marginBottom: 0 }]}>
                   <MaterialCommunityIcons name="account-heart-outline" size={22} color={colors.accent} />
-                  <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>
-                    5. Family Members & Emergency Contacts
+                  <Text
+                    style={[styles.sectionHeading, { color: colors.textPrimary, flex: 1, fontSize: moderateScale(isSmallDevice ? 13 : 15) }]}
+                    numberOfLines={2}
+                  >
+                    5. Family & Emergency Contacts
                   </Text>
                 </View>
                 <TouchableOpacity
-                  style={[styles.addFamBtn, { backgroundColor: colors.accent }]}
+                  style={[styles.addFamBtn, { backgroundColor: colors.accent, paddingHorizontal: isSmallDevice ? 10 : 12 }]}
                   onPress={() => setFamilyModalOpen(true)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.addFamBtnText}>+ Add Member</Text>
+                  <Text style={[styles.addFamBtnText, { fontSize: moderateScale(isSmallDevice ? 11 : 12) }]}>+ Add Member</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1578,7 +1607,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                         {fam.relation} • {fam.contact || 'No Contact'}
                         {fam.dob ? ` • DOB: ${fam.dob.split('T')[0]}` : ''}
                       </Text>
-                      <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                         {fam.isNominee && (
                           <View style={styles.nomineeBadge}>
                             <Text style={styles.nomineeBadgeText}>✓ PRIMARY NOMINEE</Text>
@@ -1592,6 +1621,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                       </View>
                     </View>
                     <TouchableOpacity
+                      style={{ paddingVertical: 4, paddingHorizontal: 6 }}
                       onPress={() => {
                         if (isEditing && employeeId) {
                           deleteFamilyMutation.mutate({ employeeId, familyId: fam.id });
@@ -1617,6 +1647,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                   {
                     backgroundColor: isDark ? '#1e3a8a33' : '#eff6ff',
                     borderColor: isDark ? '#1d4ed8' : '#bfdbfe',
+                    padding: isSmallDevice ? 10 : 12,
                   },
                 ]}
               >
@@ -1636,7 +1667,7 @@ export const EmployeeMasterScreen: React.FC = () => {
                 onPress={handlePreviousStep}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.prevButtonText, { color: colors.textPrimary }]}>
+                <Text style={[styles.prevButtonText, { color: colors.textPrimary, fontSize: moderateScale(isSmallDevice ? 11.5 : 13) }]}>
                   ← Previous
                 </Text>
               </TouchableOpacity>
@@ -1658,7 +1689,12 @@ export const EmployeeMasterScreen: React.FC = () => {
               {isSubmitting ? (
                 <ActivityIndicator size="small" color="#ffffff" />
               ) : (
-                <Text style={styles.nextButtonText}>
+                <Text
+                  style={[styles.nextButtonText, { fontSize: moderateScale(isSmallDevice ? 12 : 14) }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
+                >
                   {currentTabIndex === tabs.length - 1
                     ? (isEditing ? '💾 Update All Details' : 'Confirm & Onboard Employee 🎉')
                     : `Next Step: ${tabLabels[tabs[currentTabIndex + 1]]} →`}
@@ -1667,7 +1703,7 @@ export const EmployeeMasterScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
           {!isCurrentStepValid() && (
-            <Text style={styles.validationNoticeText}>
+            <Text style={[styles.validationNoticeText, { fontSize: moderateScale(isSmallDevice ? 10 : 11) }]}>
               ⚠️ Please fill in all required (*) fields in Step {currentTabIndex + 1} to enable Next Step.
             </Text>
           )}
@@ -1683,103 +1719,105 @@ export const EmployeeMasterScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Add Family Member / Nominee</Text>
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Add Family Member / Nominee</Text>
 
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>MEMBER FULL NAME *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
-              value={famName}
-              onChangeText={setFamName}
-              placeholder="e.g. Sunita Sharma"
-              placeholderTextColor={colors.inputPlaceholder}
-            />
-
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>RELATIONSHIP *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
-              value={famRelation}
-              onChangeText={setFamRelation}
-              placeholder="Spouse / Father / Mother / Child / Brother"
-              placeholderTextColor={colors.inputPlaceholder}
-            />
-
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DATE OF BIRTH</Text>
-            <TouchableOpacity
-              style={[styles.dateInputRow, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, marginBottom: 12 }]}
-              onPress={() => setShowFamDobPicker(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={{ color: famDob ? colors.inputText : colors.inputPlaceholder, fontSize: 14, flex: 1 }}>
-                {famDob || 'YYYY-MM-DD'}
-              </Text>
-              <MaterialCommunityIcons name="calendar-account" size={20} color={colors.accent} />
-            </TouchableOpacity>
-
-            {showFamDobPicker && (
-              <DateTimePicker
-                value={famDob ? new Date(famDob) : new Date(2000, 0, 1)}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                onChange={handleFamDobChange}
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>MEMBER FULL NAME *</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
+                value={famName}
+                onChangeText={setFamName}
+                placeholder="e.g. Sunita Sharma"
+                placeholderTextColor={colors.inputPlaceholder}
               />
-            )}
 
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>EMERGENCY CONTACT NUMBER</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
-              value={famContact}
-              onChangeText={setFamContact}
-              keyboardType="phone-pad"
-              placeholder="+91 98765 43210"
-              placeholderTextColor={colors.inputPlaceholder}
-            />
-
-            {/* Nominee Switch */}
-            <View style={styles.switchRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Primary Nominee</Text>
-                <Text style={[styles.switchSubLabel, { color: colors.textSecondary }]}>
-                  Designate as primary beneficiary nominee
-                </Text>
-              </View>
-              <Switch
-                value={isNominee}
-                onValueChange={setIsNominee}
-                trackColor={{ false: '#cbd5e1', true: colors.accent }}
-                thumbColor="#ffffff"
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>RELATIONSHIP *</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
+                value={famRelation}
+                onChangeText={setFamRelation}
+                placeholder="Spouse / Father / Mother / Child / Brother"
+                placeholderTextColor={colors.inputPlaceholder}
               />
-            </View>
 
-            {/* Health Insurance Switch */}
-            <View style={styles.switchRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Health Insurance Coverage</Text>
-                <Text style={[styles.switchSubLabel, { color: colors.textSecondary }]}>
-                  Auto-enrolled under Company Health Insurance
-                </Text>
-              </View>
-              <Switch
-                value={isInsuranceCovered}
-                onValueChange={setIsInsuranceCovered}
-                trackColor={{ false: '#cbd5e1', true: colors.accent }}
-                thumbColor="#ffffff"
-              />
-            </View>
-
-            <View style={styles.modalFooterRow}>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>DATE OF BIRTH</Text>
               <TouchableOpacity
-                style={[styles.cancelBtn, { borderColor: colors.cardBorder }]}
-                onPress={() => setFamilyModalOpen(false)}
+                style={[styles.dateInputRow, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, marginBottom: 12 }]}
+                onPress={() => setShowFamDobPicker(true)}
+                activeOpacity={0.7}
               >
-                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
+                <Text style={{ color: famDob ? colors.inputText : colors.inputPlaceholder, fontSize: 14, flex: 1 }}>
+                  {famDob || 'YYYY-MM-DD'}
+                </Text>
+                <MaterialCommunityIcons name="calendar-account" size={20} color={colors.accent} />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: colors.accent }]}
-                onPress={handleAddFamilyMember}
-              >
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Save Member</Text>
-              </TouchableOpacity>
-            </View>
+
+              {showFamDobPicker && (
+                <DateTimePicker
+                  value={famDob ? new Date(famDob) : new Date(2000, 0, 1)}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  onChange={handleFamDobChange}
+                />
+              )}
+
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>EMERGENCY CONTACT NUMBER</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
+                value={famContact}
+                onChangeText={setFamContact}
+                keyboardType="phone-pad"
+                placeholder="+91 98765 43210"
+                placeholderTextColor={colors.inputPlaceholder}
+              />
+
+              {/* Nominee Switch */}
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Primary Nominee</Text>
+                  <Text style={[styles.switchSubLabel, { color: colors.textSecondary }]}>
+                    Designate as primary beneficiary nominee
+                  </Text>
+                </View>
+                <Switch
+                  value={isNominee}
+                  onValueChange={setIsNominee}
+                  trackColor={{ false: '#cbd5e1', true: colors.accent }}
+                  thumbColor="#ffffff"
+                />
+              </View>
+
+              {/* Health Insurance Switch */}
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Health Insurance Coverage</Text>
+                  <Text style={[styles.switchSubLabel, { color: colors.textSecondary }]}>
+                    Auto-enrolled under Company Health Insurance
+                  </Text>
+                </View>
+                <Switch
+                  value={isInsuranceCovered}
+                  onValueChange={setIsInsuranceCovered}
+                  trackColor={{ false: '#cbd5e1', true: colors.accent }}
+                  thumbColor="#ffffff"
+                />
+              </View>
+
+              <View style={styles.modalFooterRow}>
+                <TouchableOpacity
+                  style={[styles.cancelBtn, { borderColor: colors.cardBorder }]}
+                  onPress={() => setFamilyModalOpen(false)}
+                >
+                  <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, { backgroundColor: colors.accent }]}
+                  onPress={handleAddFamilyMember}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>Save Member</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1833,22 +1871,25 @@ const styles = StyleSheet.create({
   },
   stepperWrapper: {
     borderBottomWidth: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
   },
   stepperContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    width: '100%',
   },
   stepItem: {
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 1,
   },
   stepBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1859,13 +1900,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   stepLabelText: {
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 9.5,
+    textAlign: 'center',
   },
   stepLineConnector: {
     height: 2,
-    width: 14,
-    marginTop: -14,
+    flex: 0.5,
+    marginTop: 12,
+    marginHorizontal: 1,
   },
   centerLoading: {
     flex: 1,
@@ -1945,6 +1987,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     borderWidth: 1,
+    minHeight: 46,
   },
   dateInputRow: {
     flexDirection: 'row',
@@ -1953,6 +1996,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
+    minHeight: 46,
   },
   passwordInputContainer: {
     flexDirection: 'row',
@@ -1974,7 +2018,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   statusPill: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
@@ -1983,14 +2027,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginTop: 20,
+    alignItems: 'center',
   },
   prevButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 46,
   },
   prevButtonText: {
     fontSize: 13,
@@ -1998,15 +2044,18 @@ const styles = StyleSheet.create({
   },
   nextButton: {
     flex: 1,
-    paddingVertical: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 46,
   },
   nextButtonText: {
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '700',
+    textAlign: 'center',
   },
   validationNoticeText: {
     color: '#ef4444',
@@ -2020,6 +2069,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
+    gap: 8,
   },
   addFamBtn: {
     paddingHorizontal: 12,
@@ -2039,6 +2089,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     marginBottom: 8,
+    gap: 8,
   },
   famCardLeft: {
     flex: 1,
@@ -2070,7 +2121,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     borderRadius: 16,
-    padding: 20,
+    padding: 18,
+    maxHeight: '90%',
   },
   modalTitle: {
     fontSize: 18,
