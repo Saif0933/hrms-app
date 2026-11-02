@@ -183,6 +183,16 @@ export const EmployeeMasterScreen: React.FC = () => {
   }));
   const [selectedRoleId, setSelectedRoleId] = useState<string>('');
 
+  // Auto-select standard EMPLOYEE role if none selected during creation
+  useEffect(() => {
+    if (!isEditing && fetchedRoles.length > 0 && !selectedRoleId) {
+      const empRole = fetchedRoles.find(r => r.name?.toUpperCase() === 'EMPLOYEE' || r.name?.toUpperCase() === 'STAFF') || fetchedRoles[0];
+      if (empRole) {
+        setSelectedRoleId(empRole.id);
+      }
+    }
+  }, [fetchedRoles, isEditing, selectedRoleId]);
+
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
   const deleteMutation = useDeleteEmployee();
@@ -297,7 +307,7 @@ export const EmployeeMasterScreen: React.FC = () => {
   }, [personalRes]);
 
   // Validation Checks for Sequential Steps
-  const isOverviewValid = name.trim().length > 0 && email.trim().length > 0;
+  const isOverviewValid = name.trim().length > 0 && email.trim().length > 0 && selectedRoleId.trim().length > 0;
   const isSalaryValid = basic.trim().length > 0 && bankAccount.trim().length > 0;
   const isLeaveValid = casualLeave.trim().length > 0 && sickLeave.trim().length > 0;
   const isPersonalValid = fatherName.trim().length > 0 && permanentAddress.trim().length > 0;
@@ -684,7 +694,7 @@ export const EmployeeMasterScreen: React.FC = () => {
   const handleNextStep = () => {
     if (activeTab === 'OVERVIEW') {
       if (!isOverviewValid) {
-        Alert.alert('Validation Error', 'Full Name and Official Email are required.');
+        Alert.alert('Validation Error', 'Full Name, Official Email, and Role are required.');
         return;
       }
       setCompletedSteps(prev => Array.from(new Set([...prev, 0])));

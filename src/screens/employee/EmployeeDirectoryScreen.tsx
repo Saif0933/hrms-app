@@ -1,5 +1,5 @@
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
@@ -213,10 +213,18 @@ export const EmployeeDirectoryScreen: React.FC = () => {
     status: selectedStatus !== 'ALL' ? (selectedStatus as any) : undefined,
   });
 
+  useFocusEffect(
+    React.useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
+
   const rawEmployees = response?.data || [];
   const employees = rawEmployees.filter((emp: any) => {
-    const roleStr = (emp.role?.name || emp.role || emp.user?.role?.name || emp.designation || '').toString().toUpperCase();
-    return roleStr !== 'SUPER_ADMIN' && roleStr !== 'SUPER ADMIN';
+    if (emp.name?.startsWith('Admin -')) return false;
+    const emailLower = (emp.email || '').toLowerCase();
+    if (emailLower === 'info@symbosys.com' || emailLower === 'info@symbosys2.com' || emailLower === 'platform@hrms.com') return false;
+    return true;
   });
 
   // Department options strictly derived from created departments in DB (matching Web behavior)
