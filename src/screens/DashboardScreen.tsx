@@ -85,8 +85,9 @@ export const DashboardScreen: React.FC = () => {
     storedName ||
     'Organization User';
 
+  const isRootAdmin = rawUser?.email === 'info@symbosys.com' || rawUser?.name?.startsWith('Admin -');
   const userRoleRaw = (rawUser?.role || storedRole || '').toUpperCase();
-  const isAdmin = userRoleRaw.includes('ADMIN') || userRoleRaw.includes('SUPER');
+  const isAdmin = isRootAdmin || (!rawUser?.employeeId && (userRoleRaw.includes('ADMIN') || userRoleRaw.includes('SUPER')));
   const isManager = userRoleRaw.includes('MANAGER');
   const isEmployee = !isAdmin && !isManager;
   const myEmployeeId = rawUser?.id || (profileResponse?.data as any)?.id;
@@ -97,7 +98,7 @@ export const DashboardScreen: React.FC = () => {
         ? '🛡️ Administrator'
         : isManager
         ? '👔 Manager'
-        : '👤 Employee (Self-Service)'
+        : `👤 ${rawUser?.designation || (userRoleRaw !== 'SUPER_ADMIN' && userRoleRaw !== 'SUPER ADMIN' ? rawUser?.role : 'Employee') || 'Employee'}`
       : storedRole ||
         (displayName !== 'Organization User' ? `${displayName} • Active Session` : 'HRMS Organization Portal');
 
