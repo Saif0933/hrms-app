@@ -107,12 +107,17 @@ export const DashboardScreen: React.FC = () => {
     rawUser?.profileImage ||
     rawUser?.avatarUrl ||
     rawUser?.avatar ||
+    rawUser?.organizationLogo ||
     rawUser?.logoUrl ||
     rawUser?.image ||
+    (profileResponse?.data as any)?.user?.avatar ||
+    (profileResponse?.data as any)?.user?.organizationLogo ||
+    (profileResponse?.data as any)?.user?.image ||
     (profileResponse?.data as any)?.profilePic ||
     (profileResponse?.data as any)?.profileImage ||
     (profileResponse?.data as any)?.avatarUrl ||
     (profileResponse?.data as any)?.avatar ||
+    (profileResponse?.data as any)?.logoUrl ||
     null;
 
   const firstLetter = displayName && displayName.trim().length > 0 ? displayName.trim().charAt(0).toUpperCase() : 'U';

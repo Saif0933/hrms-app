@@ -7,6 +7,7 @@ import {
   BackHandler,
   Dimensions,
   Easing,
+  Image,
   Pressable,
   ScrollView,
   StatusBar,
@@ -106,6 +107,13 @@ export const MenuScreen: React.FC = () => {
   // User Profile Data
   const userName = profileResponse?.data?.user?.name || 'John Doe';
   const userRole = profileResponse?.data?.user?.role || 'Software Engineer • HRMS Portal';
+  const userAvatarUrl =
+    profileResponse?.data?.user?.avatar ||
+    profileResponse?.data?.user?.image ||
+    profileResponse?.data?.user?.organizationLogo ||
+    (profileResponse?.data as any)?.avatar ||
+    (profileResponse?.data as any)?.avatarUrl ||
+    null;
   const userInitials = userName
     ? userName
         .split(' ')
@@ -872,10 +880,14 @@ export const MenuScreen: React.FC = () => {
             }}
             activeOpacity={0.8}
           >
-            <View style={[styles.userAvatarBox, { backgroundColor: isDark ? '#3B82F630' : '#DBEAFE' }]}>
-              <Text style={[styles.userAvatarInitials, { color: isDark ? '#93C5FD' : '#2563EB' }]}>
-                {userInitials}
-              </Text>
+            <View style={[styles.userAvatarBox, { backgroundColor: isDark ? '#3B82F630' : '#DBEAFE', overflow: 'hidden' }]}>
+              {userAvatarUrl ? (
+                <Image source={{ uri: userAvatarUrl }} style={{ width: '100%', height: '100%', borderRadius: 20 }} resizeMode="cover" />
+              ) : (
+                <Text style={[styles.userAvatarInitials, { color: isDark ? '#93C5FD' : '#2563EB' }]}>
+                  {userInitials}
+                </Text>
+              )}
             </View>
             <View style={styles.userInfoTextCol}>
               <Text style={[styles.userNameHeading, { color: isDark ? '#FFFFFF' : '#0F172A' }]} numberOfLines={1}>
