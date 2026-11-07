@@ -85,9 +85,10 @@ export const DashboardScreen: React.FC = () => {
     storedName ||
     'Organization User';
 
-  const isRootAdmin = rawUser?.email === 'info@symbosys.com' || rawUser?.name?.startsWith('Admin -');
+  const isRootAdmin = rawUser?.email === 'info@symbosys.com' || rawUser?.name?.startsWith('Admin -') || (rawUser?.designation || '').toUpperCase() === 'CHIEF EXECUTIVE OFFICER';
   const userRoleRaw = (rawUser?.role || storedRole || '').toUpperCase();
-  const isAdmin = isRootAdmin || (!rawUser?.employeeId && (userRoleRaw.includes('ADMIN') || userRoleRaw.includes('SUPER')));
+  const isSuperAdmin = isRootAdmin || userRoleRaw === 'SUPER_ADMIN' || userRoleRaw === 'SUPER ADMIN';
+  const isAdmin = isSuperAdmin || (!rawUser?.employeeId && (userRoleRaw.includes('ADMIN') || userRoleRaw.includes('SUPER')));
   const isManager = userRoleRaw.includes('MANAGER');
   const isEmployee = !isAdmin && !isManager;
   const myEmployeeId = rawUser?.id || (profileResponse?.data as any)?.id;

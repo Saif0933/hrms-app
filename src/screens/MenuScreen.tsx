@@ -191,12 +191,23 @@ export const MenuScreen: React.FC = () => {
 
   const userPermissions: string[] = profileResponse?.data?.user?.permissions || [];
   const rawRole = (profileResponse?.data?.user?.role || '').toUpperCase();
-  const isAdmin = rawRole === 'SUPER_ADMIN' || rawRole === 'HR_ADMIN' || rawRole === 'ADMIN' || rawRole.includes('ADMIN') || rawRole.includes('CEO');
+  const rawName = profileResponse?.data?.user?.name || '';
+  const rawEmail = (profileResponse?.data?.user?.email || '').toLowerCase();
+  const rawDesignation = (profileResponse?.data?.user?.designation || '').toUpperCase();
+
+  // Organization Chief Executive Officer is Super Admin
+  const isSuperAdmin = rawName.startsWith('Admin -') || 
+                       rawEmail === 'info@symbosys.com' || 
+                       rawRole === 'SUPER_ADMIN' || 
+                       rawRole === 'SUPER ADMIN' || 
+                       rawDesignation === 'CHIEF EXECUTIVE OFFICER';
+
+  const isAdmin = isSuperAdmin || rawRole === 'HR_ADMIN' || rawRole === 'ADMIN' || rawRole.includes('ADMIN') || rawRole.includes('CEO');
   const isManager = rawRole === 'MANAGER' || rawRole.includes('MANAGER');
   const isEmployee = !isAdmin && !isManager && userPermissions.length === 0;
 
   const hasPerm = (perm: string) => {
-    if (isAdmin) return true;
+    if (isSuperAdmin || isAdmin) return true;
     return userPermissions.includes(perm);
   };
 

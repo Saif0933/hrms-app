@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   ScrollView,
   StatusBar,
@@ -13,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useProfile } from '../../api/hook/useAuth';
 import {
   useCreateShiftTiming,
   useDeleteShiftTiming,
@@ -99,12 +101,55 @@ export const ShiftRosterScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterShift, setFilterShift] = useState<string>('ALL');
 
+  // User Profile & Role-Based Permissions
+  const { data: profileRes } = useProfile();
+  const loggedUser = profileRes?.data?.user;
+
+  // Organization Chief Executive Officer is Super Admin
+  const isSuperAdmin = loggedUser?.name?.startsWith('Admin -') || 
+                       loggedUser?.email === 'info@symbosys.com' || 
+                       loggedUser?.role === 'SUPER_ADMIN' || 
+                       loggedUser?.role === 'Super Admin' ||
+                       loggedUser?.designation === 'Chief Executive Officer';
+
+  const userPerms: string[] = (loggedUser?.permissions || []).map((p: any) => typeof p === 'string' ? p : p?.name || '');
+  const hasPerm = (required: string | string[]) => {
+    if (isSuperAdmin) return true;
+    if (Array.isArray(required)) {
+      return required.some(p => userPerms.includes(p));
+    }
+    return userPerms.includes(required);
+  };
+
+  const canAccessRoster = isSuperAdmin || hasPerm(['VIEW_SHIFT_ROSTER', 'UPDATE_SHIFT_ROSTER']);
+
+  useEffect(() => {
+    if (profileRes && !canAccessRoster) {
+      Alert.alert(
+        'Access Denied',
+        'You do not have permission to view or manage Shift & Roster Planning.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    }
+  }, [profileRes, canAccessRoster, navigation]);
+
   // API Hooks
   const { data: rosterRes, isLoading: isLoadingRosters } = useRosters(selectedWeek);
   const { data: empRes, isLoading: isLoadingEmps } = useEmployees();
   const saveRosterMutation = useSaveRosters();
 
-  const employees = useMemo(() => empRes?.data || [], [empRes?.data]);
+  const rawEmployees = useMemo(() => empRes?.data || [], [empRes?.data]);
+  const employees = useMemo(() => {
+    return rawEmployees.filter(emp => {
+      // Exclude root system Super Admin / CEO account
+      if (emp.name?.startsWith('Admin -')) return false;
+      const emailLower = (emp.email || '').toLowerCase().trim();
+      if (emailLower === 'info@symbosys.com' || emailLower === 'info@symbosys2.com' || emailLower === 'platform@hrms.com' || emailLower === 'admin@hrms.com') {
+        return false;
+      }
+      return true; // All organization staff (HR, Manager, Developers, etc.) are included
+    });
+  }, [rawEmployees]);
   const rosters = useMemo(() => rosterRes?.data || [], [rosterRes?.data]);
 
   // Edit Shift Modal State
@@ -791,7 +836,7 @@ export const ShiftRosterScreen: React.FC = () => {
               <View style={styles.tableGrid}>
                 {/* Header Row */}
                 <View style={styles.tableHeaderRow}>
-                  <Text style={[styles.thEmp, { color: colors.textPrimary }]}>Employee</Text>
+                  <Text style={[styles.thEmp, { color: colors.textPrimary }]}>Employee Profile</Text>
                   {daysList.map(d => (
                     <Text key={d} style={[styles.thDay, { color: colors.textSecondary }]}>
                       {d.toUpperCase()}
@@ -814,12 +859,23 @@ export const ShiftRosterScreen: React.FC = () => {
                   return (
                     <View key={emp.id} style={styles.tableDataRow}>
                       <View style={styles.tdEmpInfo}>
-                        <Text style={[styles.empNameText, { color: colors.textPrimary }]} numberOfLines={1}>
-                          {emp.name}
-                        </Text>
-                        <Text style={[styles.empRoleText, { color: colors.textSecondary }]} numberOfLines={1}>
-                          {emp.designation || emp.department?.name || 'Staff'}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          {emp.avatar ? (
+                            <Image source={{ uri: emp.avatar }} style={{ width: 22, height: 22, borderRadius: 11 }} />
+                          ) : (
+                            <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#6366f120', justifyContent: 'center', alignItems: 'center' }}>
+                              <Text style={{ fontSize: 9, fontWeight: '800', color: '#6366f1' }}>{emp.name?.charAt(0) || 'E'}</Text>
+                            </View>
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.empNameText, { color: colors.textPrimary }]} numberOfLines={1}>
+                              {emp.name}
+                            </Text>
+                            <Text style={[styles.empRoleText, { color: colors.textSecondary }]} numberOfLines={1}>
+                              {emp.designation || (typeof emp.role === 'string' ? emp.role : (emp.role as any)?.name) || emp.department?.name || 'Employee'}
+                            </Text>
+                          </View>
+                        </View>
                       </View>
 
                       {daysList.map(d => {
@@ -1521,7 +1577,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   tableGrid: {
-    minWidth: 640,
+    minWidth: 660,
   },
   tableHeaderRow: {
     flexDirection: 'row',
@@ -1530,7 +1586,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(100,100,100,0.2)',
   },
   thEmp: {
-    width: 140,
+    width: 155,
     fontWeight: '800',
     fontSize: 12,
   },
@@ -1548,7 +1604,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(100,100,100,0.1)',
   },
   tdEmpInfo: {
-    width: 140,
+    width: 155,
     paddingRight: 6,
   },
   empNameText: {
