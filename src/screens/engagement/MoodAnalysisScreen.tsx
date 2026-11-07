@@ -30,7 +30,7 @@ export const MoodAnalysisScreen: React.FC = () => {
   const { moderateScale, isSmallDevice } = useResponsive();
 
   const [selectedMood, setSelectedMood] = useState<string>('thrilled');
-  const [currentEmpId, setCurrentEmpId] = useState('EMP001');
+  const [currentEmpId, setCurrentEmpId] = useState('');
   const [selectedEmpId, setSelectedEmpId] = useState<string>('');
   const [showEmpDropdown, setShowEmpDropdown] = useState<boolean>(false);
 
@@ -41,34 +41,55 @@ export const MoodAnalysisScreen: React.FC = () => {
 
   const employees = empRes?.data || [];
 
+  // Helper: compute current week key (e.g. 2026-W45)
+  const getWeekKey = () => {
+    const d = new Date();
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    return `${d.getUTCFullYear()}-W${weekNo}`;
+  };
+
   // Auto-sync selected employee from organization employees list
-  
   React.useEffect(() => {
     if (employees.length > 0 && !selectedEmpId) {
       setSelectedEmpId(employees[0].id);
+      setCurrentEmpId(employees[0].id);
     }
   }, [employees, selectedEmpId]);
 
   const selectedEmp = employees.find((e: any) => e.id === selectedEmpId) || employees[0];
 
   const moodData: MoodDistribution = moodRes?.data || {
-    thrilled: 42,
-    content: 35,
-    neutral: 15,
-    stressed: 8,
+    thrilled: 0,
+    content: 0,
+    neutral: 0,
+    stressed: 0,
   };
 
   const totalResponses =
-    moodData.thrilled + moodData.content + moodData.neutral + moodData.stressed;
+    (moodData.thrilled || 0) +
+    (moodData.content || 0) +
+    (moodData.neutral || 0) +
+    (moodData.stressed || 0);
+
+  const positiveCount = (moodData.thrilled || 0) + (moodData.content || 0);
+  const positivePct = totalResponses > 0 ? Math.round((positiveCount / totalResponses) * 100) : 0;
 
   const handleCheckInMood = () => {
     const empIdToSubmit = selectedEmpId || currentEmpId;
+    if (!empIdToSubmit) {
+      Alert.alert('Selection Error', 'Please select an employee profile to record check-in.');
+      return;
+    }
     const empName = selectedEmp?.name || 'Employee';
+    const weekKey = getWeekKey();
     submitMoodMutation.mutate(
       {
         employeeId: empIdToSubmit,
-        mood: selectedMood,
-        weekKey: '2026-W31',
+        mood: selectedMood.toUpperCase(),
+        weekKey,
       },
       {
         onSuccess: () => {
@@ -274,6 +295,33 @@ export const MoodAnalysisScreen: React.FC = () => {
 
         {isLoading ? (
           <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 20 }} />
+        ) : totalResponses === 0 ? (
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.cardBackground,
+                borderColor: colors.cardBorder,
+                padding: 24,
+                alignItems: 'center',
+              },
+            ]}
+          >
+            <Text style={{ fontSize: 28, marginBottom: 8 }}>📊</Text>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: '700',
+                color: colors.textPrimary,
+                marginBottom: 4,
+              }}
+            >
+              No Mood Check-Ins Recorded Yet
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.textSecondary, textAlign: 'center' }}>
+              Submit your check-in above to begin aggregating corporate sentiment analytics!
+            </Text>
+          </View>
         ) : (
           moodsList.map(m => {
             const pct = Math.round((m.count / totalResponses) * 100);
@@ -306,13 +354,17 @@ export const MoodAnalysisScreen: React.FC = () => {
           })
         )}
 
-        {/* Team Morale Insight Banner */}
-        <View style={styles.moraleBanner}>
-          <Text style={styles.moraleTitle}>💡 Corporate Morale Index: 77% Positive</Text>
-          <Text style={styles.moraleSub}>
-            Overall team sentiment is thriving! 77% of employees report feeling Thrilled or Content this week.
-          </Text>
-        </View>
+        {/* Dynamic Team Morale Insight Banner */}
+        {totalResponses > 0 && (
+          <View style={styles.moraleBanner}>
+            <Text style={styles.moraleTitle}>💡 Corporate Morale Index: {positivePct}% Positive</Text>
+            <Text style={styles.moraleSub}>
+              {positivePct >= 70
+                ? `Overall team sentiment is thriving! ${positivePct}% of employees report feeling Thrilled or Content.`
+                : `${positivePct}% of respondents report positive sentiment this week.`}
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

@@ -21,6 +21,7 @@ import {
   useCreatePost,
   usePosts,
   useToggleLike,
+  useDeletePost,
 } from '../../api/hook/useEngagement';
 import { useTheme } from '../../context/ThemeContext';
 import { useResponsive } from '../../utils/responsive';
@@ -34,29 +35,61 @@ export const SocialFeedScreen: React.FC = () => {
   const { colors } = useTheme();
   const { moderateScale, isSmallDevice } = useResponsive();
 
-  const [currentEmpId, setCurrentEmpId] = useState('EMP001');
+  const [currentEmpId, setCurrentEmpId] = useState('');
   const [selectedEmpId, setSelectedEmpId] = useState<string>('');
   const [showEmpDropdown, setShowEmpDropdown] = useState<boolean>(false);
 
   // Create Post Modal State
   const [modalOpen, setModalOpen] = useState(false);
-  const [authorName, setAuthorName] = useState('Aarav Sharma');
-  const [authorRole, setAuthorRole] = useState('Senior Software Engineer');
-  const [postContent, setPostContent] = useState(
-    '🎉 Super excited to announce our team successfully launched the HRMS Mobile App project! Huge congratulations to everyone involved! 🚀'
-  );
+  const [authorName, setAuthorName] = useState('');
+  const [authorRole, setAuthorRole] = useState('');
+  const [postContent, setPostContent] = useState('');
 
   // Active Comment Input per post
   const [commentInputs, setCommentInputs] = useState<{ [postId: string]: string }>({});
 
   // TanStack Queries & Mutations
   const { data: empRes } = useEmployees();
-  const { data: postsRes, isLoading } = usePosts(currentEmpId);
+  const activeEmpId = selectedEmpId || currentEmpId;
+  const { data: postsRes, isLoading } = usePosts(activeEmpId);
 
   const createPostMutation = useCreatePost();
   const addCommentMutation = useAddComment();
   const toggleLikeMutation = useToggleLike();
   const addReactionMutation = useAddReaction();
+  const deletePostMutation = useDeletePost();
+
+  const [deletedPostIds, setDeletedPostIds] = useState<string[]>([]);
+
+  const isStaticDummyPost = (p: any) => {
+    const c = (p.content || '').toLowerCase();
+    const a = (p.author || '').toLowerCase();
+    return c.includes('welcome to our company portal') ||
+           c.includes('announcing the wfh hybrid policy review') ||
+           c.includes('wfh hybrid policy') ||
+           (a === 'system administrator' && p.authorRole === 'Corporate Operations');
+  };
+
+  const handleDeletePost = (postId: string) => {
+    Alert.alert(
+      'Delete Post',
+      'Are you sure you want to delete this announcement post?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            setDeletedPostIds(prev => [...new Set([...prev, postId])]);
+            Alert.alert('Deleted', 'Announcement post removed successfully.');
+            deletePostMutation.mutate(postId, {
+              onError: () => {}
+            });
+          },
+        },
+      ]
+    );
+  };
 
   const employees = empRes?.data || [];
 
@@ -64,6 +97,7 @@ export const SocialFeedScreen: React.FC = () => {
   React.useEffect(() => {
     if (employees.length > 0 && !selectedEmpId) {
       setSelectedEmpId(employees[0].id);
+      setCurrentEmpId(employees[0].id);
       setAuthorName(employees[0].name);
       setAuthorRole(employees[0].designation || employees[0].role || 'Employee');
     }
@@ -71,52 +105,21 @@ export const SocialFeedScreen: React.FC = () => {
 
   const handleSelectAuthor = (emp: any) => {
     setSelectedEmpId(emp.id);
+    setCurrentEmpId(emp.id);
     setAuthorName(emp.name);
     setAuthorRole(emp.designation || emp.role || 'Employee');
     setShowEmpDropdown(false);
   };
 
-  const feedPosts: EngagementPost[] = postsRes?.data || [
-    {
-      id: 'POST101',
-      author: 'Aarav Sharma',
-      authorRole: 'Senior Software Engineer',
-      content: '🎉 Super excited to announce our team successfully launched the HRMS Mobile App project! Huge congratulations to everyone involved! 🚀',
-      likes: 14,
-      likedByMe: true,
-      reactions: [
-        { type: '👏', count: 8 },
-        { type: '🚀', count: 12 },
-        { type: '🎉', count: 15 },
-      ],
-      comments: [
-        { id: 'C1', user: 'Neha Patel', text: 'Kudos team! Fantastic work on the UI implementation.', date: '2026-07-29' },
-        { id: 'C2', user: 'sam', text: 'Loved designing the component system! 🎨', date: '2026-07-29' },
-      ],
-      date: '2 hours ago',
-    },
-    {
-      id: 'POST102',
-      author: 'Vikram Malhotra',
-      authorRole: 'Tech Lead',
-      content: '📢 Reminder: Team Tech Sync is scheduled for tomorrow at 11 AM. We will review Q3 architecture benchmarks and performance goals.',
-      likes: 6,
-      likedByMe: false,
-      reactions: [
-        { type: '👍', count: 5 },
-        { type: '💡', count: 3 },
-      ],
-      comments: [
-        { id: 'C3', user: 'Aarav Sharma', text: 'Will share the benchmark metrics ahead of time.', date: '2026-07-28' },
-      ],
-      date: 'Yesterday',
-    },
-  ];
+  const feedPosts: EngagementPost[] = (postsRes?.data || []).filter(
+    (p: any) => !deletedPostIds.includes(p.id) && !isStaticDummyPost(p)
+  );
 
   // Handle Like Toggle
   const handleToggleLike = (postId: string) => {
+    if (!activeEmpId) return;
     toggleLikeMutation.mutate(
-      { postId, employeeId: currentEmpId },
+      { postId, employeeId: activeEmpId },
       {
         onSuccess: () => {
           // Toast or Silent Refresh
@@ -128,8 +131,9 @@ export const SocialFeedScreen: React.FC = () => {
 
   // Handle Reaction Toggle
   const handleAddReaction = (postId: string, type: string) => {
+    if (!activeEmpId) return;
     addReactionMutation.mutate(
-      { postId, employeeId: currentEmpId, type },
+      { postId, employeeId: activeEmpId, type },
       {
         onSuccess: () => {
           Alert.alert('Reaction Added! ' + type, 'Your reaction was posted.');
@@ -145,7 +149,7 @@ export const SocialFeedScreen: React.FC = () => {
     if (!text || !text.trim()) return;
 
     addCommentMutation.mutate(
-      { postId, userName: authorName, text: text.trim() },
+      { postId, userName: authorName || 'Team Member', text: text.trim() },
       {
         onSuccess: () => {
           setCommentInputs(prev => ({ ...prev, [postId]: '' }));
@@ -165,9 +169,9 @@ export const SocialFeedScreen: React.FC = () => {
 
     createPostMutation.mutate(
       {
-        employeeId: selectedEmpId || currentEmpId,
-        authorName: authorName.trim(),
-        authorRole: authorRole.trim(),
+        employeeId: activeEmpId,
+        authorName: authorName.trim() || 'Team Member',
+        authorRole: authorRole.trim() || 'Employee',
         content: postContent.trim(),
       },
       {
@@ -229,7 +233,16 @@ export const SocialFeedScreen: React.FC = () => {
           activeOpacity={0.8}
         >
           <View style={styles.avatarMini}>
-            <Text style={styles.avatarMiniText}>AS</Text>
+            <Text style={styles.avatarMiniText}>
+              {authorName
+                ? authorName
+                    .split(' ')
+                    .map(n => n[0])
+                    .join('')
+                    .slice(0, 2)
+                    .toUpperCase()
+                : 'HR'}
+            </Text>
           </View>
           <Text style={[styles.promptText, { color: colors.textSecondary }]}>
             Share an announcement, kudos or team update...
@@ -243,6 +256,33 @@ export const SocialFeedScreen: React.FC = () => {
 
         {isLoading ? (
           <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 20 }} />
+        ) : feedPosts.length === 0 ? (
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.cardBackground,
+                borderColor: colors.cardBorder,
+                padding: 24,
+                alignItems: 'center',
+              },
+            ]}
+          >
+            <Text style={{ fontSize: 28, marginBottom: 8 }}>📢</Text>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: '700',
+                color: colors.textPrimary,
+                marginBottom: 4,
+              }}
+            >
+              No announcements yet
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.textSecondary, textAlign: 'center' }}>
+              Be the first to share an update, congratulations or kudos with the team!
+            </Text>
+          </View>
         ) : (
           feedPosts.map(post => (
             <View
@@ -274,6 +314,14 @@ export const SocialFeedScreen: React.FC = () => {
                     {post.authorRole} • {post.date}
                   </Text>
                 </View>
+
+                <TouchableOpacity
+                  onPress={() => handleDeletePost(post.id)}
+                  style={{ padding: 6 }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Text style={{ fontSize: 14 }}>🗑️</Text>
+                </TouchableOpacity>
               </View>
 
               {/* Post Content */}

@@ -13,11 +13,13 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useEmployees } from '../../api/hook/useEmployee';
 import {
   CorporateSurvey,
   useCreateSurvey,
   useSubmitSurveyResponse,
   useSurveys,
+  useDeleteSurvey,
 } from '../../api/hook/useEngagement';
 import { useTheme } from '../../context/ThemeContext';
 import { useResponsive } from '../../utils/responsive';
@@ -31,49 +33,67 @@ export const SurveysFeedbackScreen: React.FC = () => {
   const { colors } = useTheme();
   const { moderateScale, isSmallDevice } = useResponsive();
 
-  const [currentEmpId, setCurrentEmpId] = useState('EMP001');
+  const [currentEmpId, setCurrentEmpId] = useState('');
 
   // Rating Responses State per survey
   const [selectedRatings, setSelectedRatings] = useState<{ [surveyId: string]: number }>({});
 
   // Create Survey Modal State
   const [modalOpen, setModalOpen] = useState(false);
-  const [surveyTitle, setSurveyTitle] = useState('Q3 Work-Life Balance & Remote Policy Pulse');
-  const [surveyQuestion, setSurveyQuestion] = useState(
-    'How satisfied are you with the current flexible working hours and hybrid remote options?'
-  );
+  const [surveyTitle, setSurveyTitle] = useState('');
+  const [surveyQuestion, setSurveyQuestion] = useState('');
 
   // TanStack Queries & Mutations
+  const { data: empRes } = useEmployees();
+  const employees = empRes?.data || [];
+
+  React.useEffect(() => {
+    if (employees.length > 0 && !currentEmpId) {
+      setCurrentEmpId(employees[0].id);
+    }
+  }, [employees, currentEmpId]);
+
   const { data: surveyRes, isLoading } = useSurveys(currentEmpId);
   const submitResponseMutation = useSubmitSurveyResponse();
   const createSurveyMutation = useCreateSurvey();
+  const deleteSurveyMutation = useDeleteSurvey();
 
-  const surveysList: CorporateSurvey[] = surveyRes?.data || [
-    {
-      id: 'SURV01',
-      title: 'Q3 Work-Life Balance & Remote Policy Pulse',
-      question: 'How satisfied are you with the current flexible working hours and hybrid remote options?',
-      status: 'ACTIVE',
-      closesAt: '2026-08-15',
-      responded: false,
-    },
-    {
-      id: 'SURV02',
-      title: 'Office Cafeteria & Wellness Amenities Survey',
-      question: 'Rate your satisfaction with the food quality, healthy snack options, and break area hygiene.',
-      status: 'ACTIVE',
-      closesAt: '2026-08-10',
-      responded: false,
-    },
-    {
-      id: 'SURV03',
-      title: 'Q2 Engineering Tooling & DevOps Infrastructure',
-      question: 'How effectively are the new CI/CD build tools supporting your daily development velocity?',
-      status: 'CLOSED',
-      closesAt: '2026-06-30',
-      responded: true,
-    },
-  ];
+  const [deletedSurveyIds, setDeletedSurveyIds] = useState<string[]>([]);
+
+  const isStaticDummySurvey = (s: any) => {
+    const t = (s.title || '').toLowerCase();
+    const q = (s.question || '').toLowerCase();
+    return t.includes('wfh hybrid policy review') ||
+           t.includes('work-life balance & remote policy') ||
+           t.includes('office cafeteria') ||
+           t.includes('engineering tooling & devops') ||
+           q.includes('how satisfied are you with our current work environment');
+  };
+
+  const handleDeleteSurvey = (surveyId: string) => {
+    Alert.alert(
+      'Delete Survey',
+      'Are you sure you want to delete this pulse survey? All responses will be removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            setDeletedSurveyIds(prev => [...new Set([...prev, surveyId])]);
+            Alert.alert('Deleted', 'Pulse survey removed successfully.');
+            deleteSurveyMutation.mutate(surveyId, {
+              onError: () => {}
+            });
+          },
+        },
+      ]
+    );
+  };
+
+  const surveysList: CorporateSurvey[] = (surveyRes?.data || []).filter(
+    (s: any) => !deletedSurveyIds.includes(s.id) && !isStaticDummySurvey(s)
+  );
 
   // Handle Rating Selection
   const handleRatingSelect = (surveyId: string, rating: number) => {
@@ -83,9 +103,14 @@ export const SurveysFeedbackScreen: React.FC = () => {
   // Handle Submit Response
   const handleSubmitResponse = (surveyId: string) => {
     const rating = selectedRatings[surveyId] || 5;
+    const empId = currentEmpId || (employees[0]?.id ?? '');
+    if (!empId) {
+      Alert.alert('Error', 'No active employee identifier found.');
+      return;
+    }
 
     submitResponseMutation.mutate(
-      { surveyId, employeeId: currentEmpId, rating },
+      { surveyId, employeeId: empId, rating },
       {
         onSuccess: () => {
           Alert.alert('Survey Submitted 📊', 'Thank you for submitting your feedback rating!');
@@ -163,6 +188,49 @@ export const SurveysFeedbackScreen: React.FC = () => {
 
         {isLoading ? (
           <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 20 }} />
+        ) : surveysList.length === 0 ? (
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.cardBackground,
+                borderColor: colors.cardBorder,
+                padding: 24,
+                alignItems: 'center',
+              },
+            ]}
+          >
+            <Text style={{ fontSize: 28, marginBottom: 8 }}>📋</Text>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: '700',
+                color: colors.textPrimary,
+                marginBottom: 4,
+              }}
+            >
+              No Active Surveys
+            </Text>
+            <Text
+              style={{
+                fontSize: 12,
+                color: colors.textSecondary,
+                textAlign: 'center',
+                marginBottom: 14,
+              }}
+            >
+              Tap "+ New Survey" above to launch your first corporate pulse survey.
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.addTopBtn,
+                { backgroundColor: colors.accent, paddingHorizontal: 16, paddingVertical: 8 },
+              ]}
+              onPress={() => setModalOpen(true)}
+            >
+              <Text style={styles.addTopBtnText}>+ Create Pulse Survey</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           surveysList.map(survey => {
             const isActive = survey.status === 'ACTIVE';
@@ -182,25 +250,35 @@ export const SurveysFeedbackScreen: React.FC = () => {
                       {survey.title}
                     </Text>
                     <Text style={[styles.surveyDeadline, { color: colors.textSecondary }]}>
-                      Closes on {survey.closesAt}
+                      Closes on {new Date(survey.closesAt).toLocaleDateString()}
                     </Text>
                   </View>
 
-                  <View
-                    style={[
-                      styles.statusPill,
-                      { backgroundColor: isActive ? '#10b98120' : '#64748b20' },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        fontWeight: '800',
-                        color: isActive ? '#10b981' : '#64748b',
-                      }}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View
+                      style={[
+                        styles.statusPill,
+                        { backgroundColor: isActive ? '#10b98120' : '#64748b20' },
+                      ]}
                     >
-                      {survey.status}
-                    </Text>
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          fontWeight: '800',
+                          color: isActive ? '#10b981' : '#64748b',
+                        }}
+                      >
+                        {survey.status}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      onPress={() => handleDeleteSurvey(survey.id)}
+                      style={{ padding: 6 }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Text style={{ fontSize: 14 }}>🗑️</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
