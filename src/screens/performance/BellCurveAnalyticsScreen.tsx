@@ -12,6 +12,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEmployees } from '../../api/hook/useEmployee';
+import { useProfile } from '../../api/hook/useAuth';
 import {
   BellCurvePoint,
   useBellCurveDistribution,
@@ -29,28 +30,72 @@ export const BellCurveAnalyticsScreen: React.FC = () => {
   const { colors } = useTheme();
   const { moderateScale, isSmallDevice } = useResponsive();
 
-  const [selectedCycle, setSelectedCycle] = useState('H1 2026');
-  const [selectedEmpId, setSelectedEmpId] = useState('EMP001');
+  const currentYear = new Date().getFullYear();
+  const availableCycles = [
+    `${currentYear}-Q1`,
+    `${currentYear}-Q2`,
+    `${currentYear}-Q3`,
+    `${currentYear}-Q4`,
+    `${currentYear}-Annual`,
+    `${currentYear - 1}-Annual`,
+  ];
+
+  const [selectedCycle, setSelectedCycle] = useState(`${currentYear}-Q2`);
+  const [selectedEmpId, setSelectedEmpId] = useState('');
   const [appraisalRating, setAppraisalRating] = useState(4);
 
   // TanStack Queries & Mutations
+  const { data: profileRes } = useProfile();
+  const loggedUser = profileRes?.data?.user;
   const { data: empRes } = useEmployees();
   const { data: bellCurveRes, isLoading } = useBellCurveDistribution(selectedCycle);
   const saveAppraisalMutation = useSaveAppraisal();
 
-  const employees = empRes?.data || [];
+  const employees = React.useMemo(() => {
+    return (empRes?.data || []).filter(e => {
+      if (e.name?.startsWith('Admin -')) return false;
+      const emailLower = (e.email || '').toLowerCase().trim();
+      if (emailLower === 'info@symbosys.com' || emailLower === 'info@symbosys2.com' || emailLower === 'platform@hrms.com' || emailLower === 'admin@hrms.com') {
+        return false;
+      }
+      return true;
+    });
+  }, [empRes?.data]);
 
-  const points: BellCurvePoint[] = bellCurveRes?.data || [
-    { rating: 'Grade 1 (Unsatisfactory - 1★)', Employees: 1 },
-    { rating: 'Grade 2 (Needs Improvement - 2★)', Employees: 2 },
-    { rating: 'Grade 3 (Meets Expectations - 3★)', Employees: 5 },
-    { rating: 'Grade 4 (Exceeds Expectations - 4★)', Employees: 3 },
-    { rating: 'Grade 5 (Outstanding / Star - 5★)', Employees: 1 },
+  // Dynamically auto-select employee
+  React.useEffect(() => {
+    if (employees.length > 0 && (!selectedEmpId || !employees.some(e => e.id === selectedEmpId))) {
+      const matchedMyEmp = employees.find(e => 
+        (loggedUser?.employeeId && e.id === loggedUser.employeeId) ||
+        (loggedUser?.id && e.userId === loggedUser.id) ||
+        (loggedUser?.email && e.email?.toLowerCase() === loggedUser.email.toLowerCase())
+      );
+      if (matchedMyEmp) {
+        setSelectedEmpId(matchedMyEmp.id);
+      } else {
+        setSelectedEmpId(employees[0].id);
+      }
+    }
+  }, [employees, loggedUser, selectedEmpId]);
+
+  const defaultPoints: BellCurvePoint[] = [
+    { rating: 'Grade 1 (Unsatisfactory - 1★)', Employees: 0 },
+    { rating: 'Grade 2 (Needs Improvement - 2★)', Employees: 0 },
+    { rating: 'Grade 3 (Meets Expectations - 3★)', Employees: 0 },
+    { rating: 'Grade 4 (Exceeds Expectations - 4★)', Employees: 0 },
+    { rating: 'Grade 5 (Outstanding / Star - 5★)', Employees: 0 },
   ];
 
-  const totalEvaluated = points.reduce((acc, p) => acc + p.Employees, 0);
+  const points: BellCurvePoint[] = (bellCurveRes?.data && bellCurveRes.data.length > 0) ? bellCurveRes.data : defaultPoints;
+
+  const totalEvaluated = points.reduce((acc, p) => acc + (p.Employees || 0), 0);
 
   const handleSaveAppraisalRating = () => {
+    if (!selectedEmpId) {
+      Alert.alert('Validation Error', 'Please select an employee before submitting appraisal rating.');
+      return;
+    }
+
     saveAppraisalMutation.mutate(
       {
         employeeId: selectedEmpId,
@@ -125,7 +170,7 @@ export const BellCurveAnalyticsScreen: React.FC = () => {
             🗓️ Select Appraisal Cycle
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
-            {['H1 2026', 'Annual 2025-26', 'H2 2025'].map(cycle => {
+            {availableCycles.map(cycle => {
               const isSelected = selectedCycle === cycle;
               return (
                 <TouchableOpacity
@@ -164,7 +209,7 @@ export const BellCurveAnalyticsScreen: React.FC = () => {
         ) : (
           points.map((pt, idx) => {
             const color = getBucketColor(idx);
-            const pct = Math.round((pt.Employees / totalEvaluated) * 100);
+            const pct = totalEvaluated > 0 ? Math.round((pt.Employees / totalEvaluated) * 100) : 0;
 
             return (
               <View
@@ -180,7 +225,7 @@ export const BellCurveAnalyticsScreen: React.FC = () => {
                       {pt.rating}
                     </Text>
                     <Text style={[styles.bucketSub, { color: colors.textSecondary }]}>
-                      Target Ideal Curve: {idx === 0 ? '10%' : idx === 1 ? '20%' : idx === 2 ? '40%' : idx === 3 ? '20%' : '10%'}
+                      Target Ideal Curve: {idx === 0 ? '10%' : idx === 1 ? '20%' : idx === 2 ? '50%' : idx === 3 ? '15%' : '5%'}
                     </Text>
                   </View>
 
@@ -210,28 +255,34 @@ export const BellCurveAnalyticsScreen: React.FC = () => {
           </Text>
 
           <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SELECT EMPLOYEE *</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {employees.map(emp => {
-              const isSelected = selectedEmpId === emp.id;
-              return (
-                <TouchableOpacity
-                  key={emp.id}
-                  style={[
-                    styles.empChip,
-                    {
-                      backgroundColor: isSelected ? colors.accent : colors.background,
-                      borderColor: isSelected ? colors.accent : colors.cardBorder,
-                    },
-                  ]}
-                  onPress={() => setSelectedEmpId(emp.id)}
-                >
-                  <Text style={{ color: isSelected ? '#fff' : colors.textPrimary, fontSize: 11, fontWeight: '600' }}>
-                    {emp.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          {employees.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {employees.map(emp => {
+                const isSelected = selectedEmpId === emp.id;
+                return (
+                  <TouchableOpacity
+                    key={emp.id}
+                    style={[
+                      styles.empChip,
+                      {
+                        backgroundColor: isSelected ? colors.accent : colors.background,
+                        borderColor: isSelected ? colors.accent : colors.cardBorder,
+                      },
+                    ]}
+                    onPress={() => setSelectedEmpId(emp.id)}
+                  >
+                    <Text style={{ color: isSelected ? '#fff' : colors.textPrimary, fontSize: 11, fontWeight: '600' }}>
+                      {emp.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <Text style={{ color: colors.textSecondary, fontSize: 12, fontStyle: 'italic', paddingVertical: 6 }}>
+              No active employees found
+            </Text>
+          )}
 
           <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>APPRAISAL RATING (GRADE 1 TO 5) *</Text>
           <View style={styles.ratingChipsRow}>

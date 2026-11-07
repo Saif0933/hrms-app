@@ -14,6 +14,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEmployees } from '../../api/hook/useEmployee';
+import { useProfile } from '../../api/hook/useAuth';
 import {
   PerformanceGoal,
   useCreateGoal,
@@ -32,62 +33,55 @@ export const KraGoalSettingScreen: React.FC = () => {
   const { colors } = useTheme();
   const { moderateScale, isSmallDevice } = useResponsive();
 
-  const [selectedEmpId, setSelectedEmpId] = useState<string>('EMP001');
+  const [selectedEmpId, setSelectedEmpId] = useState<string>('');
 
   // Create Goal Modal State
   const [modalOpen, setModalOpen] = useState(false);
-  const [goalTitle, setGoalTitle] = useState('Build Mobile App Design System & Component Library');
-  const [goalKra, setGoalKra] = useState('Design & Engineering Excellence');
-  const [goalWeight, setGoalWeight] = useState('25');
+  const [goalTitle, setGoalTitle] = useState('');
+  const [goalKra, setGoalKra] = useState('');
+  const [goalWeight, setGoalWeight] = useState('');
 
   // TanStack Queries & Mutations
+  const { data: profileRes } = useProfile();
+  const loggedUser = profileRes?.data?.user;
   const { data: empRes } = useEmployees();
+
+  const employees = React.useMemo(() => {
+    return (empRes?.data || []).filter(e => {
+      if (e.name?.startsWith('Admin -')) return false;
+      const emailLower = (e.email || '').toLowerCase().trim();
+      if (emailLower === 'info@symbosys.com' || emailLower === 'info@symbosys2.com' || emailLower === 'platform@hrms.com' || emailLower === 'admin@hrms.com') {
+        return false;
+      }
+      return true;
+    });
+  }, [empRes?.data]);
+
+  // Dynamically auto-select employee
+  React.useEffect(() => {
+    if (employees.length > 0 && (!selectedEmpId || !employees.some(e => e.id === selectedEmpId))) {
+      const matchedMyEmp = employees.find(e => 
+        (loggedUser?.employeeId && e.id === loggedUser.employeeId) ||
+        (loggedUser?.id && e.userId === loggedUser.id) ||
+        (loggedUser?.email && e.email?.toLowerCase() === loggedUser.email?.toLowerCase())
+      );
+      setSelectedEmpId(matchedMyEmp ? matchedMyEmp.id : employees[0].id);
+    }
+  }, [employees, loggedUser, selectedEmpId]);
+
   const { data: goalsRes, isLoading } = useGoals(selectedEmpId);
   const createGoalMutation = useCreateGoal();
   const updateProgressMutation = useUpdateGoalProgress();
 
-  const employees = empRes?.data || [];
-
-  const goalsList: PerformanceGoal[] = goalsRes?.data || [
-    {
-      id: 'GOAL001',
-      employeeId: 'EMP001',
-      title: 'Deliver HRMS React Native Mobile Application on Schedule',
-      kra: 'Product Delivery & Quality',
-      weight: '30%',
-      progress: 85,
-      status: 'In Progress',
-      createdAt: '2026-07-01',
-      updatedAt: '2026-07-28',
-      employee: { id: 'EMP001', name: 'Aarav Sharma' },
-    },
-    {
-      id: 'GOAL002',
-      employeeId: 'EMP001',
-      title: 'Optimize API Response Latency below 120ms',
-      kra: 'Core Architecture & Performance',
-      weight: '25%',
-      progress: 60,
-      status: 'In Progress',
-      createdAt: '2026-07-05',
-      updatedAt: '2026-07-25',
-      employee: { id: 'EMP001', name: 'Aarav Sharma' },
-    },
-    {
-      id: 'GOAL003',
-      employeeId: 'EMP001',
-      title: 'Conduct Code Reviews & Mentor Junior Engineering Staff',
-      kra: 'Team Mentorship & Leadership',
-      weight: '20%',
-      progress: 100,
-      status: 'Completed',
-      createdAt: '2026-07-01',
-      updatedAt: '2026-07-20',
-      employee: { id: 'EMP001', name: 'Aarav Sharma' },
-    },
+  const STATIC_GOAL_TITLES = [
+    'Deliver Redesigned Core UI Components',
+    'Optimize Web Performance & Core Web Vitals',
+    'Refactor State Management & Context Architecture',
   ];
+  const rawGoalsList: PerformanceGoal[] = goalsRes?.data || [];
+  const goalsList = rawGoalsList.filter(g => !STATIC_GOAL_TITLES.includes(g.title));
 
-  const activeEmp = employees.find(e => e.id === selectedEmpId) || { name: 'Aarav Sharma', id: 'EMP001' };
+  const activeEmp = employees.find(e => e.id === selectedEmpId) || employees[0] || { name: 'Employee', id: selectedEmpId };
 
   // Handle Progress Update
   const handleUpdateProgress = (goalId: string, currentProg: number, increment: number) => {
@@ -117,13 +111,15 @@ export const KraGoalSettingScreen: React.FC = () => {
         employeeId: selectedEmpId,
         title: goalTitle.trim(),
         kra: goalKra.trim(),
-        weight: `${goalWeight}%`,
+        weight: goalWeight.trim() ? (goalWeight.includes('%') ? goalWeight.trim() : `${goalWeight.trim()}%`) : '20%',
       },
       {
         onSuccess: () => {
           setModalOpen(false);
           setGoalTitle('');
-          Alert.alert('KRA Goal Assigned 🎯', 'New performance goal registered successfully.');
+          setGoalKra('');
+          setGoalWeight('');
+          Alert.alert('KRA Goal Assigned 🎯', `New performance goal registered for ${activeEmp.name}.`);
         },
         onError: err => Alert.alert('Error', err.message),
       }
@@ -204,29 +200,7 @@ export const KraGoalSettingScreen: React.FC = () => {
                     </TouchableOpacity>
                   );
                 })
-              : ['EMP001', 'EMP002', 'EMP31723'].map(id => (
-                  <TouchableOpacity
-                    key={id}
-                    style={[
-                      styles.empChip,
-                      {
-                        backgroundColor: selectedEmpId === id ? colors.accent : colors.background,
-                        borderColor: selectedEmpId === id ? colors.accent : colors.cardBorder,
-                      },
-                    ]}
-                    onPress={() => setSelectedEmpId(id)}
-                  >
-                    <Text
-                      style={{
-                        color: selectedEmpId === id ? '#ffffff' : colors.textPrimary,
-                        fontWeight: '700',
-                        fontSize: 12,
-                      }}
-                    >
-                      {id === 'EMP001' ? 'Aarav Sharma' : id === 'EMP31723' ? 'sam' : 'Neha Patel'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              : null}
           </ScrollView>
         </View>
 
@@ -247,11 +221,22 @@ export const KraGoalSettingScreen: React.FC = () => {
 
         {/* Active KRA Goals List */}
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-          Assigned Performance Goals ({goalsList.length})
+          Assigned Performance Goals for {activeEmp.name} ({goalsList.length})
         </Text>
 
         {isLoading ? (
           <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 20 }} />
+        ) : goalsList.length === 0 ? (
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, padding: 24, alignItems: 'center' },
+            ]}
+          >
+            <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center' }}>
+              No performance goals assigned to {activeEmp.name} yet.{'\n'}Tap "+ Assign Goal" to set new objectives.
+            </Text>
+          </View>
         ) : (
           goalsList.map(goal => {
             const isCompleted = goal.status === 'Completed';
@@ -348,11 +333,19 @@ export const KraGoalSettingScreen: React.FC = () => {
               Assign Performance KRA Goal
             </Text>
 
+            <View style={{ backgroundColor: `${colors.accent}15`, padding: 8, borderRadius: 8, marginVertical: 6 }}>
+              <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 12 }}>
+                👤 Target Employee: {activeEmp.name}
+              </Text>
+            </View>
+
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>GOAL TITLE *</Text>
             <TextInput
               style={[styles.input, styles.textArea, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
               value={goalTitle}
               onChangeText={setGoalTitle}
+              placeholder="e.g. Reduce bundle size by 20%"
+              placeholderTextColor={colors.textSecondary}
               multiline
               numberOfLines={2}
             />
@@ -363,6 +356,7 @@ export const KraGoalSettingScreen: React.FC = () => {
               value={goalKra}
               onChangeText={setGoalKra}
               placeholder="e.g. Design System & Quality"
+              placeholderTextColor={colors.textSecondary}
             />
 
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>WEIGHTAGE (%) *</Text>
@@ -370,6 +364,8 @@ export const KraGoalSettingScreen: React.FC = () => {
               style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
               value={goalWeight}
               onChangeText={setGoalWeight}
+              placeholder="e.g. 25"
+              placeholderTextColor={colors.textSecondary}
               keyboardType="numeric"
             />
 

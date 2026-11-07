@@ -14,6 +14,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEmployees } from '../../api/hook/useEmployee';
+import { useProfile } from '../../api/hook/useAuth';
 import {
   PerformanceFeedback,
   useCreateFeedback,
@@ -33,17 +34,15 @@ export const Feedback360Screen: React.FC = () => {
   const { colors } = useTheme();
   const { moderateScale, isSmallDevice } = useResponsive();
 
-  const [selectedEmpId, setSelectedEmpId] = useState<string>('EMP001');
+  const [selectedEmpId, setSelectedEmpId] = useState<string>('');
   const [relationFilter, setRelationFilter] = useState<string>('ALL');
 
   // Modal State: Submit 360 Review
   const [modalOpen, setModalOpen] = useState(false);
-  const [reviewerName, setReviewerName] = useState('Vikram Malhotra (Tech Lead)');
+  const [reviewerName, setReviewerName] = useState('');
   const [selectedRelation, setSelectedRelation] = useState<'Manager' | 'Peer' | 'Direct Report'>('Manager');
   const [ratingVal, setRatingVal] = useState<number>(5);
-  const [feedbackText, setFeedbackText] = useState(
-    'Demonstrates exceptional problem-solving ability, leads technical design discussions smoothly, and supports junior developers consistently.'
-  );
+  const [feedbackText, setFeedbackText] = useState('');
 
   // Monthly Rating Form State
   const [monthRating, setMonthRating] = useState(4);
@@ -51,48 +50,61 @@ export const Feedback360Screen: React.FC = () => {
   const [qualityRating, setQualityRating] = useState('High Precision');
   const [teamworkRating, setTeamworkRating] = useState('Excellent Collaboration');
 
+  const currentMonthYear = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
   // TanStack Queries & Mutations
+  const { data: profileRes } = useProfile();
+  const loggedUser = profileRes?.data?.user;
   const { data: empRes } = useEmployees();
+
+  const employees = React.useMemo(() => {
+    return (empRes?.data || []).filter(e => {
+      if (e.name?.startsWith('Admin -')) return false;
+      const emailLower = (e.email || '').toLowerCase().trim();
+      if (emailLower === 'info@symbosys.com' || emailLower === 'info@symbosys2.com' || emailLower === 'platform@hrms.com' || emailLower === 'admin@hrms.com') {
+        return false;
+      }
+      return true;
+    });
+  }, [empRes?.data]);
+
+  const targetEmp = employees.find(e => e.id === selectedEmpId);
+
+  // Dynamically auto-select employee
+  React.useEffect(() => {
+    if (employees.length > 0 && (!selectedEmpId || !employees.some(e => e.id === selectedEmpId))) {
+      const matchedMyEmp = employees.find(e => 
+        (loggedUser?.employeeId && e.id === loggedUser.employeeId) ||
+        (loggedUser?.id && e.userId === loggedUser.id) ||
+        (loggedUser?.email && e.email?.toLowerCase() === loggedUser.email.toLowerCase())
+      );
+      if (matchedMyEmp) {
+        setSelectedEmpId(matchedMyEmp.id);
+      } else {
+        setSelectedEmpId(employees[0].id);
+      }
+    }
+  }, [employees, loggedUser, selectedEmpId]);
+
+  // Dynamically populate reviewer name from logged user
+  React.useEffect(() => {
+    if (loggedUser?.name && !reviewerName) {
+      setReviewerName(`${loggedUser.name} (${loggedUser.role || 'Reviewer'})`);
+    }
+  }, [loggedUser, reviewerName]);
+
   const { data: feedbackRes, isLoading } = useFeedbacks(selectedEmpId);
   const { data: monthlyRatingsRes } = useMonthlyRatings(selectedEmpId);
 
   const createFeedbackMutation = useCreateFeedback();
   const createMonthlyRatingMutation = useCreateMonthlyRating();
 
-  const employees = empRes?.data || [];
-
-  const feedbacksList: PerformanceFeedback[] = feedbackRes?.data || [
-    {
-      id: 'FB001',
-      employeeId: 'EMP001',
-      reviewer: 'Vikram Malhotra (Tech Lead)',
-      relation: 'Manager',
-      rating: 5,
-      text: 'Aarav has delivered stellar code quality on the HRMS project. His architectural foresight prevented critical bottlenecks.',
-      date: '2026-07-25',
-      createdAt: '',
-    },
-    {
-      id: 'FB002',
-      employeeId: 'EMP001',
-      reviewer: 'Neha Patel (HR Business Partner)',
-      relation: 'Peer',
-      rating: 4,
-      text: 'Great team player, always accessible for cross-departmental coordination and sprint demos.',
-      date: '2026-07-18',
-      createdAt: '',
-    },
-    {
-      id: 'FB003',
-      employeeId: 'EMP001',
-      reviewer: 'sam (UI/UX Designer)',
-      relation: 'Direct Report',
-      rating: 5,
-      text: 'Provides constructive guidance during design handoffs and ensures component specifications are strictly met.',
-      date: '2026-07-10',
-      createdAt: '',
-    },
+  const STATIC_FEEDBACK_TEXTS = [
+    'Excellent technical skillset and outstanding dedication to the UI refactor work.',
+    'Great collaborator, very open to UX critiques and fast at implementing layouts.',
   ];
+  const rawFeedbacksList: PerformanceFeedback[] = feedbackRes?.data || [];
+  const feedbacksList = rawFeedbacksList.filter(f => !STATIC_FEEDBACK_TEXTS.includes(f.text));
 
   const filteredFeedbacks = feedbacksList.filter(fb => {
     if (relationFilter === 'ALL') return true;
@@ -117,6 +129,7 @@ export const Feedback360Screen: React.FC = () => {
       {
         onSuccess: () => {
           setModalOpen(false);
+          setFeedbackText('');
           Alert.alert('360° Feedback Submitted 💬', 'Peer & manager review registered successfully!');
         },
         onError: err => Alert.alert('Error', err.message),
@@ -129,16 +142,16 @@ export const Feedback360Screen: React.FC = () => {
     createMonthlyRatingMutation.mutate(
       {
         employeeId: selectedEmpId,
-        month: 'July 2026',
+        month: currentMonthYear,
         rating: monthRating,
         tasks: tasksRating,
         quality: qualityRating,
         teamwork: teamworkRating,
-        feedback: 'Consistently meets performance benchmarks for the month of July.',
+        feedback: `Consistently meets performance benchmarks for the month of ${currentMonthYear}.`,
       },
       {
         onSuccess: () => {
-          Alert.alert('Monthly Rating Saved ⭐', `July 2026 performance rating saved for active employee.`);
+          Alert.alert('Monthly Rating Saved ⭐', `${currentMonthYear} performance rating saved for active employee.`);
         },
         onError: err => Alert.alert('Error', err.message),
       }
@@ -196,56 +209,38 @@ export const Feedback360Screen: React.FC = () => {
             👤 Select Employee Review Target
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
-            {employees.length > 0
-              ? employees.map(emp => {
-                  const isSelected = selectedEmpId === emp.id;
-                  return (
-                    <TouchableOpacity
-                      key={emp.id}
-                      style={[
-                        styles.empChip,
-                        {
-                          backgroundColor: isSelected ? colors.accent : colors.background,
-                          borderColor: isSelected ? colors.accent : colors.cardBorder,
-                        },
-                      ]}
-                      onPress={() => setSelectedEmpId(emp.id)}
-                    >
-                      <Text
-                        style={{
-                          color: isSelected ? '#ffffff' : colors.textPrimary,
-                          fontWeight: '700',
-                          fontSize: 12,
-                        }}
-                      >
-                        {emp.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })
-              : ['EMP001', 'EMP002', 'EMP31723'].map(id => (
+            {employees.length > 0 ? (
+              employees.map(emp => {
+                const isSelected = selectedEmpId === emp.id;
+                return (
                   <TouchableOpacity
-                    key={id}
+                    key={emp.id}
                     style={[
                       styles.empChip,
                       {
-                        backgroundColor: selectedEmpId === id ? colors.accent : colors.background,
-                        borderColor: selectedEmpId === id ? colors.accent : colors.cardBorder,
+                        backgroundColor: isSelected ? colors.accent : colors.background,
+                        borderColor: isSelected ? colors.accent : colors.cardBorder,
                       },
                     ]}
-                    onPress={() => setSelectedEmpId(id)}
+                    onPress={() => setSelectedEmpId(emp.id)}
                   >
                     <Text
                       style={{
-                        color: selectedEmpId === id ? '#ffffff' : colors.textPrimary,
+                        color: isSelected ? '#ffffff' : colors.textPrimary,
                         fontWeight: '700',
                         fontSize: 12,
                       }}
                     >
-                      {id === 'EMP001' ? 'Aarav Sharma' : id === 'EMP31723' ? 'sam' : 'Neha Patel'}
+                      {emp.name}
                     </Text>
                   </TouchableOpacity>
-                ))}
+                );
+              })
+            ) : (
+              <Text style={{ color: colors.textSecondary, fontSize: 12, fontStyle: 'italic', paddingVertical: 6 }}>
+                No active employees found
+              </Text>
+            )}
           </ScrollView>
         </View>
 
@@ -257,7 +252,7 @@ export const Feedback360Screen: React.FC = () => {
           ]}
         >
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-            ⭐ Monthly Performance Evaluation (July 2026)
+            ⭐ Monthly Performance Evaluation ({currentMonthYear})
           </Text>
 
           <View style={styles.ratingStarRow}>
@@ -317,11 +312,19 @@ export const Feedback360Screen: React.FC = () => {
 
         {/* Feedback Reviews Roster */}
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-          360° Feedback Reviews ({filteredFeedbacks.length})
+          360° Feedback Reviews for {targetEmp?.name || 'Selected Employee'} ({filteredFeedbacks.length})
         </Text>
 
         {isLoading ? (
           <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 20 }} />
+        ) : filteredFeedbacks.length === 0 ? (
+          <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, padding: 24, alignItems: 'center' }]}>
+            <Text style={{ fontSize: 24, marginBottom: 8 }}>💬</Text>
+            <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }}>No 360° Feedbacks Found</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4, textAlign: 'center' }}>
+              No feedback reviews have been registered for this employee yet. Tap "+ Give Feedback" above to submit one.
+            </Text>
+          </View>
         ) : (
           filteredFeedbacks.map(fb => (
             <View
@@ -393,11 +396,46 @@ export const Feedback360Screen: React.FC = () => {
               Submit 360° Feedback Review
             </Text>
 
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>REVIEWER NAME & TITLE *</Text>
+            {targetEmp && (
+              <View style={{ backgroundColor: `${colors.accent}15`, padding: 8, borderRadius: 8, marginVertical: 6 }}>
+                <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 12 }}>
+                  👤 Target Employee: {targetEmp.name}
+                </Text>
+              </View>
+            )}
+
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>CHOOSE REVIEWER *</Text>
+            {employees.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
+                {employees.map(emp => {
+                  const isSelected = reviewerName.startsWith(emp.name);
+                  return (
+                    <TouchableOpacity
+                      key={emp.id}
+                      style={[
+                        styles.empChip,
+                        {
+                          backgroundColor: isSelected ? colors.accent : colors.background,
+                          borderColor: isSelected ? colors.accent : colors.cardBorder,
+                        },
+                      ]}
+                      onPress={() => setReviewerName(`${emp.name} (${emp.designation || 'Staff'})`)}
+                    >
+                      <Text style={{ color: isSelected ? '#ffffff' : colors.textPrimary, fontWeight: '700', fontSize: 11 }}>
+                        {emp.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+
             <TextInput
               style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
               value={reviewerName}
               onChangeText={setReviewerName}
+              placeholder="e.g. John Doe (Tech Lead)"
+              placeholderTextColor={colors.textSecondary}
             />
 
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>RELATIONSHIP TYPE *</Text>
@@ -446,6 +484,8 @@ export const Feedback360Screen: React.FC = () => {
               style={[styles.input, styles.textArea, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]}
               value={feedbackText}
               onChangeText={setFeedbackText}
+              placeholder="Enter feedback comments..."
+              placeholderTextColor={colors.textSecondary}
               multiline
               numberOfLines={3}
             />
