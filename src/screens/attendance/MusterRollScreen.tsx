@@ -119,17 +119,14 @@ export const MusterRollScreen: React.FC = () => {
       return [];
     }
 
-    // 2. Organization (Admin/HR): Show all employees created by organization,
-    // EXCLUDING the organization itself (admin/owner account, super admins, info@symbosys.com)
+    // 2. Organization (Admin/HR): Show all employees in the organization,
+    // EXCLUDING only the root organization super admin account itself (Admin -, info@symbosys.com)
     return normalizedSourceList.filter(e => {
-      if (loggedUser) {
-        if (loggedUser.id && (e.userId === loggedUser.id || e.id === loggedUser.id)) return false;
-        if (loggedUser.email && e.email?.toLowerCase() === loggedUser.email?.toLowerCase()) return false;
-        if (loggedUser.employeeId && e.id === loggedUser.employeeId) return false;
+      if (e.name?.startsWith('Admin -')) return false;
+      const emailLower = (e.email || '').toLowerCase().trim();
+      if (emailLower === 'info@symbosys.com' || emailLower === 'info@symbosys2.com' || emailLower === 'platform@hrms.com' || emailLower === 'admin@hrms.com') {
+        return false;
       }
-      const r = String(e.role || (e as any).user?.role?.name || '').toUpperCase();
-      if (r.includes('ORGANIZATION ADMIN') || r.includes('SUPER_ADMIN') || r.includes('SUPER ADMIN')) return false;
-      if (e.email?.toLowerCase() === 'info@symbosys.com') return false;
       return true;
     });
   }, [normalizedSourceList, isOrgOrAdmin, myEmployee, loggedUser]);
